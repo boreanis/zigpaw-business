@@ -17,6 +17,8 @@ return [
 
     'default' => env('CACHE_STORE', 'database'),
 
+    'limiter' => env('CACHE_LIMITER', 'health_limiter'),
+
     /*
     |--------------------------------------------------------------------------
     | Cache Stores
@@ -101,6 +103,14 @@ return [
             'driver' => 'failover',
             'stores' => [
                 'database',
+                'array',
+            ],
+        ],
+
+        'health_limiter' => [
+            'driver' => 'failover',
+            'stores' => [
+                'file',
                 'array',
             ],
         ],

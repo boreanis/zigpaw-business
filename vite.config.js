@@ -9,7 +9,7 @@ export default defineConfig({
             input: ['resources/css/vets.css', 'resources/js/vets.js'],
             refresh: true,
             fonts: [
-                bunny('Instrument Sans', {
+                bunny('Figtree', {
                     weights: [400, 500, 600],
                 }),
             ],

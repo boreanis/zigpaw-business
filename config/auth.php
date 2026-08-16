@@ -1,7 +1,7 @@
 <?php
 
 return [
-    // Portal authentication is delegated to auth.zigpaw.com. This guard exists
+    // Portal authentication is delegated to login.zigpaw.app. This guard exists
     // only so Laravel can run its session middleware without a local user store.
     'defaults' => [
         'guard' => 'web',
