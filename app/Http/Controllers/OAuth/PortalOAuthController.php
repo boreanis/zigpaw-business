@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\OAuth;
 
 use App\Support\PortalAccessTokenStore;
+use App\Support\RequestCorrelation;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PortalOAuthController
@@ -17,7 +20,14 @@ class PortalOAuthController
     public function redirect(Request $request): RedirectResponse
     {
         $clientId = config('platform.oauth_client_id');
-        abort_unless(is_string($clientId) && $clientId !== '', 503, 'This portal has not been connected to Zigpaw yet.');
+        $clientSecret = config('platform.oauth_client_secret');
+        $redirectUri = config('platform.oauth_redirect_uri');
+        $canonicalPortalUrl = rtrim((string) config('app.url'), '/');
+        abort_unless(is_string($clientId) && $clientId !== '' && is_string($clientSecret) && strlen($clientSecret) >= 32 && is_string($redirectUri) && filter_var($redirectUri, FILTER_VALIDATE_URL) && filter_var($canonicalPortalUrl, FILTER_VALIDATE_URL), 503, 'This portal has not been connected to Zigpaw yet.');
+
+        if (! hash_equals($canonicalPortalUrl, $request->getSchemeAndHttpHost())) {
+            return redirect()->away($canonicalPortalUrl.'/auth/login', 308);
+        }
 
         $state = Str::random(64);
         $verifier = Str::random(96);
@@ -26,7 +36,7 @@ class PortalOAuthController
         $challenge = strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
         $query = http_build_query([
             'client_id' => $clientId,
-            'redirect_uri' => route('oauth.callback'),
+            'redirect_uri' => $redirectUri,
             'response_type' => 'code',
             'scope' => implode(' ', config('platform.oauth_scopes')),
             'state' => $state,
@@ -52,29 +62,60 @@ class PortalOAuthController
             return redirect()->route('dashboard')->with('error', 'Zigpaw did not complete sign-in. Please try again.');
         }
 
-        $response = Http::asForm()->acceptJson()->connectTimeout(3)->timeout(8)->post(config('platform.auth_url').'/oauth/token', [
-            'grant_type' => 'authorization_code',
-            'client_id' => config('platform.oauth_client_id'),
-            'redirect_uri' => route('oauth.callback'),
-            'code_verifier' => $verifier,
-            'code' => $code,
-        ]);
+        try {
+            $response = Http::asForm()->acceptJson()
+                ->withHeader('X-Request-ID', RequestCorrelation::id())
+                ->connectTimeout(3)
+                ->timeout(8)
+                ->post(config('platform.auth_url').'/oauth/token', [
+                    'grant_type' => 'authorization_code',
+                    'client_id' => config('platform.oauth_client_id'),
+                    'client_secret' => config('platform.oauth_client_secret'),
+                    'redirect_uri' => config('platform.oauth_redirect_uri'),
+                    'code_verifier' => $verifier,
+                    'code' => $code,
+                ]);
+        } catch (ConnectionException $exception) {
+            Log::warning('Portal OAuth token exchange was unavailable.', ['exception' => $exception::class]);
+
+            return redirect()->route('dashboard')->with('error', 'Sign-in is temporarily unavailable. Please try again in a moment.');
+        }
 
         if (! $response->successful()) {
             return redirect()->route('dashboard')->with('error', 'Zigpaw could not complete sign-in. Please try again.');
         }
 
-        $tokens->put($response->json());
+        try {
+            $tokens->put($response->json());
+        } catch (\InvalidArgumentException|\JsonException $exception) {
+            Log::error('Portal OAuth token exchange returned an invalid response.', ['exception' => $exception::class]);
+
+            return redirect()->route('dashboard')->with('error', 'Zigpaw could not complete sign-in. Please try again.');
+        }
+
+        $request->session()->regenerate();
 
         return redirect()->route('dashboard');
     }
 
     public function logout(Request $request, PortalAccessTokenStore $tokens): RedirectResponse
     {
-        $tokens->forget();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $logoutUrl = null;
 
-        return redirect()->route('dashboard');
+        try {
+            $logoutUrl = $tokens->revoke();
+        } catch (\RuntimeException $exception) {
+            Log::warning('Upstream portal token revocation failed during local sign-out.', ['exception' => $exception::class]);
+        } finally {
+            $tokens->forget();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        if ($logoutUrl === null) {
+            return redirect()->route('dashboard')->with('status', 'You are signed out on this device.');
+        }
+
+        return redirect()->away($logoutUrl);
     }
 }
