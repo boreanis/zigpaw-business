@@ -169,7 +169,7 @@
                                 <h3>{{ data_get($link, 'place.name') ?: data_get($link, 'provider.name') }}</h3>
                                 <p>{{ data_get($link, 'place.address', 'All verified locations') }}</p>
                                 <div class="listing-card-footer">
-                                    <small>{{ collect(data_get($link, 'provider.categories', []))->implode(' · ') }}</small>
+                                    <small>{{ data_get($link, 'provider.template.label') ?: collect(data_get($link, 'provider.categories', []))->implode(' · ') }}</small>
                                     <button type="button" class="text-action" wire:click="startProviderEdit('{{ $link['id'] }}')">Edit details</button>
                                 </div>
                             </article>
@@ -303,6 +303,22 @@
                                 </div>
                                 @if ($booking['customer_message'] ?? null)
                                     <p class="booking-note">{{ $booking['customer_message'] }}</p>
+                                @endif
+                                @if (data_get($booking, 'pet_access.status') === 'active')
+                                    <div class="booking-pet-access">
+                                        <div>
+                                            <strong>Pet profile available</strong>
+                                            <small>View-only access is active until {{ data_get($booking, 'pet_access.expires_at') ? \Illuminate\Support\Carbon::parse($booking['pet_access']['expires_at'])->format('j M Y, g:i A') : 'the appointment access is revoked' }}.</small>
+                                        </div>
+                                        <button type="button" class="text-action" wire:click="viewBookingPetContext('{{ $booking['id'] }}')">View pet profile</button>
+                                    </div>
+                                @endif
+                                @if (isset($bookingPetContexts[$booking['id']]))
+                                    <div class="booking-pet-context" aria-label="Pet profile context">
+                                        <strong>{{ data_get($bookingPetContexts[$booking['id']], 'pet.name', 'Pet') }}</strong>
+                                        <span>{{ data_get($bookingPetContexts[$booking['id']], 'pet.species', 'Pet') }}{{ data_get($bookingPetContexts[$booking['id']], 'pet.breed') ? ' · '.data_get($bookingPetContexts[$booking['id']], 'pet.breed') : '' }}</span>
+                                        <small>Only profile fields permitted by the confirmed appointment are shown.</small>
+                                    </div>
                                 @endif
                                 @if ($customerWindows->isNotEmpty())
                                     <div class="window-list">

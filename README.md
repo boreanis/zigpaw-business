@@ -1,19 +1,63 @@
 # Zigpaw Business
 
-The independently deployed browser application for service-provider organizations. It uses Laravel 13 and Livewire 4 as a confidential OAuth BFF: the browser receives only an opaque, host-only session and never receives platform access or refresh tokens.
+`zigpaw-business` is one provider workspace for every organization that serves pets. It is a single Laravel/Livewire BFF at `business.zigpaw.app`; the workspace selects a category template instead of deploying separate vet, groomer, kennel, breeder, or shelter applications.
+
+The browser receives only an opaque, host-only session and never receives platform access or refresh tokens.
+
+## Provider templates
+
+| Category | Template | Typical capabilities | Additional boundary |
+| --- | --- | --- | --- |
+| Veterinary clinic / hospital | `veterinary` | Organization profile, appointments, grant-scoped patients, clinical submissions | Separate `business_clinical` OAuth client; clinical scopes; live purpose-bound pet grant |
+| Groomer / mobile pet wash | `grooming` / `mobile_service` | Services, availability and booking responses | Business OAuth client; confirmed appointment access |
+| Kennel / boarding / pet sitter | `boarding` / `pet_sitting` | Services, booking windows and care handover context | Business OAuth client; confirmed appointment access |
+| Breeder / shelter / rescue | `breeding` / `shelter` | Organization-owned pet profiles and expiring family claims | Business OAuth client; explicit claim and transfer workflow |
+| Trainer, retailer and future categories | `general` or reviewed template | Directory profile, offerings and bookings where released | Business OAuth client; category capabilities and release flags |
+
+Insurance and other online products remain directory/affiliate resources, not Business provider templates. The category is data-driven by the platform provider taxonomy; one organization can manage multiple reviewed provider places and offerings.
+
+```mermaid
+flowchart LR
+    User["Provider staff"] --> Workspace["business.zigpaw.app<br/>one Business workspace"]
+    Workspace --> Registry["Provider template registry"]
+    Registry --> Vet["Veterinary template"]
+    Registry --> Care["Grooming, boarding,<br/>sitting and mobile-care"]
+    Registry --> Transfer["Breeder, shelter and rescue<br/>profile-transfer template"]
+    Registry --> General["General, retail and future<br/>reviewed templates"]
+    Workspace --> Management["Business OAuth client<br/>management scopes"]
+    Vet --> Clinical["Separate clinical OAuth client<br/>clinical scopes only"]
+    Management --> API["zigpaw-api<br/>canonical API"]
+    Clinical --> API
+```
+
+```mermaid
+flowchart TD
+    Booking["Confirmed appointment"] --> AppointmentGrant["Temporary view-only pet grant"]
+    Owner["Pet owner"] --> DirectGrant["Owner-approved long-term grant"]
+    DirectGrant --> ClinicalTemplate["Veterinary template"]
+    AppointmentGrant --> ReadOnly["Provider appointment context<br/>time-bounded and view-only"]
+    ClinicalTemplate --> Submission["Care submission"]
+    Submission --> Review["Pending family review"]
+    Review --> Profile["Owner accepts, edits or rejects"]
+    Profile --> Pet["Canonical pet profile"]
+```
 
 ## Boundary
 
 - Production: `business.zigpaw.app`.
 - Local: `business.zigpaw.test`.
-- Identity: `login.zigpaw.app` using Authorization Code, PKCE and a confidential client.
-- Canonical API: `https://api.zigpaw.app/v1`, using only the `/v1/business/*` audience.
+- Identity: `login.zigpaw.app` using Authorization Code, PKCE and confidential clients.
+- Canonical API: `https://api.zigpaw.app/v1`.
+- Management audience: `/v1/business/*` with `business:*` scopes.
+- Clinical audience: `/v1/business/clinical/*` with `clinical:read` and `clinical:submit` scopes.
 - Organization context: every tenant request carries an explicit `X-Zigpaw-Organization-ID` selected from active memberships.
-- Data ownership: the canonical Zigpaw platform owns organizations, provider listings, locations, bookings, agreements, partner programs, commission accruals, and opaque references to externally completed settlements. Zigpaw does not collect provider bank details or execute provider payouts in this phase. This repository owns presentation, browser sessions, and server-side OAuth token custody only.
+- Data ownership: the canonical `zigpaw-api` platform owns organizations, provider listings, locations, bookings, agreements, partner programs, commission accruals, clinical grants, submissions, and opaque references to externally completed settlements. Zigpaw does not collect provider bank details or execute provider payouts in this phase. This repository owns presentation, browser sessions, and server-side OAuth token custody only.
 
 The platform checks both token scope and the authenticated user's active organization membership before it returns data or accepts a write. Sign-out requests canonical token revocation and a signed identity-session termination, then always invalidates the local portal session even if the upstream service is unavailable. Do not add direct database access as a shortcut.
 
 Provider identity and commercial participation are intentionally separate. A business can claim and manage a listing without joining a referral program, and a commercial agreement never changes organic directory ranking.
+
+Management and clinical sessions use different OAuth clients, token handles, scopes and cache entries even though both templates run here. Clinical methods in `PlatformApiClient` require `ClinicalPortalAccessTokenStore` explicitly; a management bearer cannot be passed to them accidentally.
 
 ## Deployment And Trust Topology
 
@@ -76,7 +120,7 @@ The portal presents:
 - read-only commission statements and disclosed agreements, with no bank or payout onboarding;
 - role-scoped team access.
 
-New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw`, then consume it here. Never add direct access to the platform database.
+New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw-api`, then consume it here. Never add direct access to the platform database.
 
 ## Current Capabilities
 
@@ -99,7 +143,7 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 - Consumer pet, Finder, recovery, clinical, subscription, or billing data.
 - Organic directory ranking changes in exchange for an agreement. Sponsored placements remain separately labeled platform data.
 - Local copies of platform models, authorization rules, provider credentials, or business records.
-- A compatibility path to the removed historical partner API or portal implementation.
+- A compatibility path to a removed historical partner or veterinary portal implementation.
 
 ## Setup
 
@@ -112,9 +156,9 @@ php artisan migrate
 npm run build
 ```
 
-Configure `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`, `PLATFORM_OAUTH_CLIENT_ID`, `PLATFORM_OAUTH_CLIENT_SECRET`, and `PLATFORM_OAUTH_REDIRECT_URI`. The callback is configured explicitly and must be allowlisted on the platform business BFF client. The client ID is configuration; the secret is server-only.
+Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`, `PLATFORM_OAUTH_CLIENT_ID`, `PLATFORM_OAUTH_CLIENT_SECRET`, and `PLATFORM_OAUTH_REDIRECT_URI`. Configure the clinical client separately with `PLATFORM_CLINICAL_OAUTH_CLIENT_ID`, `PLATFORM_CLINICAL_OAUTH_CLIENT_SECRET`, `PLATFORM_CLINICAL_OAUTH_SCOPES`, and `PLATFORM_CLINICAL_OAUTH_REDIRECT_URI`. The callbacks are explicitly allowlisted on their matching platform clients; secrets remain server-only.
 
-The canonical production callback is `https://business.zigpaw.app/auth/callback`; local development uses `https://business.zigpaw.test/auth/callback`. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
+The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 
 The database session/cache defaults in `.env.example` are for local development. Production readiness requires Redis for this portal's session and cache stores so encrypted token custody, refresh locking, and multi-instance behavior remain consistent. Business cookie names, cache prefixes, encryption keys, token handles, and session records must not be shared with any other Zigpaw host.
 
@@ -145,15 +189,15 @@ The August 16, 2026 checkpoint passed **29 PHPUnit tests / 111 assertions**, Lar
 
 ## Release Rules
 
-1. Implement the canonical `/v1/business/*` operation, policy, Form Request, Resource, scope/capability mapping, idempotency/audit behavior, and contract tests in `zigpaw` first.
-2. Confirm the operation is present in the reviewed Business OpenAPI audience bundle and approved for the intended release phase.
+1. Implement the canonical `/v1/business/*` or `/v1/business/clinical/*` operation, policy, Form Request, Resource, scope/capability mapping, idempotency/audit behavior, and contract tests in `zigpaw-api` first.
+2. Confirm the operation is present in the reviewed Business or clinical OpenAPI audience bundle and approved for the intended release phase.
 3. Add only the allowlisted server-side transport and Livewire experience needed for that operation. Do not proxy arbitrary URLs.
 4. Pass both repositories' release gates and a production-host OAuth/browser smoke test.
 5. Deploy the canonical API before this client and retain independently versioned Business assets and rollback artifacts.
 
 Canonical platform decisions:
 
-- [Architecture](https://github.com/boreanis/zigpaw/blob/main/docs/09_ARCHITECTURE.md)
-- [Production delivery](https://github.com/boreanis/zigpaw/blob/main/docs/10_DEPLOYMENT_PRODUCTION.md)
-- [Provider integrations](https://github.com/boreanis/zigpaw/blob/main/docs/11_PROVIDER_INTEGRATIONS.md)
-- [Business strategy](https://github.com/boreanis/zigpaw/blob/main/docs/01_BUSINESS_STRATEGY.md)
+- [Architecture](https://github.com/boreanis/zigpaw-api/blob/main/docs/09_ARCHITECTURE.md)
+- [Production delivery](https://github.com/boreanis/zigpaw-api/blob/main/docs/10_DEPLOYMENT_PRODUCTION.md)
+- [Provider integrations](https://github.com/boreanis/zigpaw-api/blob/main/docs/11_PROVIDER_INTEGRATIONS.md)
+- [Business strategy](https://github.com/boreanis/zigpaw-api/blob/main/docs/01_BUSINESS_STRATEGY.md)

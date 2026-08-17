@@ -67,6 +67,9 @@ class BusinessWorkspace extends Component
     /** @var list<array<string, mixed>> */
     public array $bookings = [];
 
+    /** @var array<string, array<string, mixed>> */
+    public array $bookingPetContexts = [];
+
     /** @var list<array<string, mixed>> */
     public array $bookingProfiles = [];
 
@@ -676,6 +679,23 @@ class BusinessWorkspace extends Component
     public function completeBooking(string $bookingId): void
     {
         $this->respondToBooking($bookingId, ['action' => 'complete']);
+    }
+
+    public function viewBookingPetContext(string $bookingId): void
+    {
+        $this->authorizeCapability('bookings.manage');
+        $this->authorizeFeature('booking_requests');
+
+        $booking = collect($this->bookings)->firstWhere('id', $bookingId);
+        abort_unless(is_array($booking) && data_get($booking, 'pet_access.status') === 'active', 404);
+
+        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($bookingId): void {
+            $this->bookingPetContexts[$bookingId] = $api->bookingPetContext(
+                $accessToken,
+                $this->requiredOrganizationId(),
+                $bookingId,
+            );
+        });
     }
 
     public function declineBooking(string $bookingId): void

@@ -15,9 +15,14 @@ class PortalAccessTokenStore
 {
     private const CACHE_KEY_PREFIX = 'platform.oauth.tokens';
 
-    private const SESSION_HANDLE_KEY = 'platform.oauth.token_handle';
+    private const BUSINESS_SESSION_HANDLE_KEY = 'platform.oauth.token_handle';
 
-    public function __construct(private readonly Session $session) {}
+    private const CLINICAL_SESSION_HANDLE_KEY = 'platform.oauth.clinical_token_handle';
+
+    public function __construct(
+        private readonly Session $session,
+        private readonly string $context = 'business',
+    ) {}
 
     public function accessToken(): ?string
     {
@@ -54,13 +59,13 @@ class PortalAccessTokenStore
                     ->connectTimeout(3)
                     ->timeout(8)
                     ->post(
-                        config('platform.auth_url').'/oauth/token',
+                        config($this->configKey('auth_url')).'/oauth/token',
                         [
                             'grant_type' => 'refresh_token',
-                            'client_id' => config('platform.oauth_client_id'),
-                            'client_secret' => config('platform.oauth_client_secret'),
+                            'client_id' => config($this->configKey('oauth_client_id')),
+                            'client_secret' => config($this->configKey('oauth_client_secret')),
                             'refresh_token' => $tokens['refresh_token'],
-                            'scope' => implode(' ', config('platform.oauth_scopes')),
+                            'scope' => implode(' ', config($this->configKey('oauth_scopes'))),
                         ],
                     );
 
@@ -113,7 +118,7 @@ class PortalAccessTokenStore
             Cache::forget($cacheKey);
         }
 
-        $this->session->forget(self::SESSION_HANDLE_KEY);
+        $this->session->forget($this->sessionHandleKey());
     }
 
     public function revoke(): string
@@ -125,14 +130,14 @@ class PortalAccessTokenStore
                 throw new \RuntimeException('The portal session is no longer available.');
             }
 
-            $response = Http::baseUrl((string) config('platform.api_url'))
+            $response = Http::baseUrl((string) config($this->configKey('api_url')))
                 ->acceptJson()
                 ->withToken($accessToken)
                 ->withHeader('Idempotency-Key', (string) Str::uuid())
                 ->withHeader('X-Request-ID', RequestCorrelation::id())
                 ->connectTimeout(3)
                 ->timeout(8)
-                ->delete((string) config('platform.session_endpoint'));
+                ->delete((string) config($this->configKey('session_endpoint')));
 
             $logoutUrl = $response->successful() ? $response->json('data.logout_url') : null;
 
@@ -187,7 +192,7 @@ class PortalAccessTokenStore
 
     private function cacheKey(bool $create = true): ?string
     {
-        $handle = $this->session->get(self::SESSION_HANDLE_KEY);
+        $handle = $this->session->get($this->sessionHandleKey());
 
         if (! is_string($handle) || $handle === '') {
             if (! $create) {
@@ -195,7 +200,7 @@ class PortalAccessTokenStore
             }
 
             $handle = Str::random(64);
-            $this->session->put(self::SESSION_HANDLE_KEY, $handle);
+            $this->session->put($this->sessionHandleKey(), $handle);
         }
 
         return self::CACHE_KEY_PREFIX.':'.hash_hmac('sha256', $handle, (string) config('app.key'));
@@ -204,7 +209,7 @@ class PortalAccessTokenStore
     private function isTrustedIdentityLogoutUrl(string $logoutUrl): bool
     {
         $logout = parse_url($logoutUrl);
-        $identity = parse_url((string) config('platform.auth_url'));
+        $identity = parse_url((string) config($this->configKey('auth_url')));
 
         if (! is_array($logout)
             || ! is_array($identity)
@@ -230,5 +235,17 @@ class PortalAccessTokenStore
     private function normalizedPort(array $parts): int
     {
         return isset($parts['port']) ? (int) $parts['port'] : 443;
+    }
+
+    private function sessionHandleKey(): string
+    {
+        return $this->context === 'clinical'
+            ? self::CLINICAL_SESSION_HANDLE_KEY
+            : self::BUSINESS_SESSION_HANDLE_KEY;
+    }
+
+    private function configKey(string $key): string
+    {
+        return $this->context === 'clinical' ? "platform_clinical.{$key}" : "platform.{$key}";
     }
 }

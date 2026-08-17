@@ -47,36 +47,36 @@ class PlatformApiClientTest extends TestCase
     {
         Http::fake([
             'https://api.zigpaw.test/v1/business/me' => Http::response(['data' => ['organization' => ['id' => 'organization-1']]]),
-            'https://api.zigpaw.test/v1/business/providers/link-1' => Http::response(['data' => ['id' => 'link-1']]),
+            'https://api.zigpaw.test/v1/business/providers/019f5a00-0000-7000-8000-000000000001' => Http::response(['data' => ['id' => '019f5a00-0000-7000-8000-000000000001']]),
             'https://api.zigpaw.test/v1/business/booking-profiles' => Http::response(['data' => ['id' => 'profile-1']]),
-            'https://api.zigpaw.test/v1/business/offerings/offering-1' => Http::sequence()
-                ->push(['data' => ['id' => 'offering-1', 'status' => 'active']])
+            'https://api.zigpaw.test/v1/business/offerings/019f5a00-0000-7000-8000-000000000002' => Http::sequence()
+                ->push(['data' => ['id' => '019f5a00-0000-7000-8000-000000000002', 'status' => 'active']])
                 ->push([], 204),
-            'https://api.zigpaw.test/v1/business/team/member-1' => Http::sequence()
-                ->push(['data' => ['id' => 'member-1', 'role' => 'manager']])
-                ->push(['data' => ['id' => 'member-1', 'status' => 'revoked']]),
-            'https://api.zigpaw.test/v1/business/team/member-1/resend' => Http::response(['data' => ['id' => 'member-1']]),
+            'https://api.zigpaw.test/v1/business/team/memberships/019f5a00-0000-7000-8000-000000000003' => Http::sequence()
+                ->push(['data' => ['id' => '019f5a00-0000-7000-8000-000000000003', 'role' => 'manager']])
+                ->push(['data' => ['id' => '019f5a00-0000-7000-8000-000000000003', 'status' => 'revoked']]),
+            'https://api.zigpaw.test/v1/business/team/invitations/019f5a00-0000-7000-8000-000000000003/resend' => Http::response(['data' => ['id' => '019f5a00-0000-7000-8000-000000000003']]),
         ]);
 
         $api = app(PlatformApiClient::class);
         $api->updateBusinessProfile('access-token', 'organization-1', ['name' => 'Zigpaw Vet']);
-        $api->updateManagedProvider('access-token', 'organization-1', 'link-1', ['provider' => ['name' => 'Zigpaw Vet']]);
+        $api->updateManagedProvider('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000001', ['provider' => ['name' => 'Zigpaw Vet']]);
         $api->updateBookingProfile('access-token', 'organization-1', ['provider_link_id' => 'link-1', 'timezone' => 'Australia/Brisbane']);
-        $api->updateOffering('access-token', 'organization-1', 'offering-1', ['status' => 'active']);
-        $api->deleteOffering('access-token', 'organization-1', 'offering-1');
-        $api->updateTeamMember('access-token', 'organization-1', 'member-1', ['role' => 'manager']);
-        $api->resendTeamInvitation('access-token', 'organization-1', 'member-1');
-        $api->revokeTeamMember('access-token', 'organization-1', 'member-1');
+        $api->updateOffering('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000002', ['status' => 'active']);
+        $api->deleteOffering('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000002');
+        $api->updateTeamMember('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000003', ['role' => 'manager']);
+        $api->resendTeamInvitation('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000003');
+        $api->revokeTeamMember('access-token', 'organization-1', '019f5a00-0000-7000-8000-000000000003');
 
         foreach ([
             ['PATCH', '/v1/business/me'],
-            ['PATCH', '/v1/business/providers/link-1'],
+            ['PATCH', '/v1/business/providers/019f5a00-0000-7000-8000-000000000001'],
             ['PUT', '/v1/business/booking-profiles'],
-            ['PATCH', '/v1/business/offerings/offering-1'],
-            ['DELETE', '/v1/business/offerings/offering-1'],
-            ['PATCH', '/v1/business/team/member-1'],
-            ['POST', '/v1/business/team/member-1/resend'],
-            ['DELETE', '/v1/business/team/member-1'],
+            ['PATCH', '/v1/business/offerings/019f5a00-0000-7000-8000-000000000002'],
+            ['DELETE', '/v1/business/offerings/019f5a00-0000-7000-8000-000000000002'],
+            ['PATCH', '/v1/business/team/memberships/019f5a00-0000-7000-8000-000000000003'],
+            ['POST', '/v1/business/team/invitations/019f5a00-0000-7000-8000-000000000003/resend'],
+            ['DELETE', '/v1/business/team/memberships/019f5a00-0000-7000-8000-000000000003'],
         ] as [$method, $path]) {
             Http::assertSent(fn (Request $request): bool => $request->method() === $method
                 && $request->url() === 'https://api.zigpaw.test'.$path
