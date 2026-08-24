@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\PlatformConfiguration;
 use App\Support\RequestCorrelation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -11,7 +12,9 @@ use Illuminate\Support\Str;
 
 class HealthController extends Controller
 {
-    private const LOCAL_DEVELOPMENT_SECRET = 'zigpaw-local-business-bff-secret';
+    private const LOCAL_BUSINESS_SECRET = 'zigpaw-local-business-bff-secret';
+
+    private const LOCAL_CLINICAL_SECRET = 'zigpaw-local-business-clinical-bff-secret';
 
     public function live(): JsonResponse
     {
@@ -35,18 +38,30 @@ class HealthController extends Controller
 
     private function configurationIsReady(): bool
     {
-        $clientId = config('platform.oauth_client_id');
-        $clientSecret = config('platform.oauth_client_secret');
-        $scopes = config('platform.oauth_scopes');
+        $businessReady = $this->clientIsReady(
+            'platform',
+            PlatformConfiguration::BUSINESS,
+            'business:',
+            self::LOCAL_BUSINESS_SECRET,
+        );
+        $clinicalReady = $this->clientIsReady(
+            'platform_clinical',
+            PlatformConfiguration::CLINICAL,
+            'clinical:',
+            self::LOCAL_CLINICAL_SECRET,
+        );
 
-        if (! is_string($clientId) || $clientId === ''
-            || ! is_string($clientSecret) || strlen($clientSecret) < 32
-            || ! is_array($scopes) || $scopes === []) {
+        if (! $businessReady || ! $clinicalReady) {
             return false;
         }
 
-        if (! app()->environment(['local', 'testing'])
-            && hash_equals(hash('sha256', self::LOCAL_DEVELOPMENT_SECRET), $clientSecret)) {
+        $businessClientId = (string) config('platform.oauth_client_id');
+        $clinicalClientId = (string) config('platform_clinical.oauth_client_id');
+        $businessClientSecret = (string) config('platform.oauth_client_secret');
+        $clinicalClientSecret = (string) config('platform_clinical.oauth_client_secret');
+
+        if (hash_equals($businessClientId, $clinicalClientId)
+            || hash_equals($businessClientSecret, $clinicalClientSecret)) {
             return false;
         }
 
@@ -54,23 +69,35 @@ class HealthController extends Controller
             return true;
         }
 
-        $secureConfiguration = config('app.debug') === false
-            && str_starts_with((string) config('app.url'), 'https://')
-            && str_starts_with((string) config('platform.api_url'), 'https://')
-            && str_starts_with((string) config('platform.auth_url'), 'https://')
+        return config('app.debug') === false
             && config('cache.default') === 'redis'
             && config('session.driver') === 'redis'
             && config('session.encrypt') === true
             && config('session.secure') === true
             && blank(config('session.domain'))
             && str_starts_with((string) config('session.cookie'), '__Host-');
+    }
 
-        if (! $secureConfiguration || ! app()->isProduction()) {
-            return $secureConfiguration;
+    private function clientIsReady(
+        string $configPrefix,
+        string $context,
+        string $scopePrefix,
+        string $localSecret,
+    ): bool {
+        $clientId = config("{$configPrefix}.oauth_client_id");
+        $clientSecret = config("{$configPrefix}.oauth_client_secret");
+        $scopes = config("{$configPrefix}.oauth_scopes");
+
+        if (! is_string($clientId) || $clientId === ''
+            || ! is_string($clientSecret) || strlen($clientSecret) < 32
+            || ! is_array($scopes) || $scopes === []
+            || collect($scopes)->contains(fn (mixed $scope): bool => ! is_string($scope) || ! str_starts_with($scope, $scopePrefix))
+            || ! PlatformConfiguration::isSafe($context)) {
+            return false;
         }
 
-        return str_starts_with((string) config('platform.api_url'), 'https://api.zigpaw.app')
-            && str_starts_with((string) config('platform.auth_url'), 'https://login.zigpaw.app');
+        return app()->environment(['local', 'testing'])
+            || ! hash_equals(hash('sha256', $localSecret), $clientSecret);
     }
 
     private function cacheIsReady(): bool

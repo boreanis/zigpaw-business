@@ -62,6 +62,8 @@ class BusinessWorkspaceTest extends TestCase
             ->assertSet('state', 'ready')
             ->assertSet('organizationId', 'organization-1')
             ->assertSee('Laidley Veterinary Surgery')
+            ->assertSee('Change appearance')
+            ->assertSee('data-theme-toggle', false)
             ->assertSee('Diesel needs a response');
     }
 
@@ -234,8 +236,8 @@ class BusinessWorkspaceTest extends TestCase
                 'membership' => ['role' => 'manager', 'capabilities' => ['portal.view', 'providers.manage']],
                 'features' => ['provider_claims' => false, 'booking_requests' => false],
             ]]),
-            'https://api.zigpaw.test/v1/business/offerings/offering-1' => Http::response(['data' => [
-                'id' => 'offering-1',
+            'https://api.zigpaw.test/v1/business/offerings/11111111-1111-4111-8111-111111111111' => Http::response(['data' => [
+                'id' => '11111111-1111-4111-8111-111111111111',
                 'name' => 'Wellness consultation',
                 'status' => 'active',
             ]]),
@@ -247,7 +249,7 @@ class BusinessWorkspaceTest extends TestCase
                 'place' => ['id' => 'place-1', 'name' => 'Laidley Veterinary Surgery'],
             ]])),
             'https://api.zigpaw.test/v1/business/offerings*' => Http::response(self::page([[
-                'id' => 'offering-1',
+                'id' => '11111111-1111-4111-8111-111111111111',
                 'name' => 'Wellness consultation',
                 'description' => null,
                 'default_duration_minutes' => 30,
@@ -257,15 +259,20 @@ class BusinessWorkspaceTest extends TestCase
             ]])),
         ]);
 
-        Livewire::test(BusinessWorkspace::class)
+        $component = Livewire::test(BusinessWorkspace::class)
             ->call('showSection', 'services')
-            ->call('startOfferingEdit', 'offering-1')
+            ->call('startOfferingEdit', '11111111-1111-4111-8111-111111111111')
+            ->assertSee('role="dialog"', false)
+            ->assertSee('id="offering-edit-drawer"', false)
+            ->assertSee('data-overlay-open-state="true"', false)
+            ->assertSee('data-overlay-close', false)
+            ->assertSee('form="offering-edit-form"', false)
             ->set('editingOfferingStatus', 'active')
             ->call('saveOffering')
             ->assertSee('Service updated.');
 
         Http::assertSent(fn ($request): bool => $request->method() === 'PATCH'
-            && $request->url() === 'https://api.zigpaw.test/v1/business/offerings/offering-1'
+            && $request->url() === 'https://api.zigpaw.test/v1/business/offerings/11111111-1111-4111-8111-111111111111'
             && $request['status'] === 'active');
     }
 
@@ -330,6 +337,11 @@ class BusinessWorkspaceTest extends TestCase
             ->assertSee('Laidley Veterinary Surgery')
             ->assertSee('1 Patrick Street, Laidley, QLD, 4341, AU')
             ->call('selectClaimableProvider', 'provider-1', 'place-1')
+            ->assertSee('role="dialog"', false)
+            ->assertSee('id="listing-claim-modal"', false)
+            ->assertSee('data-overlay-open-state="true"', false)
+            ->assertSee('data-overlay-initial-focus', false)
+            ->assertSee('Confirm listing claim')
             ->set('claimAuthorityType', 'manager')
             ->set('claimVerificationMethod', 'domain_email')
             ->set('claimantEmail', 'manager@example.test')
@@ -349,6 +361,98 @@ class BusinessWorkspaceTest extends TestCase
             && $request['place_id'] === 'place-1'
             && $request['requested_authority_type'] === 'manager'
             && $request['verification_method'] === 'domain_email');
+    }
+
+    public function test_booking_manager_can_edit_weekly_availability_and_date_exceptions(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'manager-access-token',
+            'refresh_token' => 'manager-refresh-token',
+            'expires_in' => 900,
+        ]);
+
+        $provider = [[
+            'id' => '11111111-1111-4111-8111-111111111111',
+            'status' => 'active',
+            'provider' => ['id' => '22222222-2222-4222-8222-222222222222', 'name' => 'Laidley Veterinary Surgery'],
+            'place' => ['id' => '33333333-3333-4333-8333-333333333333', 'name' => 'Laidley Veterinary Surgery', 'timezone' => 'Australia/Brisbane'],
+        ]];
+        $profile = [[
+            'id' => '44444444-4444-4444-8444-444444444444',
+            'service_provider_id' => '22222222-2222-4222-8222-222222222222',
+            'place_id' => '33333333-3333-4333-8333-333333333333',
+            'status' => 'enabled',
+            'timezone' => 'Australia/Brisbane',
+            'availability_rules' => [[
+                'id' => 'rule-existing',
+                'day_of_week' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '12:00',
+                'effective_from' => null,
+                'effective_until' => null,
+                'is_active' => true,
+            ]],
+            'availability_exceptions' => [],
+        ]];
+
+        Http::fake(function (Request $request) use ($provider, $profile) {
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/organizations') {
+                return Http::response(['data' => [[
+                    'id' => 'organization-1',
+                    'name' => 'Laidley Veterinary Surgery',
+                    'role' => 'manager',
+                ]]]);
+            }
+
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/me') {
+                return Http::response(['data' => [
+                    'organization' => ['id' => 'organization-1', 'name' => 'Laidley Veterinary Surgery'],
+                    'membership' => ['role' => 'manager', 'capabilities' => ['portal.view', 'providers.manage', 'bookings.manage']],
+                    'features' => ['provider_claims' => false, 'booking_requests' => true],
+                ]]);
+            }
+
+            if (str_contains($request->url(), '/booking-profiles')) {
+                return $request->method() === 'PUT'
+                    ? Http::response(['data' => $profile[0]])
+                    : Http::response(self::page($profile));
+            }
+
+            if (str_contains($request->url(), '/providers')) {
+                return Http::response(self::page($provider));
+            }
+
+            if (str_contains($request->url(), '/bookings') || str_contains($request->url(), '/programs')) {
+                return Http::response(self::page([]));
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        Livewire::test(BusinessWorkspace::class)
+            ->call('showSection', 'booking-setup')
+            ->assertSee('Weekly availability')
+            ->assertSee('Date exceptions')
+            ->call('addBookingAvailabilityRule')
+            ->set('bookingAvailabilityRules.1.day_of_week', 2)
+            ->set('bookingAvailabilityRules.1.starts_at', '13:00')
+            ->set('bookingAvailabilityRules.1.ends_at', '17:00')
+            ->call('addBookingAvailabilityException')
+            ->set('bookingAvailabilityExceptions.0.date', '2026-12-25')
+            ->set('bookingAvailabilityExceptions.0.availability', 'unavailable')
+            ->set('bookingAvailabilityExceptions.0.reason', 'Public holiday')
+            ->call('saveBookingConfiguration')
+            ->assertHasNoErrors()
+            ->assertSee('Booking requests are enabled for this location.');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT'
+            && $request->url() === 'https://api.zigpaw.test/v1/business/booking-profiles'
+            && count((array) $request['availability_rules']) === 2
+            && $request['availability_rules'][0]['day_of_week'] === 1
+            && ! array_key_exists('id', $request['availability_rules'][0])
+            && $request['availability_rules'][1]['starts_at'] === '13:00'
+            && $request['availability_exceptions'][0]['date'] === '2026-12-25'
+            && $request['availability_exceptions'][0]['reason'] === 'Public holiday');
     }
 
     /** @param list<array<string, mixed>> $data @return array<string, mixed> */

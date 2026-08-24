@@ -2,14 +2,16 @@
     <a class="back-link" href="{{ route('clinical.submissions.index') }}" wire:navigate><span aria-hidden="true">←</span> Submission history</a>
 
     @if ($loadingFailed)
-        <section class="empty-state" role="alert"><h1>Submission status is unavailable</h1><p>{{ $message }}</p><button class="secondary-button" type="button" wire:click="retry">Try again</button></section>
+        <x-clinical.empty-state title="Submission status is unavailable" :description="$message" tone="error" :heading-level="1">
+            <x-slot:actions><x-clinical.button wire:click="retry" wire:loading.attr="disabled" wire:target="retry">Try again</x-clinical.button></x-slot:actions>
+        </x-clinical.empty-state>
     @else
         @php
             $status = (string) ($submission['status'] ?? 'pending');
-            $statusClass = match ($status) { 'approved' => 'status-green', 'partially_approved' => 'status-blue', 'rejected' => 'status-red', 'pending' => 'status-amber', default => 'status-neutral' };
+            $statusTone = match ($status) { 'approved' => 'good', 'partially_approved' => 'blue', 'rejected' => 'danger', 'pending' => 'warn', default => 'neutral' };
         @endphp
         <header class="page-heading submission-heading">
-            <div><div class="heading-with-status"><p class="eyebrow">Care submission</p><span class="status-badge {{ $statusClass }}">{{ str($status)->replace('_', ' ')->headline() }}</span></div><h1>Family review status</h1><p>Submitted {{ str((string) ($submission['submitted_at'] ?? ''))->replace('T', ' · ')->before('+') }}</p></div>
+            <div><div class="heading-with-status"><p class="eyebrow">Care submission</p><x-clinical.status :tone="$statusTone">{{ str($status)->replace('_', ' ')->headline() }}</x-clinical.status></div><h1>Family review status</h1><p>Submitted {{ str((string) ($submission['submitted_at'] ?? ''))->replace('T', ' · ')->before('+') }}</p></div>
         </header>
 
         <section class="review-explainer">

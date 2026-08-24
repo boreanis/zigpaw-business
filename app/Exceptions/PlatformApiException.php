@@ -6,11 +6,14 @@ use RuntimeException;
 
 class PlatformApiException extends RuntimeException
 {
-    /** @param array<string, list<string>> $errors */
+    /**
+     * @param  array<string, list<string>>  $errors
+     */
     public function __construct(
         public readonly int $status,
         string $message,
         public readonly array $errors = [],
+        public readonly ?string $requestId = null,
     ) {
         parent::__construct($message, $status);
     }

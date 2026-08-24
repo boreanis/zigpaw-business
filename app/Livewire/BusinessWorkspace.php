@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Exceptions\PlatformApiException;
 use App\Services\PlatformApiClient;
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Livewire\Attributes\Url;
@@ -28,6 +29,14 @@ class BusinessWorkspace extends Component
 
     /** @var array<string, mixed> */
     public array $identity = [];
+
+    public string $displayTimezone = 'UTC';
+
+    public string $displayDateFormat = 'd/m/Y';
+
+    public string $displayTimeFormat = 'H:i';
+
+    public string $displayLocale = 'en';
 
     /** @var array<string, array{label: string, icon: string}> */
     public array $navigationSections = [];
@@ -204,7 +213,7 @@ class BusinessWorkspace extends Component
         'profile' => ['label' => 'Business profile', 'icon' => 'building', 'capability' => 'organization.manage', 'feature' => null],
         'listings' => ['label' => 'Locations', 'icon' => 'pin', 'capability' => 'providers.manage', 'feature' => null],
         'bookings' => ['label' => 'Bookings', 'icon' => 'calendar', 'capability' => 'bookings.manage', 'feature' => 'booking_requests'],
-        'booking-setup' => ['label' => 'Booking setup', 'icon' => 'settings', 'capability' => 'providers.manage', 'feature' => 'booking_requests'],
+        'booking-setup' => ['label' => 'Booking setup', 'icon' => 'settings', 'capability' => 'bookings.manage', 'feature' => 'booking_requests'],
         'services' => ['label' => 'Services', 'icon' => 'briefcase', 'capability' => 'providers.manage', 'feature' => null],
         'programs' => ['label' => 'Partner programs', 'icon' => 'gift', 'capability' => 'programs.view', 'feature' => null],
         'revenue' => ['label' => 'Revenue', 'icon' => 'wallet', 'capability' => 'financials.view', 'feature' => null],
@@ -283,6 +292,25 @@ class BusinessWorkspace extends Component
         $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
             $this->loadSection($api, $accessToken);
         });
+    }
+
+    public function displayDate(?string $value): string
+    {
+        return $this->displayCarbon($value)?->translatedFormat($this->displayDateFormat) ?? '—';
+    }
+
+    public function displayDateTime(?string $value): string
+    {
+        $date = $this->displayCarbon($value);
+
+        return $date
+            ? $date->translatedFormat($this->displayDateFormat).' · '.$date->translatedFormat($this->displayTimeFormat)
+            : '—';
+    }
+
+    public function displayRelative(?string $value): string
+    {
+        return $this->displayCarbon($value)?->diffForHumans() ?? '—';
     }
 
     public function changePage(string $resource, int $page): void
@@ -624,15 +652,60 @@ class BusinessWorkspace extends Component
 
     public function selectBookingProvider(string $providerLinkId): void
     {
-        $this->authorizeCapability('bookings.manage');
-        $this->authorizeFeature('booking_requests');
+        $this->authorizeBookingConfiguration();
         $this->hydrateBookingConfiguration($providerLinkId);
+    }
+
+    public function addBookingAvailabilityRule(): void
+    {
+        $this->authorizeBookingConfiguration();
+
+        $this->bookingAvailabilityRules[] = [
+            'day_of_week' => 1,
+            'starts_at' => '09:00',
+            'ends_at' => '17:00',
+            'effective_from' => '',
+            'effective_until' => '',
+            'is_active' => true,
+        ];
+    }
+
+    public function removeBookingAvailabilityRule(int $index): void
+    {
+        $this->authorizeBookingConfiguration();
+        abort_unless(array_key_exists($index, $this->bookingAvailabilityRules), 404);
+
+        unset($this->bookingAvailabilityRules[$index]);
+        $this->bookingAvailabilityRules = array_values($this->bookingAvailabilityRules);
+        $this->resetValidation('bookingAvailabilityRules');
+    }
+
+    public function addBookingAvailabilityException(): void
+    {
+        $this->authorizeBookingConfiguration();
+
+        $this->bookingAvailabilityExceptions[] = [
+            'date' => '',
+            'starts_at' => '',
+            'ends_at' => '',
+            'availability' => 'unavailable',
+            'reason' => '',
+        ];
+    }
+
+    public function removeBookingAvailabilityException(int $index): void
+    {
+        $this->authorizeBookingConfiguration();
+        abort_unless(array_key_exists($index, $this->bookingAvailabilityExceptions), 404);
+
+        unset($this->bookingAvailabilityExceptions[$index]);
+        $this->bookingAvailabilityExceptions = array_values($this->bookingAvailabilityExceptions);
+        $this->resetValidation('bookingAvailabilityExceptions');
     }
 
     public function saveBookingConfiguration(): void
     {
-        $this->authorizeCapability('bookings.manage');
-        $this->authorizeFeature('booking_requests');
+        $this->authorizeBookingConfiguration();
         $this->validate([
             'bookingProviderLinkId' => ['required', 'string'],
             'bookingStatus' => ['required', 'in:disabled,enabled,paused'],
@@ -643,6 +716,19 @@ class BusinessWorkspace extends Component
             'bookingMaximumAdvanceDays' => ['nullable', 'integer', 'min:1', 'max:730'],
             'bookingResponseWindowHours' => ['nullable', 'integer', 'min:1', 'max:720'],
             'bookingCustomerInstructions' => ['nullable', 'string', 'max:3000'],
+            'bookingAvailabilityRules' => ['array', 'max:35'],
+            'bookingAvailabilityRules.*.day_of_week' => ['required', 'integer', 'between:0,6'],
+            'bookingAvailabilityRules.*.starts_at' => ['required', 'date_format:H:i'],
+            'bookingAvailabilityRules.*.ends_at' => ['required', 'date_format:H:i', 'after:bookingAvailabilityRules.*.starts_at'],
+            'bookingAvailabilityRules.*.effective_from' => ['nullable', 'date_format:Y-m-d'],
+            'bookingAvailabilityRules.*.effective_until' => ['nullable', 'date_format:Y-m-d'],
+            'bookingAvailabilityRules.*.is_active' => ['boolean'],
+            'bookingAvailabilityExceptions' => ['array', 'max:180'],
+            'bookingAvailabilityExceptions.*.date' => ['required', 'date_format:Y-m-d'],
+            'bookingAvailabilityExceptions.*.starts_at' => ['nullable', 'date_format:H:i', 'required_with:bookingAvailabilityExceptions.*.ends_at'],
+            'bookingAvailabilityExceptions.*.ends_at' => ['nullable', 'date_format:H:i', 'required_with:bookingAvailabilityExceptions.*.starts_at'],
+            'bookingAvailabilityExceptions.*.availability' => ['required', 'in:available,unavailable'],
+            'bookingAvailabilityExceptions.*.reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
@@ -656,6 +742,8 @@ class BusinessWorkspace extends Component
                 'maximum_advance_days' => $this->bookingMaximumAdvanceDays,
                 'response_window_hours' => $this->bookingResponseWindowHours,
                 'customer_instructions' => $this->nullableField($this->bookingCustomerInstructions),
+                'availability_rules' => $this->normalizedBookingAvailabilityRules(),
+                'availability_exceptions' => $this->normalizedBookingAvailabilityExceptions(),
             ], static fn (mixed $value): bool => $value !== null);
 
             $api->updateBookingProfile($accessToken, $this->requiredOrganizationId(), $payload);
@@ -980,6 +1068,10 @@ class BusinessWorkspace extends Component
 
     private function hydrateBusinessProfile(): void
     {
+        $this->displayTimezone = (string) data_get($this->identity, 'display_preferences.timezone', 'UTC');
+        $this->displayDateFormat = (string) data_get($this->identity, 'display_preferences.date_format', 'd/m/Y');
+        $this->displayTimeFormat = (string) data_get($this->identity, 'display_preferences.time_format', 'H:i');
+        $this->displayLocale = (string) data_get($this->identity, 'display_preferences.locale', 'en');
         $this->businessName = (string) data_get($this->identity, 'organization.name', '');
         $this->businessLegalName = (string) data_get($this->identity, 'business_profile.legal_name', '');
         $this->businessRegistrationNumber = (string) data_get($this->identity, 'business_profile.registration_number', '');
@@ -1090,6 +1182,48 @@ class BusinessWorkspace extends Component
         return $value === '' ? null : $value;
     }
 
+    private function displayCarbon(?string $value): ?Carbon
+    {
+        if (! is_string($value) || $value === '') {
+            return null;
+        }
+
+        return Carbon::parse($value)
+            ->timezone($this->displayTimezone)
+            ->locale($this->displayLocale);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function normalizedBookingAvailabilityRules(): array
+    {
+        return collect($this->bookingAvailabilityRules)
+            ->map(fn (array $rule): array => [
+                'day_of_week' => (int) $rule['day_of_week'],
+                'starts_at' => (string) $rule['starts_at'],
+                'ends_at' => (string) $rule['ends_at'],
+                'effective_from' => $this->nullableField((string) ($rule['effective_from'] ?? '')),
+                'effective_until' => $this->nullableField((string) ($rule['effective_until'] ?? '')),
+                'is_active' => (bool) ($rule['is_active'] ?? true),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function normalizedBookingAvailabilityExceptions(): array
+    {
+        return collect($this->bookingAvailabilityExceptions)
+            ->map(fn (array $exception): array => [
+                'date' => (string) $exception['date'],
+                'starts_at' => $this->nullableField((string) ($exception['starts_at'] ?? '')),
+                'ends_at' => $this->nullableField((string) ($exception['ends_at'] ?? '')),
+                'availability' => (string) $exception['availability'],
+                'reason' => $this->nullableField((string) ($exception['reason'] ?? '')),
+            ])
+            ->values()
+            ->all();
+    }
+
     /** @return array<string, array{label: string, icon: string}> */
     private function availableNavigationSections(): array
     {
@@ -1097,6 +1231,10 @@ class BusinessWorkspace extends Component
 
         foreach (self::SECTION_DEFINITIONS as $key => $definition) {
             if (! $this->hasCapability($definition['capability'])) {
+                continue;
+            }
+
+            if ($key === 'booking-setup' && ! $this->hasCapability('providers.manage')) {
                 continue;
             }
 
@@ -1126,6 +1264,13 @@ class BusinessWorkspace extends Component
     private function authorizeFeature(string $feature): void
     {
         abort_unless($this->featureIsAvailable($feature), 404);
+    }
+
+    private function authorizeBookingConfiguration(): void
+    {
+        $this->authorizeCapability('providers.manage');
+        $this->authorizeCapability('bookings.manage');
+        $this->authorizeFeature('booking_requests');
     }
 
     private function withApi(callable $callback): void

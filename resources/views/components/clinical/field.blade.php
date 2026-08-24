@@ -1,8 +1,24 @@
 @props(['label', 'name', 'hint' => null, 'required' => false, 'type' => 'text'])
 
-<label class="form-field">
-    <span class="field-label">{{ $label }} @if ($required)<span aria-hidden="true">*</span>@endif</span>
-    <input type="{{ $type }}" {{ $attributes->merge(['class' => 'control']) }} @if ($required) required @endif>
-    @if ($hint)<span class="field-hint">{{ $hint }}</span>@endif
-    @error($name)<span class="field-error">{{ $message }}</span>@enderror
-</label>
+@php
+    $fieldId = $attributes->get('id', 'clinical-'.str($name)->replace(['.', '[', ']'], '-')->slug());
+    $hintId = $fieldId.'-hint';
+    $errorId = $fieldId.'-error';
+    $errorMessage = isset($errors) ? $errors->first($name) : null;
+    $hasError = is_string($errorMessage) && $errorMessage !== '';
+    $describedBy = collect([$hint ? $hintId : null, $hasError ? $errorId : null])->filter()->join(' ');
+@endphp
+
+<div class="form-field">
+    <label class="field-label" for="{{ $fieldId }}">{{ $label }} @if ($required)<span aria-hidden="true">*</span><span class="sr-only"> required</span>@endif</label>
+    <input
+        id="{{ $fieldId }}"
+        type="{{ $type }}"
+        {{ $attributes->except('id')->merge(['class' => 'control']) }}
+        @if ($required) required aria-required="true" @endif
+        @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
+        aria-invalid="{{ $hasError ? 'true' : 'false' }}"
+    >
+    @if ($hint)<span id="{{ $hintId }}" class="field-hint">{{ $hint }}</span>@endif
+    @if ($hasError)<span id="{{ $errorId }}" class="field-error" role="alert">{{ $errorMessage }}</span>@endif
+</div>

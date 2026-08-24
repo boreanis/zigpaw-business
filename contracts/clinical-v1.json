@@ -1,0 +1,1870 @@
+{
+    "openapi": "3.1.2",
+    "info": {
+        "title": "Zigpaw \u00b7 Clinical",
+        "version": "1.0.0",
+        "description": "The canonical Zigpaw API used by private browser fa\u00e7ades, the future iOS application, and explicitly approved service clients. Browser fa\u00e7ades are same-origin adapters and are not separate public APIs.",
+        "license": {
+            "name": "Zigpaw proprietary licence",
+            "identifier": "LicenseRef-Zigpaw-Proprietary"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://api.zigpaw.app/v1",
+            "description": "Production"
+        }
+    ],
+    "paths": {
+        "/business/clinical/dashboard": {
+            "get": {
+                "operationId": "v1.business.clinical.dashboard",
+                "tags": [
+                    "Business"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ClinicalDashboardResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ClinicalDashboardResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/me": {
+            "get": {
+                "operationId": "v1.business.clinical.me",
+                "tags": [
+                    "Business"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "organization": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "membership": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "role": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "role"
+                                                    ]
+                                                },
+                                                "clinical_access": {
+                                                    "type": "string",
+                                                    "const": "Clinical records remain limited to explicit, profile-manager-approved grants."
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "organization",
+                                                "membership",
+                                                "clinical_access"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/organizations": {
+            "get": {
+                "operationId": "v1.business.clinical.organizations.index",
+                "tags": [
+                    "Business"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "role": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "role"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants": {
+            "get": {
+                "operationId": "v1.business.clinical.provider-grants.index",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "active",
+                                "expired",
+                                "revoked",
+                                "all",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 80
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `ProviderPetAccessGrantResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ProviderPetAccessGrantResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants/{grant}": {
+            "get": {
+                "operationId": "v1.business.clinical.provider-grants.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "grant",
+                        "in": "path",
+                        "required": true,
+                        "description": "The grant ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ProviderPetAccessGrantResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProviderPetAccessGrantResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants/{grant}/care-context": {
+            "get": {
+                "operationId": "v1.business.clinical.provider-grants.care-context.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "grant",
+                        "in": "path",
+                        "required": true,
+                        "description": "The grant ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ClinicalCareContextResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ClinicalCareContextResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants/{grant}/care-submissions": {
+            "post": {
+                "operationId": "v1.business.clinical.provider-grants.care-submissions.store",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "grant",
+                        "in": "path",
+                        "required": true,
+                        "description": "The grant ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreProviderCareSubmissionRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "`ProviderCareSubmissionResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProviderCareSubmissionResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read",
+                            "clinical:submit"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants/{grant}/media": {
+            "get": {
+                "operationId": "v1.business.clinical.provider-grants.media.index",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "grant",
+                        "in": "path",
+                        "required": true,
+                        "description": "The grant ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `ProviderMediaResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ProviderMediaResource"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/provider-grants/{grant}/media/{media}": {
+            "get": {
+                "operationId": "v1.business.clinical.provider-grants.media.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "grant",
+                        "in": "path",
+                        "required": true,
+                        "description": "The grant ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "media",
+                        "in": "path",
+                        "required": true,
+                        "description": "The media ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/session": {
+            "delete": {
+                "operationId": "v1.business.clinical.session.destroy",
+                "tags": [
+                    "Business"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "logout_url": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "logout_url"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/submissions": {
+            "get": {
+                "operationId": "v1.business.clinical.submissions.index",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "pending",
+                                "approved",
+                                "partially_approved",
+                                "rejected",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `ProviderCareSubmissionResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ProviderCareSubmissionResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/business/clinical/submissions/{submission}": {
+            "get": {
+                "operationId": "v1.business.clinical.submissions.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "submission",
+                        "in": "path",
+                        "required": true,
+                        "description": "The submission ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ProviderCareSubmissionResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProviderCareSubmissionResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "clinical:read"
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ClinicalDashboardResource": {
+                "type": "object",
+                "properties": {
+                    "grants": {
+                        "type": "string"
+                    },
+                    "submissions": {
+                        "type": "string"
+                    },
+                    "locations": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "grants",
+                    "submissions",
+                    "locations"
+                ],
+                "title": "ClinicalDashboardResource"
+            },
+            "ProviderPetAccessGrantResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "source": {
+                        "type": "string"
+                    },
+                    "access_mode": {
+                        "type": "string"
+                    },
+                    "booking_request_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "purpose": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "scopes": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "capabilities": {
+                        "type": "object",
+                        "properties": {
+                            "read_profile": {
+                                "type": "string"
+                            },
+                            "read_care": {
+                                "type": "string"
+                            },
+                            "submit_care": {
+                                "type": "string"
+                            },
+                            "read_media": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "read_profile",
+                            "read_care",
+                            "submit_care",
+                            "read_media"
+                        ]
+                    },
+                    "pet": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "species": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "breed": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "species",
+                            "breed"
+                        ]
+                    },
+                    "location": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name"
+                        ]
+                    },
+                    "consented_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "revoked_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "source",
+                    "access_mode",
+                    "booking_request_id",
+                    "purpose",
+                    "status",
+                    "scopes",
+                    "capabilities",
+                    "consented_at",
+                    "expires_at",
+                    "revoked_at"
+                ],
+                "title": "ProviderPetAccessGrantResource"
+            },
+            "ClinicalCareContextResource": {
+                "type": "object",
+                "properties": {
+                    "pet": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "weights": {
+                        "type": "string"
+                    },
+                    "vaccinations": {
+                        "type": "string"
+                    },
+                    "visits": {
+                        "type": "string"
+                    },
+                    "medications": {
+                        "type": "string"
+                    },
+                    "conditions": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "pet",
+                    "weights",
+                    "vaccinations",
+                    "visits",
+                    "medications",
+                    "conditions"
+                ],
+                "title": "ClinicalCareContextResource"
+            },
+            "StoreProviderCareSubmissionRequest": {
+                "type": "object",
+                "properties": {
+                    "vet_name": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "clinic_name": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "clinic_phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50
+                    },
+                    "clinic_email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 255
+                    },
+                    "visit_date": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "visit_type": {
+                        "type": "string",
+                        "enum": [
+                            "checkup",
+                            "vaccination",
+                            "health_issue",
+                            "procedure",
+                            "emergency",
+                            "follow_up",
+                            "other"
+                        ]
+                    },
+                    "visit_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 1000
+                    },
+                    "weight": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 999
+                    },
+                    "weight_unit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "kg",
+                            "lbs",
+                            null
+                        ]
+                    },
+                    "body_condition_score": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 9
+                    },
+                    "temperature": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 120
+                    },
+                    "temperature_unit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "\u00b0C",
+                            "\u00b0F",
+                            null
+                        ]
+                    },
+                    "heart_rate": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 500
+                    },
+                    "respiratory_rate": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 200
+                    },
+                    "diagnosis": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "differential_diagnoses": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "treatment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "prognosis": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "excellent",
+                            "good",
+                            "fair",
+                            "guarded",
+                            "poor",
+                            null
+                        ]
+                    },
+                    "medications_text": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "home_care_instructions": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "next_visit_date": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "next_visit_notes": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 1000
+                    },
+                    "notes": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "vaccinations": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "vaccine_name": {
+                                    "type": "string",
+                                    "maxLength": 255
+                                },
+                                "vaccine_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "enum": [
+                                        "core",
+                                        "non-core",
+                                        "rabies",
+                                        null
+                                    ]
+                                },
+                                "manufacturer": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 255
+                                },
+                                "batch_number": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 100
+                                },
+                                "antigen_names": {
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "maxItems": 10
+                                },
+                                "dose_number": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": 1,
+                                    "maximum": 20
+                                },
+                                "total_doses": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": 1,
+                                    "maximum": 20
+                                },
+                                "dose_amount": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 100
+                                },
+                                "route": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 50
+                                },
+                                "site": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 100
+                                },
+                                "protocol_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 255
+                                },
+                                "administered_date": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                },
+                                "expiry_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "format": "date-time"
+                                },
+                                "next_due_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "format": "date-time"
+                                }
+                            },
+                            "required": [
+                                "vaccine_name",
+                                "administered_date"
+                            ]
+                        },
+                        "maxItems": 10
+                    },
+                    "medications": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "medication_name": {
+                                    "type": "string",
+                                    "maxLength": 255
+                                },
+                                "dosage": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 255
+                                },
+                                "frequency": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 255
+                                },
+                                "route": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "enum": [
+                                        "oral",
+                                        "topical",
+                                        "injection",
+                                        "inhalation",
+                                        "ophthalmic",
+                                        "otic",
+                                        "transdermal",
+                                        "other",
+                                        null
+                                    ]
+                                },
+                                "instructions": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 1000
+                                },
+                                "start_date": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                },
+                                "end_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "format": "date-time"
+                                }
+                            },
+                            "required": [
+                                "medication_name",
+                                "start_date"
+                            ]
+                        },
+                        "maxItems": 10
+                    },
+                    "conditions": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "condition_name": {
+                                    "type": "string",
+                                    "maxLength": 255
+                                },
+                                "condition_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "enum": [
+                                        "medical_condition",
+                                        "allergy",
+                                        null
+                                    ]
+                                },
+                                "severity": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "enum": [
+                                        "mild",
+                                        "moderate",
+                                        "severe",
+                                        "chronic",
+                                        null
+                                    ]
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 1000
+                                },
+                                "symptoms": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 1000
+                                },
+                                "treatment_plan": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 1000
+                                }
+                            },
+                            "required": [
+                                "condition_name"
+                            ]
+                        },
+                        "maxItems": 10
+                    }
+                },
+                "required": [
+                    "vet_name",
+                    "clinic_name",
+                    "clinic_email",
+                    "visit_date",
+                    "visit_type"
+                ],
+                "title": "StoreProviderCareSubmissionRequest"
+            },
+            "ProviderCareSubmissionResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "pet_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "source_recognized": {
+                        "type": "boolean"
+                    },
+                    "submitted_at": {
+                        "type": "string"
+                    },
+                    "record_counts": {
+                        "type": "object",
+                        "properties": {
+                            "visits": {
+                                "type": "integer"
+                            },
+                            "weights": {
+                                "type": "integer"
+                            },
+                            "vaccinations": {
+                                "type": "integer"
+                            },
+                            "medications": {
+                                "type": "integer"
+                            },
+                            "conditions": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "visits",
+                            "weights",
+                            "vaccinations",
+                            "medications",
+                            "conditions"
+                        ]
+                    },
+                    "records_pending_review": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "pet_id",
+                    "status",
+                    "source_recognized",
+                    "submitted_at",
+                    "record_counts",
+                    "records_pending_review"
+                ],
+                "title": "ProviderCareSubmissionResource"
+            },
+            "ProviderMediaResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "record_id": {
+                        "type": "string"
+                    },
+                    "mime_type": {
+                        "type": "string"
+                    },
+                    "size_bytes": {
+                        "type": "string"
+                    },
+                    "uploaded_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "kind",
+                    "label",
+                    "record_id",
+                    "mime_type",
+                    "size_bytes",
+                    "uploaded_at",
+                    "url"
+                ],
+                "title": "ProviderMediaResource"
+            }
+        },
+        "responses": {
+            "AuthenticationException": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "ValidationException": {
+                "description": "Validation error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Errors overview."
+                                },
+                                "errors": {
+                                    "type": "object",
+                                    "description": "A detailed description of each field that failed validation.",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "required": [
+                                "message",
+                                "errors"
+                            ]
+                        }
+                    }
+                }
+            },
+            "AuthorizationException": {
+                "description": "Authorization error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "zigpawOAuth": {
+                "type": "oauth2",
+                "description": "OAuth 2.0 Authorization Code with PKCE. Browser tokens remain in the portal BFF; native clients store them in the platform secure keychain.",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://login.zigpaw.app/oauth/authorize",
+                        "tokenUrl": "https://login.zigpaw.app/oauth/token",
+                        "refreshUrl": "https://login.zigpaw.app/oauth/token",
+                        "scopes": {
+                            "consumer:read": "Read the signed-in customer account and its authorized pet data.",
+                            "consumer:write": "Update the signed-in customer account and its authorized pet data.",
+                            "clinical:read": "Read the authenticated clinical portal identity.",
+                            "clinical:submit": "Submit pending records through an explicit provider grant.",
+                            "business:read": "Read the active business organization and its authorized providers.",
+                            "business:profile:write": "Update the active business organization profile.",
+                            "business:providers:read": "Read providers and locations managed by the active organization.",
+                            "business:providers:write": "Claim and manage provider and location records.",
+                            "business:bookings:read": "Read booking requests managed by the active organization.",
+                            "business:bookings:write": "Respond to and manage booking requests.",
+                            "business:programs:read": "Read commercial and partner-program enrollment status.",
+                            "business:programs:write": "Apply for or manage commercial program enrollment.",
+                            "business:financials:read": "Read authorized commission accruals and commercial agreements.",
+                            "business:team:read": "Read the active organization team.",
+                            "business:team:write": "Invite and manage organization team members."
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tags": [],
+    "x-zigpaw-audience": "clinical"
+}

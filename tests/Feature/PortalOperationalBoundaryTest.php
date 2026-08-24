@@ -12,7 +12,7 @@ class PortalOperationalBoundaryTest extends TestCase
     public function test_liveness_is_uncached_and_propagates_a_valid_request_id(): void
     {
         $response = $this->withHeader('X-Request-ID', 'portal-test-request-1234')
-            ->get('/health')
+            ->get('http://business.zigpaw.test/health')
             ->assertOk()
             ->assertHeader('X-Request-ID', 'portal-test-request-1234')
             ->assertExactJson(['status' => 'ok']);
@@ -22,14 +22,27 @@ class PortalOperationalBoundaryTest extends TestCase
         $this->assertNotSame('', $policy);
         $this->assertStringContainsString("script-src 'self' 'nonce-", $policy);
         $this->assertStringNotContainsString("script-src 'self' 'unsafe-inline'", $policy);
+        $this->assertStringNotContainsString('upgrade-insecure-requests', $policy);
         $this->assertFalse($response->headers->has('Content-Security-Policy-Report-Only'));
+    }
+
+    public function test_secure_requests_keep_the_subresource_upgrade_policy(): void
+    {
+        $policy = (string) $this->get('https://business.zigpaw.test/health')
+            ->assertOk()
+            ->headers->get('Content-Security-Policy');
+
+        $this->assertStringContainsString('upgrade-insecure-requests', $policy);
     }
 
     public function test_readiness_checks_the_canonical_api_without_exposing_dependency_details(): void
     {
         config()->set('platform.oauth_client_id', 'portal-client');
         config()->set('platform.oauth_client_secret', str_repeat('s', 40));
-        config()->set('platform.oauth_scopes', ['portal:read']);
+        config()->set('platform.oauth_scopes', ['business:read']);
+        config()->set('platform_clinical.oauth_client_id', 'clinical-client');
+        config()->set('platform_clinical.oauth_client_secret', str_repeat('c', 40));
+        config()->set('platform_clinical.oauth_scopes', ['clinical:read', 'clinical:submit']);
 
         Http::fake([
             'https://api.zigpaw.test/health/ready' => Http::response(['status' => 'ready']),

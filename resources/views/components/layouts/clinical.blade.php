@@ -6,6 +6,9 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
     <title>{{ $title ?? 'Zigpaw Business clinical workspace' }}</title>
+    <script>
+        (() => { const value = localStorage.getItem('zigpaw-business-theme'); if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value; })();
+    </script>
     @vite(['resources/css/business.css', 'resources/js/business.js'])
     @livewireStyles
 </head>
@@ -28,24 +31,29 @@
             @endif
 
             <div class="clinical-header-actions">
+                <x-clinical.button variant="theme" data-theme-toggle aria-label="Change appearance">
+                    <span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span>
+                </x-clinical.button>
                 @if (session()->has('portal.organization_id'))
                     <span class="organization-chip">{{ session('portal.organization_name', 'Clinical workspace') }}</span>
                 @endif
                 @if (session()->has('platform.oauth.clinical_token_handle'))
                     <form method="POST" action="{{ route('clinical.auth.logout') }}">
                         @csrf
-                        <button class="text-button" type="submit">Sign out</button>
+                        <x-clinical.button variant="text" type="submit">Sign out</x-clinical.button>
                     </form>
                 @endif
             </div>
         </header>
 
-        @if (session('success'))
-            <div class="toast toast-success" role="status">{{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="toast toast-error" role="alert">{{ session('error') }}</div>
-        @endif
+        <x-business.toast-region>
+            @if (session('success'))
+                <x-business.toast>{{ session('success') }}</x-business.toast>
+            @endif
+            @if (session('error'))
+                <x-business.toast tone="error">{{ session('error') }}</x-business.toast>
+            @endif
+        </x-business.toast-region>
 
         <main id="main-content" class="clinical-workspace">
             {{ $slot }}

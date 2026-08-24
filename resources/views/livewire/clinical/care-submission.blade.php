@@ -6,10 +6,10 @@
     </header>
 
     @if (! $canSubmit)
-        <section class="permission-note" role="alert"><strong>Submission is not available</strong><span>{{ $message ?: 'This grant does not include permission to submit clinical records.' }}</span></section>
+        <x-clinical.alert title="Submission is not available" :description="$message ?: 'This grant does not include permission to submit clinical records.'" tone="error" />
     @else
         <form class="clinical-form" wire:submit="submit" novalidate>
-            @error('submission')<div class="form-alert" role="alert">{{ $message }}</div>@enderror
+            @error('submission')<x-clinical.alert title="The submission could not be sent" :description="$message" tone="error" />@enderror
 
             <section class="form-section">
                 <div class="form-section-heading"><div><p class="eyebrow">Visit context</p><h2>Clinician and practice</h2></div><span>Required</span></div>
@@ -64,11 +64,11 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Vaccinations</p><h2>Vaccines administered</h2></div><button class="text-button" type="button" wire:click="addVaccination">+ Add vaccination</button></div>
+                <div class="form-section-heading"><div><p class="eyebrow">Vaccinations</p><h2>Vaccines administered</h2></div><x-clinical.button variant="text" wire:click="addVaccination">+ Add vaccination</x-clinical.button></div>
                 <p class="context-note">Enter the product or vaccine name exactly as it appears on the label or certificate.</p>
                 @forelse ($vaccinations as $index => $vaccination)
                     <fieldset class="repeater-row" wire:key="vaccination-{{ $index }}">
-                        <legend>Vaccination {{ $index + 1 }}</legend><button class="remove-link" type="button" wire:click="removeVaccination({{ $index }})">Remove</button>
+                        <legend>Vaccination {{ $index + 1 }}</legend><x-clinical.button variant="danger" wire:click="removeVaccination({{ $index }})" aria-label="Remove vaccination {{ $index + 1 }}">Remove</x-clinical.button>
                         <div class="form-grid form-grid-three">
                             <x-clinical.field label="Vaccine name" name="vaccinations.{{ $index }}.vaccine_name" wire:model="vaccinations.{{ $index }}.vaccine_name" required />
                             <x-clinical.select label="Type" name="vaccinations.{{ $index }}.vaccine_type" wire:model="vaccinations.{{ $index }}.vaccine_type"><option value="">Not specified</option><option value="core">Core</option><option value="non-core">Non-core</option><option value="rabies">Rabies</option></x-clinical.select>
@@ -83,9 +83,9 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Medications</p><h2>Prescribed or administered</h2></div><button class="text-button" type="button" wire:click="addMedication">+ Add medication</button></div>
+                <div class="form-section-heading"><div><p class="eyebrow">Medications</p><h2>Prescribed or administered</h2></div><x-clinical.button variant="text" wire:click="addMedication">+ Add medication</x-clinical.button></div>
                 @forelse ($medications as $index => $medication)
-                    <fieldset class="repeater-row" wire:key="medication-{{ $index }}"><legend>Medication {{ $index + 1 }}</legend><button class="remove-link" type="button" wire:click="removeMedication({{ $index }})">Remove</button>
+                    <fieldset class="repeater-row" wire:key="medication-{{ $index }}"><legend>Medication {{ $index + 1 }}</legend><x-clinical.button variant="danger" wire:click="removeMedication({{ $index }})" aria-label="Remove medication {{ $index + 1 }}">Remove</x-clinical.button>
                         <div class="form-grid form-grid-three">
                             <x-clinical.field label="Medication name" name="medications.{{ $index }}.medication_name" wire:model="medications.{{ $index }}.medication_name" required />
                             <x-clinical.field label="Dosage" name="medications.{{ $index }}.dosage" wire:model="medications.{{ $index }}.dosage" />
@@ -100,9 +100,9 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Conditions & allergies</p><h2>New clinical findings</h2></div><button class="text-button" type="button" wire:click="addCondition">+ Add finding</button></div>
+                <div class="form-section-heading"><div><p class="eyebrow">Conditions & allergies</p><h2>New clinical findings</h2></div><x-clinical.button variant="text" wire:click="addCondition">+ Add finding</x-clinical.button></div>
                 @forelse ($conditions as $index => $condition)
-                    <fieldset class="repeater-row" wire:key="condition-{{ $index }}"><legend>Finding {{ $index + 1 }}</legend><button class="remove-link" type="button" wire:click="removeCondition({{ $index }})">Remove</button>
+                    <fieldset class="repeater-row" wire:key="condition-{{ $index }}"><legend>Finding {{ $index + 1 }}</legend><x-clinical.button variant="danger" wire:click="removeCondition({{ $index }})" aria-label="Remove finding {{ $index + 1 }}">Remove</x-clinical.button>
                         <div class="form-grid form-grid-three">
                             <x-clinical.field label="Name" name="conditions.{{ $index }}.condition_name" wire:model="conditions.{{ $index }}.condition_name" required />
                             <x-clinical.select label="Type" name="conditions.{{ $index }}.condition_type" wire:model="conditions.{{ $index }}.condition_type"><option value="medical_condition">Medical condition</option><option value="allergy">Allergy</option></x-clinical.select>
@@ -115,7 +115,7 @@
 
             <footer class="form-footer">
                 <div class="review-note"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span><strong>Nothing is published automatically.</strong> The profile manager reviews these records before they join the approved care history.</span></div>
-                <div class="button-row"><a class="secondary-button" href="{{ route('clinical.patients.show', ['grantId' => $grantId]) }}" wire:navigate>Cancel</a><button class="primary-button" type="submit" wire:loading.attr="disabled" wire:target="submit"><span wire:loading.remove wire:target="submit">Send for family review</span><span wire:loading wire:target="submit">Sending securely…</span></button></div>
+                <div class="button-row"><x-clinical.button :href="route('clinical.patients.show', ['grantId' => $grantId])" wire:navigate>Cancel</x-clinical.button><x-clinical.button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="submit"><span wire:loading.remove wire:target="submit">Send for family review</span><span wire:loading wire:target="submit">Sending securely…</span></x-clinical.button></div>
             </footer>
         </form>
     @endif

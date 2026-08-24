@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Exceptions\PlatformApiException;
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\Generated\BusinessApiOperations;
+use App\Support\PlatformConfiguration;
 use App\Support\RequestCorrelation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -19,36 +21,6 @@ use InvalidArgumentException;
  */
 class PlatformApiClient
 {
-    /**
-     * The BFF may only call routes reviewed for the unified Business surface.
-     * Clinical methods below require the distinct clinical token-store type;
-     * Business credentials can never be passed to those methods accidentally.
-     *
-     * @var array<string, list<string>>
-     */
-    private const ALLOWED_ROUTES = [
-        'GET' => [
-            '#^/v1/business/(organizations|me|providers|provider-claims|provider-claims/discovery|offerings|booking-profiles|bookings|financials|financials/commissions|financials/agreements|programs|team)$#D',
-            '#^/v1/business/(providers|offerings|bookings|team)/[0-9a-f-]{36}(?:/messages|/pet-context)?$#Di',
-            '#^/v1/business/clinical/(organizations|me|dashboard|provider-grants|submissions)$#D',
-            '#^/v1/business/clinical/provider-grants/[0-9a-f-]{36}(?:/care-context|/media)?$#Di',
-            '#^/v1/business/clinical/provider-grants/[0-9a-f-]{36}/media/[1-9][0-9]*$#Di',
-            '#^/v1/business/clinical/submissions/[0-9a-f-]{36}$#Di',
-        ],
-        'POST' => [
-            '#^/v1/business/(provider-claims|offerings|programs)$#D',
-            '#^/v1/business/bookings/[0-9a-f-]{36}/response$#Di',
-            '#^/v1/business/team/invitations(?:/[0-9a-f-]{36}/resend)?$#Di',
-            '#^/v1/business/clinical/provider-grants/[0-9a-f-]{36}/care-submissions$#Di',
-        ],
-        'PATCH' => [
-            '#^/v1/business/me$#D',
-            '#^/v1/business/(providers|offerings|team/memberships)/[0-9a-f-]{36}$#Di',
-        ],
-        'PUT' => ['#^/v1/business/booking-profiles$#D'],
-        'DELETE' => ['#^/v1/business/(offerings|team/memberships)/[0-9a-f-]{36}$#Di'],
-    ];
-
     /** @return list<array<string, mixed>> */
     public function organizations(string $accessToken): array
     {
@@ -195,18 +167,24 @@ class PlatformApiClient
     /** @return array<string, mixed> */
     public function clinicalProviderGrant(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $grantId): array
     {
+        $grantId = $this->uuid($grantId, 'provider grant');
+
         return $this->get("/v1/business/clinical/provider-grants/{$grantId}", $this->clinicalToken($tokens), $organizationId);
     }
 
     /** @return array<string, mixed> */
     public function clinicalCareContext(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $grantId): array
     {
+        $grantId = $this->uuid($grantId, 'provider grant');
+
         return $this->get("/v1/business/clinical/provider-grants/{$grantId}/care-context", $this->clinicalToken($tokens), $organizationId);
     }
 
     /** @return list<array<string, mixed>> */
     public function clinicalProviderMedia(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $grantId): array
     {
+        $grantId = $this->uuid($grantId, 'provider grant');
+
         return array_values($this->get("/v1/business/clinical/provider-grants/{$grantId}/media", $this->clinicalToken($tokens), $organizationId));
     }
 
@@ -216,6 +194,9 @@ class PlatformApiClient
         string $grantId,
         int|string $mediaId,
     ): Response {
+        $grantId = $this->uuid($grantId, 'provider grant');
+        $mediaId = $this->positiveInteger($mediaId, 'media');
+
         return $this->getResponse(
             "/v1/business/clinical/provider-grants/{$grantId}/media/{$mediaId}",
             $this->clinicalToken($tokens),
@@ -244,6 +225,8 @@ class PlatformApiClient
     /** @return array<string, mixed> */
     public function clinicalSubmission(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $submissionId): array
     {
+        $submissionId = $this->uuid($submissionId, 'submission');
+
         return $this->get("/v1/business/clinical/submissions/{$submissionId}", $this->clinicalToken($tokens), $organizationId);
     }
 
@@ -255,6 +238,8 @@ class PlatformApiClient
         array $payload,
         string $idempotencyKey,
     ): array {
+        $grantId = $this->uuid($grantId, 'provider grant');
+
         return $this->mutateWithKey(
             'POST',
             "/v1/business/clinical/provider-grants/{$grantId}/care-submissions",
@@ -411,11 +396,11 @@ class PlatformApiClient
         $this->assertAllowedRoute($method, $path);
 
         try {
-            $response = $this->request($accessToken, $organizationId)
+            $response = $this->request($accessToken, $organizationId, $path)
                 ->withHeader('Idempotency-Key', (string) Str::uuid())
                 ->send($method, $path, ['json' => $payload]);
         } catch (ConnectionException) {
-            throw new PlatformApiException(0, 'Zigpaw is unavailable right now. Please try again shortly.');
+            throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
         }
 
         return $this->data($response);
@@ -431,13 +416,14 @@ class PlatformApiClient
         string $idempotencyKey,
     ): array {
         $this->assertAllowedRoute($method, $path);
+        $idempotencyKey = $this->idempotencyKey($idempotencyKey);
 
         try {
-            $response = $this->request($accessToken, $organizationId)
+            $response = $this->request($accessToken, $organizationId, $path)
                 ->withHeader('Idempotency-Key', $idempotencyKey)
                 ->send($method, $path, ['json' => $payload]);
         } catch (ConnectionException) {
-            throw new PlatformApiException(0, 'Zigpaw is unavailable right now. Please try again shortly.');
+            throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
         }
 
         return $this->data($response);
@@ -452,11 +438,11 @@ class PlatformApiClient
         $this->assertAllowedRoute($method, $path);
 
         try {
-            $response = $this->request($accessToken, $organizationId)
+            $response = $this->request($accessToken, $organizationId, $path)
                 ->withHeader('Idempotency-Key', (string) Str::uuid())
                 ->send($method, $path);
         } catch (ConnectionException) {
-            throw new PlatformApiException(0, 'Zigpaw is unavailable right now. Please try again shortly.');
+            throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
         }
 
         if (! $response->successful()) {
@@ -468,30 +454,37 @@ class PlatformApiClient
     private function data(Response $response): array
     {
         if (! $response->successful()) {
-            $errors = $response->json('errors');
-            $errors = is_array($errors) ? $errors : [];
+            $decoded = $this->safeJson($response);
+            $errors = $this->validationErrors($decoded['errors'] ?? null);
             $validationMessage = collect($errors)
                 ->flatten()
                 ->first(fn (mixed $message): bool => is_string($message) && $message !== '');
+            $message = is_string($decoded['message'] ?? null) && trim($decoded['message']) !== ''
+                ? trim($decoded['message'])
+                : (is_string($decoded['detail'] ?? null) && trim($decoded['detail']) !== ''
+                    ? trim($decoded['detail'])
+                    : ($validationMessage ?: 'Zigpaw could not complete that request.'));
+
+            if ($response->serverError()) {
+                $message = 'Zigpaw is temporarily unavailable. Please try again shortly.';
+            }
 
             throw new PlatformApiException(
                 $response->status(),
-                (string) ($validationMessage
-                    ?: $response->json('detail')
-                    ?: $response->json('message')
-                    ?: 'Zigpaw could not complete that request.'),
-                array_filter(
-                    $errors,
-                    static fn (mixed $messages): bool => is_array($messages)
-                        && array_is_list($messages)
-                        && collect($messages)->every(static fn (mixed $message): bool => is_string($message)),
-                ),
+                (string) $message,
+                $errors,
+                RequestCorrelation::valid($response->header('X-Request-ID')),
             );
         }
 
-        $data = $response->json('data');
+        $decoded = $this->safeJson($response);
+        $data = $decoded['data'] ?? null;
         if (! is_array($data)) {
-            throw new PlatformApiException(502, 'Zigpaw returned an unexpected response.');
+            throw new PlatformApiException(
+                502,
+                'Zigpaw returned an unexpected response.',
+                requestId: RequestCorrelation::valid($response->header('X-Request-ID')),
+            );
         }
 
         return $data;
@@ -502,23 +495,28 @@ class PlatformApiClient
         $this->assertAllowedRoute('GET', $path);
 
         try {
-            return $this->request($accessToken, $organizationId)->get($path);
+            return $this->request($accessToken, $organizationId, $path)->get($path);
         } catch (ConnectionException) {
-            throw new PlatformApiException(0, 'Zigpaw is unavailable right now. Please try again shortly.');
+            throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
         }
     }
 
     private function assertAllowedRoute(string $method, string $path): void
     {
-        $route = (string) str($path)->before('?');
-
-        foreach (self::ALLOWED_ROUTES[$method] ?? [] as $pattern) {
-            if (preg_match($pattern, $route) === 1) {
-                return;
-            }
+        if (! BusinessApiOperations::allows($method, $path)) {
+            throw new InvalidArgumentException('The requested platform API route is not allowed.');
         }
 
-        throw new InvalidArgumentException('The requested platform API route is not allowed.');
+        $context = $this->contextForPath($path);
+
+        if (! PlatformConfiguration::isSafe($context)) {
+            throw new PlatformApiException(
+                503,
+                $context === PlatformConfiguration::CLINICAL
+                    ? 'Zigpaw clinical is temporarily unavailable.'
+                    : 'Zigpaw is temporarily unavailable.',
+            );
+        }
     }
 
     private function nullableString(mixed $value): ?string
@@ -526,15 +524,114 @@ class PlatformApiClient
         return is_string($value) && $value !== '' ? $value : null;
     }
 
-    private function request(string $accessToken, ?string $organizationId): PendingRequest
+    private function request(string $accessToken, ?string $organizationId, string $path): PendingRequest
     {
-        $request = Http::baseUrl((string) config('platform.api_url'))
+        $configPrefix = $this->contextForPath($path) === PlatformConfiguration::CLINICAL
+            ? 'platform_clinical'
+            : 'platform';
+        $request = Http::baseUrl((string) config("{$configPrefix}.api_url"))
             ->acceptJson()
-            ->withToken($accessToken)
+            ->withToken($this->headerValue($accessToken, 'access token'))
             ->withHeader('X-Request-ID', RequestCorrelation::id())
             ->connectTimeout(3)
             ->timeout(8);
 
-        return $organizationId ? $request->withHeader('X-Zigpaw-Organization-ID', $organizationId) : $request;
+        return $organizationId
+            ? $request->withHeader('X-Zigpaw-Organization-ID', $this->headerValue($organizationId, 'organization identifier'))
+            : $request;
+    }
+
+    private function contextForPath(string $path): string
+    {
+        return str_starts_with($path, '/v1/business/clinical/')
+            ? PlatformConfiguration::CLINICAL
+            : PlatformConfiguration::BUSINESS;
+    }
+
+    /** @return array<string, mixed> */
+    private function safeJson(Response $response): array
+    {
+        try {
+            $decoded = $response->json();
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /** @return array<string, list<string>> */
+    private function validationErrors(mixed $errors): array
+    {
+        if (! is_array($errors)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($errors as $field => $messages) {
+            if (! is_string($field)) {
+                continue;
+            }
+
+            if (is_string($messages)) {
+                $normalized[$field] = [$messages];
+
+                continue;
+            }
+
+            if (! is_array($messages)) {
+                continue;
+            }
+
+            $normalizedMessages = array_values(array_filter(
+                $messages,
+                static fn (mixed $message): bool => is_string($message),
+            ));
+
+            if ($normalizedMessages !== []) {
+                $normalized[$field] = $normalizedMessages;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function uuid(string $identifier, string $label): string
+    {
+        if (! Str::isUuid($identifier)) {
+            throw new InvalidArgumentException("Invalid {$label} identifier.");
+        }
+
+        return strtolower($identifier);
+    }
+
+    private function positiveInteger(int|string $identifier, string $label): string
+    {
+        if ((! is_int($identifier) && preg_match('/^[1-9][0-9]*$/D', $identifier) !== 1)
+            || (int) $identifier < 1) {
+            throw new InvalidArgumentException("Invalid {$label} identifier.");
+        }
+
+        return (string) $identifier;
+    }
+
+    private function headerValue(string $value, string $label): string
+    {
+        if ($value === '' || mb_strlen($value) > 4096 || preg_match('/[\r\n]/', $value) === 1) {
+            throw new InvalidArgumentException("Invalid {$label}.");
+        }
+
+        return $value;
+    }
+
+    private function idempotencyKey(string $key): string
+    {
+        if (mb_strlen($key) < 8
+            || mb_strlen($key) > 255
+            || preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]*$/D', $key) !== 1) {
+            throw new InvalidArgumentException('Invalid idempotency key.');
+        }
+
+        return $key;
     }
 }

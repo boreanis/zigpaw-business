@@ -7,7 +7,7 @@
                 <p>Only family-approved patient grants and records appear here.</p>
             </div>
             @if (count($organizations) > 1)
-                <button class="secondary-button" type="button" wire:click="changeOrganization">Change organisation</button>
+                <x-clinical.button wire:click="changeOrganization" wire:loading.attr="disabled" wire:target="changeOrganization">Change organisation</x-clinical.button>
             @endif
         </header>
 
@@ -23,7 +23,7 @@
                 <p class="eyebrow">Start here</p>
                 <h2>Open an approved patient grant</h2>
                 <p>Review the care context a family chose to share, then submit visit records only when the grant permits it.</p>
-                <a class="primary-button" href="{{ route('clinical.patients.index') }}" wire:navigate>View patients</a>
+                <x-clinical.button variant="primary" :href="route('clinical.patients.index')" wire:navigate>View patients</x-clinical.button>
             </section>
 
             <section class="plain-section">
@@ -63,7 +63,7 @@
                 <p>Each patient grant and submission stays within the clinical organisation selected here.</p>
                 <div class="organization-list">
                     @foreach ($organizations as $organization)
-                        <button type="button" wire:click="selectOrganization('{{ $organization['id'] }}')"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></button>
+                        <x-clinical.button variant="organization" wire:click="selectOrganization('{{ $organization['id'] }}')" wire:loading.attr="disabled" wire:target="selectOrganization"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-clinical.button>
                     @endforeach
                 </div>
             @elseif ($state === 'forbidden')
@@ -71,16 +71,16 @@
                 <p>{{ $message ?: 'This account does not belong to an active, verified veterinary organisation.' }}</p>
                 <form method="POST" action="{{ route('clinical.auth.logout') }}">
                     @csrf
-                    <button class="primary-button" type="submit">Use another account</button>
+                    <x-clinical.button variant="primary" type="submit">Use another account</x-clinical.button>
                 </form>
             @elseif ($state === 'unavailable')
                 <p class="eyebrow">Connection check</p><h1>Zigpaw Business clinical is temporarily unavailable</h1>
                 <p>{{ $message ?: 'Your account is safe. Please try again shortly.' }}</p>
-                <a class="secondary-button" href="{{ route('clinical.dashboard') }}">Try again</a>
+                <x-clinical.button :href="route('clinical.dashboard')">Try again</x-clinical.button>
             @else
                 <p class="eyebrow">Zigpaw Business clinical</p><h1>Care records, with families in control</h1>
                 <p>Sign in through Zigpaw identity to open only the patient information a family has explicitly shared with your clinical organisation.</p>
-                <a class="primary-button" href="{{ route('clinical.auth.login') }}">Sign in securely</a>
+                <x-clinical.button variant="primary" :href="route('clinical.auth.login')">Sign in securely</x-clinical.button>
                 <div class="trust-note"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Your clinical session is protected, and patient access stays limited to family-approved grants.</span></div>
             @endif
         </section>

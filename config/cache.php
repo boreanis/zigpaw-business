@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Str;
 
+$requestedCacheStore = strtolower((string) env('CACHE_STORE', 'redis'));
+$cacheStore = in_array($requestedCacheStore, ['redis', 'array', 'file', 'storage', 'memcached', 'dynamodb', 'octane'], true)
+    ? $requestedCacheStore
+    : 'redis';
+
 return [
 
     /*
@@ -15,7 +20,9 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    // The Business BFF owns no SQL schema. A stale Laravel starter value such
+    // as `database` must never reintroduce a hidden database dependency.
+    'default' => $cacheStore,
 
     /*
     |--------------------------------------------------------------------------
@@ -37,14 +44,6 @@ return [
         'array' => [
             'driver' => 'array',
             'serialize' => false,
-        ],
-
-        'database' => [
-            'driver' => 'database',
-            'connection' => env('DB_CACHE_CONNECTION'),
-            'table' => env('DB_CACHE_TABLE', 'cache'),
-            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION'),
-            'lock_table' => env('DB_CACHE_LOCK_TABLE'),
         ],
 
         'file' => [
@@ -95,14 +94,6 @@ return [
 
         'octane' => [
             'driver' => 'octane',
-        ],
-
-        'failover' => [
-            'driver' => 'failover',
-            'stores' => [
-                'database',
-                'array',
-            ],
         ],
 
     ],

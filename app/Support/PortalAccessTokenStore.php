@@ -6,9 +6,11 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PortalAccessTokenStore
@@ -21,7 +23,7 @@ class PortalAccessTokenStore
 
     public function __construct(
         private readonly Session $session,
-        private readonly string $context = 'business',
+        private readonly string $context = PlatformConfiguration::BUSINESS,
     ) {}
 
     public function accessToken(): ?string
@@ -34,6 +36,14 @@ class PortalAccessTokenStore
 
         if ($tokens['expires_at'] > now()->getTimestamp()) {
             return $tokens['access_token'];
+        }
+
+        if (! PlatformConfiguration::isSafe($this->context)) {
+            Log::error('Portal OAuth refresh was blocked by unsafe platform configuration.', [
+                'context' => $this->context,
+            ]);
+
+            return null;
         }
 
         $cacheKey = $this->cacheKey(create: false);
@@ -70,17 +80,44 @@ class PortalAccessTokenStore
                     );
 
                 if (! $response->successful()) {
-                    if (in_array($response->status(), [400, 401], true)) {
+                    if ($this->refreshFailureInvalidatesSession($response)) {
                         $this->forget();
+                    } else {
+                        Log::warning('Portal OAuth token refresh was rejected without invalidating the session.', [
+                            'context' => $this->context,
+                            'status' => $response->status(),
+                        ]);
                     }
 
                     return null;
                 }
 
-                $this->put($response->json());
+                try {
+                    $payload = $response->json();
+
+                    if (! is_array($payload)) {
+                        throw new \InvalidArgumentException('The authorization server returned an invalid token response.');
+                    }
+
+                    $this->put($payload);
+                } catch (\InvalidArgumentException|\JsonException $exception) {
+                    Log::error('Portal OAuth token refresh returned an invalid response.', [
+                        'context' => $this->context,
+                        'exception' => $exception::class,
+                    ]);
+
+                    return null;
+                }
 
                 return $this->tokens()['access_token'] ?? null;
             });
+        } catch (ConnectionException $exception) {
+            Log::warning('Portal OAuth token refresh was unavailable.', [
+                'context' => $this->context,
+                'exception' => $exception::class,
+            ]);
+
+            return null;
         } catch (LockTimeoutException) {
             return null;
         }
@@ -124,6 +161,8 @@ class PortalAccessTokenStore
     public function revoke(): string
     {
         try {
+            PlatformConfiguration::ensureSafe($this->context);
+
             $accessToken = $this->accessToken();
 
             if (! $accessToken) {
@@ -139,7 +178,11 @@ class PortalAccessTokenStore
                 ->timeout(8)
                 ->delete((string) config($this->configKey('session_endpoint')));
 
-            $logoutUrl = $response->successful() ? $response->json('data.logout_url') : null;
+            try {
+                $logoutUrl = $response->successful() ? $response->json('data.logout_url') : null;
+            } catch (\JsonException $exception) {
+                throw new \RuntimeException('The identity service returned an invalid logout response.', previous: $exception);
+            }
 
             if (! is_string($logoutUrl) || ! $this->isTrustedIdentityLogoutUrl($logoutUrl)) {
                 throw new \RuntimeException('The identity service returned an invalid logout response.');
@@ -231,6 +274,23 @@ class PortalAccessTokenStore
             && is_string($query['signature'] ?? null);
     }
 
+    private function refreshFailureInvalidatesSession(Response $response): bool
+    {
+        if ($response->status() === 401) {
+            return true;
+        }
+
+        if ($response->status() !== 400) {
+            return false;
+        }
+
+        try {
+            return $response->json('error') === 'invalid_grant';
+        } catch (\JsonException) {
+            return false;
+        }
+    }
+
     /** @param array<string, mixed> $parts */
     private function normalizedPort(array $parts): int
     {
@@ -239,13 +299,13 @@ class PortalAccessTokenStore
 
     private function sessionHandleKey(): string
     {
-        return $this->context === 'clinical'
+        return $this->context === PlatformConfiguration::CLINICAL
             ? self::CLINICAL_SESSION_HANDLE_KEY
             : self::BUSINESS_SESSION_HANDLE_KEY;
     }
 
     private function configKey(string $key): string
     {
-        return $this->context === 'clinical' ? "platform_clinical.{$key}" : "platform.{$key}";
+        return $this->context === PlatformConfiguration::CLINICAL ? "platform_clinical.{$key}" : "platform.{$key}";
     }
 }

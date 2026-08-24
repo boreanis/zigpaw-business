@@ -1,5 +1,10 @@
 <?php
 
+$requestedQueueConnection = strtolower((string) env('QUEUE_CONNECTION', 'redis'));
+$queueConnection = in_array($requestedQueueConnection, ['redis', 'sync', 'beanstalkd', 'sqs', 'deferred', 'background'], true)
+    ? $requestedQueueConnection
+    : 'redis';
+
 return [
 
     /*
@@ -13,7 +18,9 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    // There is deliberately no database queue in this API-only browser
+    // facade. Invalid or inherited starter values fail back to Redis.
+    'default' => $queueConnection,
 
     /*
     |--------------------------------------------------------------------------
@@ -33,15 +40,6 @@ return [
 
         'sync' => [
             'driver' => 'sync',
-        ],
-
-        'database' => [
-            'driver' => 'database',
-            'connection' => env('DB_QUEUE_CONNECTION'),
-            'table' => env('DB_QUEUE_TABLE', 'jobs'),
-            'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
-            'after_commit' => false,
         ],
 
         'beanstalkd' => [
@@ -81,14 +79,6 @@ return [
             'driver' => 'background',
         ],
 
-        'failover' => [
-            'driver' => 'failover',
-            'connections' => [
-                'database',
-                'deferred',
-            ],
-        ],
-
     ],
 
     /*
@@ -103,7 +93,7 @@ return [
     */
 
     'batching' => [
-        'database' => env('DB_CONNECTION', 'sqlite'),
+        'database' => null,
         'table' => 'job_batches',
     ],
 
@@ -121,8 +111,8 @@ return [
     */
 
     'failed' => [
-        'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),
-        'database' => env('DB_CONNECTION', 'sqlite'),
+        'driver' => env('QUEUE_FAILED_DRIVER', 'null'),
+        'database' => null,
         'table' => 'failed_jobs',
     ],
 

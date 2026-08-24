@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Str;
 
+$requestedSessionDriver = strtolower((string) env('SESSION_DRIVER', 'redis'));
+$sessionDriver = in_array($requestedSessionDriver, ['redis', 'array', 'file', 'cookie'], true)
+    ? $requestedSessionDriver
+    : 'redis';
+
 return [
 
     /*
@@ -18,7 +23,9 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    // This BFF deliberately has no SQL connection. Treat stale starter values
+    // such as `database` as Redis instead of allowing a request-time 500.
+    'driver' => $sessionDriver,
 
     /*
     |--------------------------------------------------------------------------
@@ -47,7 +54,7 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------

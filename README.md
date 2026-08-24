@@ -26,7 +26,7 @@ flowchart LR
     Registry --> General["General, retail and future<br/>reviewed templates"]
     Workspace --> Management["Business OAuth client<br/>management scopes"]
     Vet --> Clinical["Separate clinical OAuth client<br/>clinical scopes only"]
-    Management --> API["zigpaw-api<br/>canonical API"]
+    Management --> API["zigpaw-platform<br/>canonical API"]
     Clinical --> API
 ```
 
@@ -51,7 +51,7 @@ flowchart TD
 - Management audience: `/v1/business/*` with `business:*` scopes.
 - Clinical audience: `/v1/business/clinical/*` with `clinical:read` and `clinical:submit` scopes.
 - Organization context: every tenant request carries an explicit `X-Zigpaw-Organization-ID` selected from active memberships.
-- Data ownership: the canonical `zigpaw-api` platform owns organizations, provider listings, locations, bookings, agreements, partner programs, commission accruals, clinical grants, submissions, and opaque references to externally completed settlements. Zigpaw does not collect provider bank details or execute provider payouts in this phase. This repository owns presentation, browser sessions, and server-side OAuth token custody only.
+- Data ownership: the canonical `zigpaw-platform` platform owns organizations, provider listings, locations, bookings, agreements, partner programs, commission accruals, clinical grants, submissions, and opaque references to externally completed settlements. Zigpaw does not collect provider bank details or execute provider payouts in this phase. This repository owns presentation, browser sessions, and server-side OAuth token custody only.
 
 The platform checks both token scope and the authenticated user's active organization membership before it returns data or accepts a write. Sign-out requests canonical token revocation and a signed identity-session termination, then always invalidates the local portal session even if the upstream service is unavailable. Do not add direct database access as a shortcut.
 
@@ -67,7 +67,7 @@ flowchart LR
 
     subgraph BusinessOrigin["business.zigpaw.app — independent deployment"]
         UI["Laravel + Livewire BFF<br/>HTML, Livewire requests and CSRF"]
-        LocalState["Portal-only store<br/>encrypted session, OAuth tokens, cache and jobs"]
+        LocalState["Portal-only Redis state<br/>encrypted sessions, OAuth tokens, cache and jobs"]
         UI -->|"opaque session handle"| LocalState
     end
 
@@ -81,7 +81,7 @@ flowchart LR
     API --> Platform
 ```
 
-There is no browser-facing copy of the canonical API and no platform database connection in this repository. The same-origin BFF surface is the Laravel/Livewire application itself. Its local migrations are restricted to session, cache, and jobs infrastructure; they must never grow platform organization, provider, booking, agreement, customer, or finance models.
+There is no browser-facing copy of the canonical API and no database connection in this repository. The same-origin BFF surface is the Laravel/Livewire application itself. Ephemeral sessions, token handles, cache entries and jobs are namespaced in Redis; all migration and seed commands fail closed.
 
 The production browser cookie is host-only, `Secure`, `HttpOnly`, `SameSite=Lax`, and encrypted. OAuth tokens are encrypted in the server-side cache behind a random session handle. The client secret and tokens are server-only. Production configuration must not use the deterministic local-development secret fallback.
 
@@ -120,7 +120,7 @@ The portal presents:
 - read-only commission statements and disclosed agreements, with no bank or payout onboarding;
 - role-scoped team access.
 
-New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw-api`, then consume it here. Never add direct access to the platform database.
+New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw-platform`, then consume it here. Never add direct access to the platform database.
 
 ## Current Capabilities
 
@@ -140,7 +140,8 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 ## Explicitly Out Of Scope
 
 - Provider bank details, identity/KYB collection, payment processing, settlement, and payout initiation.
-- Consumer pet, Finder, recovery, clinical, subscription, or billing data.
+- Consumer billing, Finder/recovery, tag, or unrestricted pet data.
+- Unrestricted clinical records. The veterinary template receives only the minimum fields authorized by an active provider grant through the dedicated clinical API audience.
 - Organic directory ranking changes in exchange for an agreement. Sponsored placements remain separately labeled platform data.
 - Local copies of platform models, authorization rules, provider credentials, or business records.
 - A compatibility path to a removed historical partner or veterinary portal implementation.
@@ -152,7 +153,7 @@ composer install
 npm install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate
+php artisan business:sync-contracts /absolute/path/to/business-v1.json /absolute/path/to/clinical-v1.json
 npm run build
 ```
 
@@ -160,7 +161,9 @@ Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`, `P
 
 The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 
-The database session/cache defaults in `.env.example` are for local development. Production readiness requires Redis for this portal's session and cache stores so encrypted token custody, refresh locking, and multi-instance behavior remain consistent. Business cookie names, cache prefixes, encryption keys, token handles, and session records must not be shared with any other Zigpaw host.
+The retired standalone Vets portal is consolidated here as the category-aware clinical template. Management and clinical traffic share this Business deployment and encrypted host-only browser session container, while retaining separate OAuth clients, callback paths, scope sets, token handles, encrypted cache entries, API route allowlists and sign-out endpoints. See [`docs/CLINICAL_CONSOLIDATION.md`](docs/CLINICAL_CONSOLIDATION.md) for the preserved capability boundary and retirement checklist.
+
+Redis is the default session, cache and queue backend so encrypted token custody, refresh locking, and multi-instance behavior remain consistent. Business cookie names, Redis prefixes, encryption keys, token handles, and session records must not be shared with any other Zigpaw host. Do not add a database connection to this BFF.
 
 ## Verification
 
@@ -179,6 +182,7 @@ npm audit --audit-level=high
 | Static contract | `composer analyse` | PHP/Larastan types agree across the portal and platform transport. |
 | Style | `vendor/bin/pint --test` in CI | Committed PHP follows the repository format without a mutating CI pass. |
 | Production assets | `npm run build` | The independently namespaced Business CSS/JavaScript bundle compiles. |
+| Contract drift | `php artisan business:sync-contracts contracts/business-v1.json contracts/clinical-v1.json --check` | The copied Business/Clinical contracts and generated BFF route allowlist match. |
 | Supply chain | `composer audit --locked --no-interaction` and `npm audit --audit-level=high` | Locked PHP and npm dependencies have no silently accepted high-severity advisory. |
 | Runtime boundary | `/health`, `/health/ready`, and browser OAuth smoke | The portal, local store, safe OAuth configuration, identity handoff, canonical API, and sign-out/revocation path are production-shaped. |
 | Repository hygiene | CI Gitleaks history scan | Server-only client secrets and OAuth tokens were not committed. |
@@ -189,15 +193,15 @@ The August 16, 2026 checkpoint passed **29 PHPUnit tests / 111 assertions**, Lar
 
 ## Release Rules
 
-1. Implement the canonical `/v1/business/*` or `/v1/business/clinical/*` operation, policy, Form Request, Resource, scope/capability mapping, idempotency/audit behavior, and contract tests in `zigpaw-api` first.
+1. Implement the canonical `/v1/business/*` or `/v1/business/clinical/*` operation, policy, Form Request, Resource, scope/capability mapping, idempotency/audit behavior, and contract tests in `zigpaw-platform` first.
 2. Confirm the operation is present in the reviewed Business or clinical OpenAPI audience bundle and approved for the intended release phase.
-3. Add only the allowlisted server-side transport and Livewire experience needed for that operation. Do not proxy arbitrary URLs.
+3. Sync the released contracts, then add only the generated-allowlist server-side transport and Livewire experience needed for that operation. Do not proxy arbitrary URLs.
 4. Pass both repositories' release gates and a production-host OAuth/browser smoke test.
 5. Deploy the canonical API before this client and retain independently versioned Business assets and rollback artifacts.
 
 Canonical platform decisions:
 
-- [Architecture](https://github.com/boreanis/zigpaw-api/blob/main/docs/09_ARCHITECTURE.md)
-- [Production delivery](https://github.com/boreanis/zigpaw-api/blob/main/docs/10_DEPLOYMENT_PRODUCTION.md)
-- [Provider integrations](https://github.com/boreanis/zigpaw-api/blob/main/docs/11_PROVIDER_INTEGRATIONS.md)
-- [Business strategy](https://github.com/boreanis/zigpaw-api/blob/main/docs/01_BUSINESS_STRATEGY.md)
+- [Architecture](https://github.com/boreanis/zigpaw-platform/blob/main/docs/09_ARCHITECTURE.md)
+- [Production delivery](https://github.com/boreanis/zigpaw-platform/blob/main/docs/10_DEPLOYMENT_PRODUCTION.md)
+- [Provider integrations](https://github.com/boreanis/zigpaw-platform/blob/main/docs/11_PROVIDER_INTEGRATIONS.md)
+- [Business strategy](https://github.com/boreanis/zigpaw-platform/blob/main/docs/01_BUSINESS_STRATEGY.md)

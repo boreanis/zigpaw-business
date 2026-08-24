@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\OAuth;
 
+use App\Support\PlatformConfiguration;
 use App\Support\PortalAccessTokenStore;
 use App\Support\RequestCorrelation;
 use Illuminate\Http\Client\ConnectionException;
@@ -23,7 +24,13 @@ class PortalOAuthController
         $clientSecret = config('platform.oauth_client_secret');
         $redirectUri = config('platform.oauth_redirect_uri');
         $canonicalPortalUrl = rtrim((string) config('app.url'), '/');
-        abort_unless(is_string($clientId) && $clientId !== '' && is_string($clientSecret) && strlen($clientSecret) >= 32 && is_string($redirectUri) && filter_var($redirectUri, FILTER_VALIDATE_URL) && filter_var($canonicalPortalUrl, FILTER_VALIDATE_URL), 503, 'This portal has not been connected to Zigpaw yet.');
+        abort_unless(is_string($clientId) && $clientId !== ''
+            && is_string($clientSecret) && strlen($clientSecret) >= 32
+            && is_string($redirectUri)
+            && PlatformConfiguration::isSafe(PlatformConfiguration::BUSINESS),
+            503,
+            'This portal has not been connected to Zigpaw yet.',
+        );
 
         if (! hash_equals($canonicalPortalUrl, $request->getSchemeAndHttpHost())) {
             return redirect()->away($canonicalPortalUrl.'/auth/login', 308);
@@ -49,6 +56,12 @@ class PortalOAuthController
 
     public function callback(Request $request, PortalAccessTokenStore $tokens): RedirectResponse
     {
+        abort_unless(
+            PlatformConfiguration::isSafe(PlatformConfiguration::BUSINESS),
+            503,
+            'This portal has not been connected to Zigpaw yet.',
+        );
+
         $state = $request->string('state')->toString();
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $verifier = $request->session()->pull(self::VERIFIER_KEY);

@@ -2,30 +2,31 @@
     <a class="back-link" href="{{ route('clinical.patients.index') }}" wire:navigate><span aria-hidden="true">←</span> Patients</a>
 
     @if ($loadingFailed)
-        <section class="empty-state" role="alert">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            <h1>Patient access is unavailable</h1>
-            <p>{{ $message }}</p>
-            <div class="button-row"><a class="secondary-button" href="{{ route('clinical.patients.index') }}" wire:navigate>Back to patients</a><button class="text-button" type="button" wire:click="retry">Try again</button></div>
-        </section>
+        <x-clinical.empty-state title="Patient access is unavailable" :description="$message" tone="error" :heading-level="1">
+            <x-slot:icon><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></x-slot:icon>
+            <x-slot:actions>
+                <x-clinical.button :href="route('clinical.patients.index')" wire:navigate>Back to patients</x-clinical.button>
+                <x-clinical.button variant="text" wire:click="retry" wire:loading.attr="disabled" wire:target="retry">Try again</x-clinical.button>
+            </x-slot:actions>
+        </x-clinical.empty-state>
     @else
         @php
             $petName = data_get($grant, 'pet.name');
             $displayName = is_string($petName) && $petName !== '' ? $petName : 'Restricted patient';
             $capabilities = is_array($grant['capabilities'] ?? null) ? $grant['capabilities'] : [];
             $status = (string) ($grant['status'] ?? 'unknown');
-            $statusClass = match ($status) { 'active' => 'status-green', 'expired' => 'status-amber', 'revoked' => 'status-red', default => 'status-neutral' };
+            $statusTone = match ($status) { 'active' => 'good', 'expired' => 'warn', 'revoked' => 'danger', default => 'neutral' };
         @endphp
 
         <header class="patient-hero">
             <div class="patient-avatar patient-avatar-large" aria-hidden="true">{{ str($displayName)->substr(0, 1)->upper() }}</div>
             <div class="patient-hero-copy">
-                <div class="heading-with-status"><p class="eyebrow">Family-approved access</p><span class="status-badge {{ $statusClass }}">{{ str($status)->headline() }}</span></div>
+                <div class="heading-with-status"><p class="eyebrow">Family-approved access</p><x-clinical.status :tone="$statusTone">{{ str($status)->headline() }}</x-clinical.status></div>
                 <h1>{{ $displayName }}</h1>
                 <p>{{ collect([data_get($grant, 'pet.species'), data_get($grant, 'pet.breed')])->filter()->join(' · ') ?: 'Profile details are not included in this grant.' }}</p>
             </div>
             @if (($capabilities['submit_care'] ?? false) === true)
-                <a class="primary-button" href="{{ route('clinical.patients.submissions.create', ['grantId' => $grantId]) }}" wire:navigate>Submit care records</a>
+                <x-clinical.button variant="primary" :href="route('clinical.patients.submissions.create', ['grantId' => $grantId])" wire:navigate>Submit care records</x-clinical.button>
             @endif
         </header>
 
@@ -125,7 +126,7 @@
                 </div>
             </section>
         @else
-            <section class="permission-note"><strong>Care history is not included</strong><span>The family can change the grant from their Zigpaw account. This clinical team cannot expand access.</span></section>
+            <x-clinical.alert title="Care history is not included" description="The family can change the grant from their Zigpaw account. This clinical team cannot expand access." />
         @endif
 
         <section class="plain-section">

@@ -13,4 +13,6 @@ return [
     'oauth_scopes' => array_values(array_filter(explode(' ', (string) env('PLATFORM_OAUTH_SCOPES', 'business:read business:profile:write business:providers:read business:providers:write business:bookings:read business:bookings:write business:programs:read business:programs:write business:financials:read business:team:read business:team:write')))),
     'oauth_redirect_uri' => env('PLATFORM_OAUTH_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/callback'),
     'asset_url' => rtrim((string) env('ASSET_URL', ''), '/'),
+    'business_contract_source' => env('PLATFORM_BUSINESS_CONTRACT_SOURCE'),
+    'clinical_contract_source' => env('PLATFORM_CLINICAL_CONTRACT_SOURCE'),
 ];
