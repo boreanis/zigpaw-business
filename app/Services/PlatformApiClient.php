@@ -96,6 +96,8 @@ class PlatformApiClient
     /** @return array<string, mixed> */
     public function bookingPetContext(string $accessToken, string $organizationId, string $bookingId): array
     {
+        $bookingId = $this->pathSegment($bookingId, 'booking');
+
         return $this->get("/v1/business/bookings/{$bookingId}/pet-context", $accessToken, $organizationId);
     }
 
@@ -263,6 +265,8 @@ class PlatformApiClient
         string $providerLinkId,
         array $payload,
     ): array {
+        $providerLinkId = $this->pathSegment($providerLinkId, 'provider link');
+
         return $this->mutate('PATCH', "/v1/business/providers/{$providerLinkId}", $accessToken, $organizationId, $payload);
     }
 
@@ -279,17 +283,23 @@ class PlatformApiClient
         string $offeringId,
         array $payload,
     ): array {
+        $offeringId = $this->pathSegment($offeringId, 'offering');
+
         return $this->mutate('PATCH', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId, $payload);
     }
 
     public function deleteOffering(string $accessToken, string $organizationId, string $offeringId): void
     {
+        $offeringId = $this->pathSegment($offeringId, 'offering');
+
         $this->mutateWithoutContent('DELETE', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function respondToBooking(string $accessToken, string $organizationId, string $bookingId, array $payload): array
     {
+        $bookingId = $this->pathSegment($bookingId, 'booking');
+
         return $this->mutate('POST', "/v1/business/bookings/{$bookingId}/response", $accessToken, $organizationId, $payload);
     }
 
@@ -311,6 +321,8 @@ class PlatformApiClient
         string $organizationId,
         string $membershipId,
     ): array {
+        $membershipId = $this->pathSegment($membershipId, 'membership');
+
         return $this->mutate('POST', "/v1/business/team/invitations/{$membershipId}/resend", $accessToken, $organizationId, []);
     }
 
@@ -321,6 +333,8 @@ class PlatformApiClient
         string $membershipId,
         array $payload,
     ): array {
+        $membershipId = $this->pathSegment($membershipId, 'membership');
+
         return $this->mutate('PATCH', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, $payload);
     }
 
@@ -330,6 +344,8 @@ class PlatformApiClient
         string $organizationId,
         string $membershipId,
     ): array {
+        $membershipId = $this->pathSegment($membershipId, 'membership');
+
         return $this->mutate('DELETE', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, []);
     }
 
@@ -537,7 +553,7 @@ class PlatformApiClient
             ->timeout(8);
 
         return $organizationId
-            ? $request->withHeader('X-Zigpaw-Organization-ID', $this->headerValue($organizationId, 'organization identifier'))
+            ? $request->withHeader('X-Zigpaw-Organization-ID', $this->pathSegment($organizationId, 'organization'))
             : $request;
     }
 
@@ -622,6 +638,23 @@ class PlatformApiClient
         }
 
         return $value;
+    }
+
+    /**
+     * IDs originate in Livewire actions and therefore must be treated as
+     * untrusted input before they become URL path segments. Keep this
+     * deliberately stricter than header validation: API resource identifiers
+     * are opaque, but they never need slashes, query delimiters, whitespace or
+     * percent-encoding.
+     */
+    private function pathSegment(string $identifier, string $label): string
+    {
+        if (mb_strlen($identifier) > 255
+            || preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]*$/D', $identifier) !== 1) {
+            throw new InvalidArgumentException("Invalid {$label} identifier.");
+        }
+
+        return $identifier;
     }
 
     private function idempotencyKey(string $key): string

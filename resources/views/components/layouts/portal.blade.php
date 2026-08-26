@@ -6,9 +6,6 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
     <title>{{ $title ?? 'Zigpaw business' }}</title>
-    <script>
-        (() => { const value = localStorage.getItem('zigpaw-business-theme'); if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value; })();
-    </script>
     @vite(['resources/css/business.css', 'resources/js/business.js'])
     @livewireStyles
 </head>

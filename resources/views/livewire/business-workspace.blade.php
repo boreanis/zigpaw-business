@@ -113,7 +113,7 @@
                                 <p>{{ data_get($link, 'place.address', 'All verified locations') }}</p>
                                 <div class="listing-card-footer">
                                     <small>{{ data_get($link, 'provider.template.label') ?: collect(data_get($link, 'provider.categories', []))->implode(' · ') }}</small>
-                                    <x-business.button variant="text" wire:click="startProviderEdit('{{ $link['id'] }}')">Edit details</x-business.button>
+                                    <x-business.button variant="text" wire:click="startProviderEdit({{ Illuminate\Support\Js::from($link['id']) }})">Edit details</x-business.button>
                                 </div>
                             </article>
                         @empty
@@ -181,7 +181,7 @@
                             <div class="claim-result-list" aria-label="Claimable provider listings">
                                 @foreach ($claimableProviders as $candidate)
                                     @php($isSelectedClaim = $claimServiceProviderId === (string) $candidate['service_provider_id'] && $claimPlaceId === (string) $candidate['place_id'])
-                                    <x-business.button variant="claim" class="{{ $isSelectedClaim ? 'claim-result-selected' : '' }}" wire:click="selectClaimableProvider('{{ $candidate['service_provider_id'] }}', '{{ $candidate['place_id'] }}')" aria-pressed="{{ $isSelectedClaim ? 'true' : 'false' }}">
+                                    <x-business.button variant="claim" class="{{ $isSelectedClaim ? 'claim-result-selected' : '' }}" wire:click="selectClaimableProvider({{ Illuminate\Support\Js::from($candidate['service_provider_id']) }}, {{ Illuminate\Support\Js::from($candidate['place_id']) }})" aria-pressed="{{ $isSelectedClaim ? 'true' : 'false' }}">
                                         <span><strong>{{ $candidate['branch_name'] ?: $candidate['provider_name'] }}</strong><small>{{ $candidate['provider_name'] !== $candidate['branch_name'] ? $candidate['provider_name'].' · ' : '' }}{{ $candidate['address'] }}</small></span>
                                         <span class="claim-result-action">{{ $isSelectedClaim ? 'Selected' : 'Choose' }}</span>
                                     </x-business.button>
@@ -274,7 +274,7 @@
                                             <strong>Pet profile available</strong>
                                             <small>View-only access is active until {{ data_get($booking, 'pet_access.expires_at') ? $this->displayDateTime($booking['pet_access']['expires_at']) : 'the appointment access is revoked' }}.</small>
                                         </div>
-                                        <x-business.button variant="text" wire:click="viewBookingPetContext('{{ $booking['id'] }}')">View pet profile</x-business.button>
+                                        <x-business.button variant="text" wire:click="viewBookingPetContext({{ Illuminate\Support\Js::from($booking['id']) }})">View pet profile</x-business.button>
                                     </div>
                                 @endif
                                 @if (isset($bookingPetContexts[$booking['id']]))
@@ -287,7 +287,7 @@
                                 @if ($customerWindows->isNotEmpty())
                                     <div class="window-list">
                                         @foreach ($customerWindows as $window)
-                                            <x-business.button variant="window" wire:click="acceptBooking('{{ $booking['id'] }}', '{{ $window['id'] }}')" wire:confirm="Accept this appointment time? The customer will be notified." :disabled="! in_array('accept', $booking['available_actions'] ?? [], true)">
+                                            <x-business.button variant="window" wire:click="acceptBooking({{ Illuminate\Support\Js::from($booking['id']) }}, {{ Illuminate\Support\Js::from($window['id']) }})" wire:confirm="Accept this appointment time? The customer will be notified." :disabled="! in_array('accept', $booking['available_actions'] ?? [], true)">
                                                 <span>{{ $this->displayDateTime($window['starts_at'] ?? null) }}</span>
                                                 <small>Accept this time</small>
                                             </x-business.button>
@@ -296,11 +296,11 @@
                                 @endif
                                 <div class="booking-actions">
                                     @if (in_array('complete', $booking['available_actions'] ?? [], true))
-                                        <x-business.button variant="primary" wire:click="completeBooking('{{ $booking['id'] }}')" wire:confirm="Mark this appointment complete? This will end appointment-based pet access.">Mark complete</x-business.button>
+                                        <x-business.button variant="primary" wire:click="completeBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Mark this appointment complete? This will end appointment-based pet access.">Mark complete</x-business.button>
                                     @endif
                                     @if (in_array('decline', $booking['available_actions'] ?? [], true))
                                         <input type="text" wire:model="declineReasons.{{ $booking['id'] }}" placeholder="Reason for declining" aria-label="Reason for declining {{ $booking['request_number'] }}">
-                                        <x-business.button variant="danger" wire:click="declineBooking('{{ $booking['id'] }}')" wire:confirm="Decline this booking request? The customer will be notified.">Decline</x-business.button>
+                                        <x-business.button variant="danger" wire:click="declineBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Decline this booking request? The customer will be notified.">Decline</x-business.button>
                                         @error('declineReasons.'.$booking['id']) <p class="field-error booking-field-error">{{ $message }}</p> @enderror
                                     @endif
                                 </div>
@@ -442,7 +442,7 @@
                         @forelse ($offerings as $offering)
                             <div class="data-row">
                                 <div><strong>{{ $offering['name'] }}</strong><small>{{ data_get($offering, 'place.name', 'All locations') }}{{ $offering['default_duration_minutes'] ? ' · '.$offering['default_duration_minutes'].' minutes' : '' }}</small></div>
-                                <div class="row-actions"><x-business.status :tone="$offering['status'] === 'active' ? 'good' : 'neutral'">{{ str($offering['status'])->headline() }}</x-business.status><x-business.button variant="text" wire:click="startOfferingEdit('{{ $offering['id'] }}')">Edit</x-business.button></div>
+                                <div class="row-actions"><x-business.status :tone="$offering['status'] === 'active' ? 'good' : 'neutral'">{{ str($offering['status'])->headline() }}</x-business.status><x-business.button variant="text" wire:click="startOfferingEdit({{ Illuminate\Support\Js::from($offering['id']) }})">Edit</x-business.button></div>
                             </div>
                         @empty
                             <div class="empty-row">No services have been published.</div>
@@ -548,9 +548,9 @@
                                     <x-business.status :tone="$member['status'] === 'active' ? 'good' : ($member['status'] === 'invited' ? 'blue' : 'neutral')">{{ str($member['status'])->headline() }}</x-business.status>
                                     <strong class="role-label">{{ str($member['role'])->headline() }}</strong>
                                     @unless ($member['is_current_user'] ?? false)
-                                        <x-business.button variant="text" wire:click="startTeamMemberEdit('{{ $member['id'] }}')">Edit</x-business.button>
+                                        <x-business.button variant="text" wire:click="startTeamMemberEdit({{ Illuminate\Support\Js::from($member['id']) }})">Edit</x-business.button>
                                         @if ($member['status'] === 'invited')
-                                            <x-business.button variant="text" wire:click="resendTeamInvitation('{{ $member['id'] }}')">Resend</x-business.button>
+                                            <x-business.button variant="text" wire:click="resendTeamInvitation({{ Illuminate\Support\Js::from($member['id']) }})">Resend</x-business.button>
                                         @endif
                                         <x-business.confirmation action="revokeTeamMember('{{ $member['id'] }}')" message="Remove this person’s business access?">Revoke</x-business.confirmation>
                                     @endunless
@@ -593,7 +593,7 @@
             <section class="access-card">
                 @if ($state === 'choose_organization')
                     <p class="eyebrow">Business workspace</p><h1>Choose where you’re working.</h1><p>Each workspace keeps locations, bookings, staff and financial information isolated.</p>
-                    <div class="organization-list">@foreach ($organizations as $organization)<x-business.button variant="organization" wire:click="selectOrganization('{{ $organization['id'] }}')"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-business.button>@endforeach</div>
+                    <div class="organization-list">@foreach ($organizations as $organization)<x-business.button variant="organization" wire:click="selectOrganization({{ Illuminate\Support\Js::from($organization['id']) }})"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-business.button>@endforeach</div>
                 @elseif ($state === 'forbidden')
                     <p class="eyebrow">Business access</p><h1>No active business workspace.</h1><p>{{ $message ?: 'Ask the business owner to invite you, or sign in with another account.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Use another account</x-business.button>
                 @elseif ($state === 'unavailable')

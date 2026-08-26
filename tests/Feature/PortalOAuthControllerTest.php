@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class PortalOAuthControllerTest extends TestCase
@@ -47,5 +48,23 @@ class PortalOAuthControllerTest extends TestCase
         ])->get(route('auth.callback', ['state' => 'unexpected', 'code' => 'code']))
             ->assertRedirect(route('dashboard'))
             ->assertSessionHas('error', 'That sign-in link is no longer valid. Please try again.');
+    }
+
+    public function test_it_handles_a_malformed_token_response_without_a_server_error(): void
+    {
+        config([
+            'app.url' => 'https://business.zigpaw.test',
+            'platform.oauth_client_id' => 'partner-portal-client',
+            'platform.oauth_client_secret' => str_repeat('b', 40),
+            'platform.oauth_redirect_uri' => 'https://business.zigpaw.test/auth/callback',
+        ]);
+        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['data' => 'not-a-token-envelope'])]);
+
+        $this->withSession([
+            'platform.oauth.state' => 'expected',
+            'platform.oauth.verifier' => 'verifier',
+        ])->get(route('auth.callback', ['state' => 'expected', 'code' => 'code']))
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'Zigpaw could not complete sign-in. Please try again.');
     }
 }

@@ -122,6 +122,22 @@ The portal presents:
 
 New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw-platform`, then consume it here. Never add direct access to the platform database.
 
+## Commerce boundary
+
+Commerce execution belongs to `zigpaw-platform`. This workspace does not
+create Checkout Sessions, prices, coupons, promotion codes, subscriptions,
+refunds, tax calculations, inventory reservations, fulfilment movements, or
+payment-provider credentials. Product availability and any customer-facing
+commerce totals are platform-owned API resources, not Business calculations.
+
+The Business workspace may only display platform-recorded partner-program
+enrolments, referral commissions, and disclosed agreements through the
+released Business contract. A referral application is a partner-program
+workflow; it is not a payment, discount, tax, or stock operation. If a
+provider-facing commercial workflow is needed later, add the policy, route,
+resource, and contract in `zigpaw-platform` first, then consume the released
+operation here.
+
 ## Current Capabilities
 
 | Workspace area | Implemented operations | Platform enforcement |
@@ -161,11 +177,24 @@ Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`, `P
 
 The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 
-The retired standalone Vets portal is consolidated here as the category-aware clinical template. Management and clinical traffic share this Business deployment and encrypted host-only browser session container, while retaining separate OAuth clients, callback paths, scope sets, token handles, encrypted cache entries, API route allowlists and sign-out endpoints. See [`docs/CLINICAL_CONSOLIDATION.md`](docs/CLINICAL_CONSOLIDATION.md) for the preserved capability boundary and retirement checklist.
+The former standalone veterinary portal is consolidated here as the
+category-aware clinical template. Management and clinical traffic share this
+Business deployment and encrypted host-only browser session container, while
+retaining separate OAuth clients, callback paths, scope sets, token handles,
+encrypted cache entries, API route allowlists and sign-out endpoints. See
+[`docs/CLINICAL_CONSOLIDATION.md`](docs/CLINICAL_CONSOLIDATION.md) for the
+historical capability boundary and retirement checklist.
 
 Redis is the default session, cache and queue backend so encrypted token custody, refresh locking, and multi-instance behavior remain consistent. Business cookie names, Redis prefixes, encryption keys, token handles, and session records must not be shared with any other Zigpaw host. Do not add a database connection to this BFF.
 
 ## Verification
+
+Framework error responses use the shared `x-business.error-page` primitive and
+status-specific copy for 403, 404, 419, 429, 500, 502, 503, and 504. Recovery
+links are session-aware and remain safe for failed form submissions. A generic
+401 page is intentionally not registered: Business authentication is an OAuth
+redirect flow, so an unauthenticated request must return to `/auth/login`
+instead of presenting a second, conflicting recovery surface.
 
 ```bash
 php artisan test --compact

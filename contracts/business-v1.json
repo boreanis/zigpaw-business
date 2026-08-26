@@ -715,7 +715,41 @@
                                             "type": "object",
                                             "properties": {
                                                 "currencies": {
-                                                    "type": "string"
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "currency": {
+                                                                "type": "string"
+                                                            },
+                                                            "commissions": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "status": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "entry_count": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "amount_cents": {
+                                                                            "type": "integer"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "status",
+                                                                        "entry_count",
+                                                                        "amount_cents"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "currency",
+                                                            "commissions"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -1256,6 +1290,45 @@
                                                         "booking_requests"
                                                     ]
                                                 },
+                                                "display_preferences": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "timezone": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "string"
+                                                                },
+                                                                {
+                                                                    "type": "null"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "date_format": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "m/d/Y",
+                                                                "d/m/Y",
+                                                                ""
+                                                            ]
+                                                        },
+                                                        "time_format": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "g:i A",
+                                                                "H:i"
+                                                            ]
+                                                        },
+                                                        "locale": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "timezone",
+                                                        "date_format",
+                                                        "time_format",
+                                                        "locale"
+                                                    ]
+                                                },
                                                 "business_profile": {
                                                     "anyOf": [
                                                         {
@@ -1432,6 +1505,7 @@
                                                 "organization",
                                                 "membership",
                                                 "features",
+                                                "display_preferences",
                                                 "business_profile",
                                                 "managed_provider_count",
                                                 "programs"
@@ -1550,6 +1624,45 @@
                                                         "booking_requests"
                                                     ]
                                                 },
+                                                "display_preferences": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "timezone": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "type": "string"
+                                                                },
+                                                                {
+                                                                    "type": "null"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "date_format": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "m/d/Y",
+                                                                "d/m/Y",
+                                                                ""
+                                                            ]
+                                                        },
+                                                        "time_format": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "g:i A",
+                                                                "H:i"
+                                                            ]
+                                                        },
+                                                        "locale": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "timezone",
+                                                        "date_format",
+                                                        "time_format",
+                                                        "locale"
+                                                    ]
+                                                },
                                                 "business_profile": {
                                                     "anyOf": [
                                                         {
@@ -1726,6 +1839,7 @@
                                                 "organization",
                                                 "membership",
                                                 "features",
+                                                "display_preferences",
                                                 "business_profile",
                                                 "managed_provider_count",
                                                 "programs"
@@ -5230,10 +5344,16 @@
                         ]
                     },
                     "application_notes": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "review_notes": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "reviewed_at": {
                         "type": [

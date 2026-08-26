@@ -1,5 +1,12 @@
 # Clinical workspace consolidation
 
+> **Historical consolidation record — current runtime guidance lives in**
+> [`BUSINESS_UI_REBUILD.md`](./BUSINESS_UI_REBUILD.md), the local `AGENTS.md`,
+> and the Platform Constitution/current API documents. This record explains
+> how the former veterinary surface was consolidated into the single Business
+> workspace; it is not a separate application, repository, route family, or
+> compatibility target.
+
 ## Decision
 
 The category-aware clinical workspace in `zigpaw-business` is the only supported browser application for veterinary providers. The retired `zigpaw-vets` repository is historical source, not a deployable runtime or compatibility target.

@@ -63,6 +63,18 @@ class ClinicalPortalOAuthControllerTest extends TestCase
             ->assertSessionHas('error', 'That clinical sign-in link is no longer valid. Please try again.');
     }
 
+    public function test_it_handles_a_malformed_clinical_token_response_without_a_server_error(): void
+    {
+        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['data' => 'not-a-token-envelope'])]);
+
+        $this->withSession([
+            'platform.oauth.clinical.state' => 'expected',
+            'platform.oauth.clinical.verifier' => 'verifier',
+        ])->get(route('clinical.auth.callback', ['state' => 'expected', 'code' => 'code']))
+            ->assertRedirect(route('clinical.dashboard'))
+            ->assertSessionHas('error', 'Zigpaw could not complete clinical sign-in. Please try again.');
+    }
+
     public function test_it_rejects_unsafe_clinical_identity_and_callback_configuration_before_sending_credentials(): void
     {
         Http::fake([

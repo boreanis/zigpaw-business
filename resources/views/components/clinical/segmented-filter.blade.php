@@ -10,7 +10,7 @@
     @foreach ($options as $value => $optionLabel)
         <button
             type="submit"
-            wire:click="$set('{{ $model }}', '{{ $value }}')"
+            wire:click="$set({{ Illuminate\Support\Js::from($model) }}, {{ Illuminate\Support\Js::from($value) }})"
             @class(['active' => $selected === $value])
             aria-pressed="{{ $selected === $value ? 'true' : 'false' }}"
         >{{ $optionLabel }}</button>

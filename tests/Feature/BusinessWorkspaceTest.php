@@ -11,6 +11,15 @@ use Tests\TestCase;
 
 class BusinessWorkspaceTest extends TestCase
 {
+    public function test_malformed_upstream_dates_render_as_a_placeholder_instead_of_breaking_the_workspace(): void
+    {
+        $component = Livewire::test(BusinessWorkspace::class);
+
+        $this->assertSame('—', $component->instance()->displayDate('not-a-date'));
+        $this->assertSame('—', $component->instance()->displayDateTime('not-a-date'));
+        $this->assertSame('—', $component->instance()->displayRelative('not-a-date'));
+    }
+
     public function test_sign_in_feedback_is_shown_on_the_signed_out_workspace(): void
     {
         $this->withSession(['error' => 'That sign-in link is no longer valid. Please try again.']);

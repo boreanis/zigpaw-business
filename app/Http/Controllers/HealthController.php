@@ -127,9 +127,12 @@ class HealthController extends Controller
                 ->withHeader('X-Request-ID', RequestCorrelation::id())
                 ->connectTimeout(2)
                 ->timeout(5)
-                ->get('/health/ready');
+                // The canonical API ingress exposes its runtime probe at
+                // /health. /health/ready belongs to Platform's browser/web
+                // runtime and is not available on api.zigpaw.app.
+                ->get('/health');
 
-            return $response->successful() && $response->json('status') === 'ready';
+            return $response->successful() && $response->json('status') === 'ok';
         } catch (ConnectionException) {
             return false;
         }

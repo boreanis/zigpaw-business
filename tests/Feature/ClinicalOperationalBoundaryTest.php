@@ -41,7 +41,7 @@ class ClinicalOperationalBoundaryTest extends TestCase
     public function test_readiness_requires_both_distinct_business_and_clinical_clients(): void
     {
         Http::fake([
-            'https://api.zigpaw.test/health/ready' => Http::response(['status' => 'ready']),
+            'https://api.zigpaw.test/health' => Http::response(['status' => 'ok']),
         ]);
 
         $response = $this->get('/health/ready')
@@ -51,7 +51,7 @@ class ClinicalOperationalBoundaryTest extends TestCase
         $requestId = $response->headers->get('X-Request-ID');
         $this->assertIsString($requestId);
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/D', $requestId);
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/health/ready'
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/health'
             && $request->hasHeader('X-Request-ID', $requestId));
     }
 

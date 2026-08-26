@@ -63,7 +63,7 @@
                 <p>Each patient grant and submission stays within the clinical organisation selected here.</p>
                 <div class="organization-list">
                     @foreach ($organizations as $organization)
-                        <x-clinical.button variant="organization" wire:click="selectOrganization('{{ $organization['id'] }}')" wire:loading.attr="disabled" wire:target="selectOrganization"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-clinical.button>
+                        <x-clinical.button variant="organization" wire:click="selectOrganization({{ Illuminate\Support\Js::from($organization['id']) }})" wire:loading.attr="disabled" wire:target="selectOrganization"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-clinical.button>
                     @endforeach
                 </div>
             @elseif ($state === 'forbidden')

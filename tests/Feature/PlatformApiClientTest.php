@@ -6,6 +6,7 @@ use App\Exceptions\PlatformApiException;
 use App\Services\PlatformApiClient;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 class PlatformApiClientTest extends TestCase
@@ -170,5 +171,42 @@ class PlatformApiClientTest extends TestCase
             $this->assertSame(404, $exception->status);
             $this->assertSame('This business feature is not available for this account.', $exception->getMessage());
         }
+    }
+
+    public function test_livewire_resource_identifiers_cannot_escape_api_path_segments(): void
+    {
+        Http::fake();
+
+        $api = app(PlatformApiClient::class);
+
+        $operations = [
+            static fn (): array => $api->bookingPetContext('access-token', 'organization-1', '../other'),
+            static fn (): array => $api->respondToBooking('access-token', 'organization-1', 'booking/other', ['response' => 'accept']),
+            static fn (): array => $api->updateManagedProvider('access-token', 'organization-1', 'provider?redirect=https://attacker.example', []),
+            static fn (): array => $api->updateOffering('access-token', 'organization-1', 'offering#fragment', []),
+            static fn (): array => $api->updateTeamMember('access-token', 'organization-1', "member\nX-Injected: yes", []),
+        ];
+
+        foreach ($operations as $operation) {
+            try {
+                $operation();
+                self::fail('An unsafe resource identifier was accepted.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function test_organization_context_is_validated_before_being_sent_as_a_header(): void
+    {
+        Http::fake();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        app(PlatformApiClient::class)->identity('access-token', 'organization/other');
+
+        Http::assertNothingSent();
     }
 }

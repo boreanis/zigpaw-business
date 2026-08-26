@@ -99,7 +99,12 @@ class PortalOAuthController
         }
 
         try {
-            $tokens->put($response->json());
+            $payload = $response->json();
+            if (! is_array($payload)) {
+                throw new \InvalidArgumentException('The authorization server returned an invalid token response.');
+            }
+
+            $tokens->put($payload);
         } catch (\InvalidArgumentException|\JsonException $exception) {
             Log::error('Portal OAuth token exchange returned an invalid response.', ['exception' => $exception::class]);
 

@@ -35,6 +35,18 @@ class PortalOperationalBoundaryTest extends TestCase
         $this->assertStringContainsString('upgrade-insecure-requests', $policy);
     }
 
+    public function test_portal_scripts_follow_the_csp_nonce_contract_without_inline_theme_bootstrap(): void
+    {
+        $response = $this->get('/')->assertOk();
+        $html = (string) $response->getContent();
+        $policy = (string) $response->headers->get('Content-Security-Policy');
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString("script-src 'self' 'nonce-", $policy);
+        $this->assertMatchesRegularExpression('/<script\\b[^>]*type="module"[^>]*nonce="[^"]+"/i', $html);
+        $this->assertStringNotContainsString('localStorage.getItem(\'zigpaw-business-theme\')', $html);
+    }
+
     public function test_readiness_checks_the_canonical_api_without_exposing_dependency_details(): void
     {
         config()->set('platform.oauth_client_id', 'portal-client');
@@ -45,7 +57,7 @@ class PortalOperationalBoundaryTest extends TestCase
         config()->set('platform_clinical.oauth_scopes', ['clinical:read', 'clinical:submit']);
 
         Http::fake([
-            'https://api.zigpaw.test/health/ready' => Http::response(['status' => 'ready']),
+            'https://api.zigpaw.test/health' => Http::response(['status' => 'ok']),
         ]);
 
         $response = $this->get('/health/ready')
@@ -56,7 +68,7 @@ class PortalOperationalBoundaryTest extends TestCase
         $this->assertIsString($requestId);
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/D', $requestId);
 
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/health/ready'
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/health'
             && $request->hasHeader('X-Request-ID', $requestId));
     }
 

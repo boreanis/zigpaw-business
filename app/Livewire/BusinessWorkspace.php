@@ -1188,9 +1188,15 @@ class BusinessWorkspace extends Component
             return null;
         }
 
-        return Carbon::parse($value)
-            ->timezone($this->displayTimezone)
-            ->locale($this->displayLocale);
+        try {
+            return Carbon::parse($value)
+                ->timezone($this->displayTimezone)
+                ->locale($this->displayLocale);
+        } catch (\Throwable) {
+            // An upstream record should never be able to break the whole
+            // workspace because a date is malformed or incomplete.
+            return null;
+        }
     }
 
     /** @return list<array<string, mixed>> */
