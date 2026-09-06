@@ -85,6 +85,14 @@ There is no browser-facing copy of the canonical API and no database connection 
 
 The production browser cookie is host-only, `Secure`, `HttpOnly`, `SameSite=Lax`, and encrypted. OAuth tokens are encrypted in the server-side cache behind a random session handle. The client secret and tokens are server-only. Production configuration must not use the deterministic local-development secret fallback.
 
+Management mutations persist their retry key in the encrypted server session before
+calling the API. If a write succeeds but the subsequent screen refresh fails, the
+original key remains available for the same payload, organization and membership.
+An opaque session-owned retry context survives OAuth session-ID regeneration;
+logout invalidation removes it. Changed payloads or memberships cannot reuse an
+unresolved request's key. This BFF behavior does not replace the Platform's durable
+idempotency and provider-operation guarantees.
+
 ```mermaid
 sequenceDiagram
     actor User as Business user

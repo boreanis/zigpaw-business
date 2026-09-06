@@ -113,4 +113,49 @@ class PortalOperationalBoundaryTest extends TestCase
             app()->detectEnvironment(fn (): string => $originalEnvironment);
         }
     }
+
+    public function test_staging_requires_blocked_server_side_sessions_for_replay_safety(): void
+    {
+        $originalEnvironment = app()->environment();
+
+        try {
+            app()->detectEnvironment(fn (): string => 'staging');
+            config()->set([
+                'app.debug' => false,
+                'app.url' => 'https://business.staging.zigpaw.app',
+                'platform.api_url' => 'https://api.staging.zigpaw.app',
+                'platform.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/auth/callback',
+                'platform.oauth_client_id' => 'staging-business-client',
+                'platform.oauth_client_secret' => str_repeat('b', 40),
+                'platform.oauth_scopes' => ['business:read'],
+                'platform_clinical.api_url' => 'https://api.staging.zigpaw.app',
+                'platform_clinical.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform_clinical.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/clinical/auth/callback',
+                'platform_clinical.oauth_client_id' => 'staging-clinical-client',
+                'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
+                'platform_clinical.oauth_scopes' => ['clinical:read', 'clinical:submit'],
+                'cache.default' => 'redis',
+                'session.driver' => 'redis',
+                'session.block' => false,
+                'session.encrypt' => true,
+                'session.secure' => true,
+                'session.domain' => null,
+                'session.cookie' => '__Host-zigpaw-business-session',
+            ]);
+
+            $method = new \ReflectionMethod(HealthController::class, 'configurationIsReady');
+
+            $this->assertFalse($method->invoke(app(HealthController::class)));
+
+            config()->set([
+                'session.block' => true,
+                'session.driver' => 'cookie',
+            ]);
+
+            $this->assertFalse($method->invoke(app(HealthController::class)));
+        } finally {
+            app()->detectEnvironment(fn (): string => $originalEnvironment);
+        }
+    }
 }

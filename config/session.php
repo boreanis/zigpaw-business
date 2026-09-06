@@ -237,4 +237,24 @@ return [
 
     'serialization' => 'json',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Concurrent Session Requests
+    |--------------------------------------------------------------------------
+    |
+    | Livewire mutation requests must serialize on the persisted session before
+    | it is loaded. This prevents concurrent tabs from overwriting each other's
+    | pending retry keys.
+    |
+    */
+
+    'block' => env('SESSION_BLOCK', true),
+
+    'block_store' => env('SESSION_BLOCK_STORE'),
+
+    // A mutation may perform the write plus one or more bounded API reads.
+    'block_lock_seconds' => (int) env('SESSION_BLOCK_LOCK_SECONDS', 60),
+
+    'block_wait_seconds' => (int) env('SESSION_BLOCK_WAIT_SECONDS', 30),
+
 ];

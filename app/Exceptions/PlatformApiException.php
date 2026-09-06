@@ -14,6 +14,7 @@ class PlatformApiException extends RuntimeException
         string $message,
         public readonly array $errors = [],
         public readonly ?string $requestId = null,
+        public readonly ?string $errorCode = null,
     ) {
         parent::__construct($message, $status);
     }

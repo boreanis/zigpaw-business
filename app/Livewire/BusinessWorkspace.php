@@ -234,6 +234,15 @@ class BusinessWorkspace extends Component
         'team' => 'team',
     ];
 
+    private const PENDING_MUTATIONS_SESSION_KEY = 'portal.pending_mutations';
+
+    private const MUTATION_RETRY_CONTEXT_SESSION_KEY = 'portal.mutation_retry_context';
+
+    private const MAX_PENDING_MUTATIONS = 32;
+
+    // Leave a safety margin below Platform's 15-minute processing lease.
+    private const PENDING_MUTATION_SAFE_RETRY_SECONDS = 14 * 60;
+
     public function mount(PlatformApiClient $api, PortalAccessTokenStore $tokens): void
     {
         $this->message = session()->pull('error');
@@ -389,19 +398,22 @@ class BusinessWorkspace extends Component
             'claimantPhone' => ['required_if:claimVerificationMethod,phone', 'nullable', 'string', 'max:80'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $api->submitProviderClaim($accessToken, $this->requiredOrganizationId(), array_filter([
-                'service_provider_id' => $this->claimServiceProviderId,
-                'place_id' => $this->claimPlaceId,
-                'requested_authority_type' => $this->claimAuthorityType,
-                'verification_method' => $this->claimVerificationMethod,
-                'claimant_email' => $this->claimVerificationMethod === 'domain_email'
-                    ? mb_strtolower(trim($this->claimantEmail))
-                    : null,
-                'claimant_phone' => $this->claimVerificationMethod === 'phone'
-                    ? trim($this->claimantPhone)
-                    : null,
-            ], static fn (mixed $value): bool => $value !== null));
+        $payload = array_filter([
+            'service_provider_id' => $this->claimServiceProviderId,
+            'place_id' => $this->claimPlaceId,
+            'requested_authority_type' => $this->claimAuthorityType,
+            'verification_method' => $this->claimVerificationMethod,
+            'claimant_email' => $this->claimVerificationMethod === 'domain_email'
+                ? mb_strtolower(trim($this->claimantEmail))
+                : null,
+            'claimant_phone' => $this->claimVerificationMethod === 'phone'
+                ? trim($this->claimantPhone)
+                : null,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        $this->withMutationApi('provider_claims.create', 'provider-claims', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $api->submitProviderClaim($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('providerClaims', $api->providerClaims(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -424,12 +436,15 @@ class BusinessWorkspace extends Component
             'offeringDurationMinutes' => ['nullable', 'integer', 'min:5', 'max:1440'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $api->createOffering($accessToken, $this->requiredOrganizationId(), array_filter([
-                'provider_link_id' => $this->offeringProviderLinkId,
-                'name' => Str::squish($this->offeringName),
-                'default_duration_minutes' => $this->offeringDurationMinutes,
-            ], static fn (mixed $value): bool => $value !== null));
+        $payload = array_filter([
+            'provider_link_id' => $this->offeringProviderLinkId,
+            'name' => Str::squish($this->offeringName),
+            'default_duration_minutes' => $this->offeringDurationMinutes,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        $this->withMutationApi('offerings.create', 'offerings', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $api->createOffering($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('offerings', $api->offerings(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -458,20 +473,23 @@ class BusinessWorkspace extends Component
             'businessWebsite' => ['nullable', 'url:http,https', 'max:2048'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $this->identity = $api->updateBusinessProfile($accessToken, $this->requiredOrganizationId(), [
-                'name' => Str::squish($this->businessName),
-                'legal_name' => $this->nullableField($this->businessLegalName),
-                'registration_number' => $this->nullableField($this->businessRegistrationNumber),
-                'registration_number_type' => $this->nullableField($this->businessRegistrationNumberType),
-                'tax_identifier' => $this->nullableField($this->businessTaxIdentifier),
-                'tax_identifier_type' => $this->nullableField($this->businessTaxIdentifierType),
-                'registered_country_code' => $this->businessRegisteredCountryCode === '' ? null : Str::upper(trim($this->businessRegisteredCountryCode)),
-                'primary_contact_name' => $this->nullableField($this->businessPrimaryContactName),
-                'primary_contact_email' => $this->nullableField(mb_strtolower(trim($this->businessPrimaryContactEmail))),
-                'primary_contact_phone' => $this->nullableField($this->businessPrimaryContactPhone),
-                'website' => $this->nullableField($this->businessWebsite),
-            ]);
+        $payload = [
+            'name' => Str::squish($this->businessName),
+            'legal_name' => $this->nullableField($this->businessLegalName),
+            'registration_number' => $this->nullableField($this->businessRegistrationNumber),
+            'registration_number_type' => $this->nullableField($this->businessRegistrationNumberType),
+            'tax_identifier' => $this->nullableField($this->businessTaxIdentifier),
+            'tax_identifier_type' => $this->nullableField($this->businessTaxIdentifierType),
+            'registered_country_code' => $this->businessRegisteredCountryCode === '' ? null : Str::upper(trim($this->businessRegisteredCountryCode)),
+            'primary_contact_name' => $this->nullableField($this->businessPrimaryContactName),
+            'primary_contact_email' => $this->nullableField(mb_strtolower(trim($this->businessPrimaryContactEmail))),
+            'primary_contact_phone' => $this->nullableField($this->businessPrimaryContactPhone),
+            'website' => $this->nullableField($this->businessWebsite),
+        ];
+
+        $this->withMutationApi('business_profile.update', 'business-profile', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $this->identity = $api->updateBusinessProfile($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->hydrateBusinessProfile();
             $this->notice = 'Business profile saved.';
         });
@@ -530,39 +548,41 @@ class BusinessWorkspace extends Component
             'placeTimezone' => ['nullable', 'timezone'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $currentLink = collect($this->providers)->firstWhere('id', $this->editingProviderLinkId);
-            abort_unless(is_array($currentLink), 404);
-            $payload = [
-                'provider' => [
-                    'name' => Str::squish($this->providerName),
-                    'description' => $this->nullableField($this->providerDescription),
-                    'phone' => $this->nullableField($this->providerPhone),
-                    'email' => $this->nullableField(mb_strtolower(trim($this->providerEmail))),
-                    'website' => $this->nullableField($this->providerWebsite),
-                ],
+        $currentLink = collect($this->providers)->firstWhere('id', $this->editingProviderLinkId);
+        abort_unless(is_array($currentLink), 404);
+        $payload = [
+            'provider' => [
+                'name' => Str::squish($this->providerName),
+                'description' => $this->nullableField($this->providerDescription),
+                'phone' => $this->nullableField($this->providerPhone),
+                'email' => $this->nullableField(mb_strtolower(trim($this->providerEmail))),
+                'website' => $this->nullableField($this->providerWebsite),
+            ],
+        ];
+        if (data_get($currentLink, 'place.id')) {
+            $payload['place'] = [
+                'name' => Str::squish($this->placeName),
+                'phone' => $this->nullableField($this->placePhone),
+                'email' => $this->nullableField(mb_strtolower(trim($this->placeEmail))),
+                'website' => $this->nullableField($this->placeWebsite),
+                'address_line_1' => $this->nullableField($this->placeAddressLine1),
+                'address_line_2' => $this->nullableField($this->placeAddressLine2),
+                'city' => $this->nullableField($this->placeCity),
+                'state' => $this->nullableField($this->placeState),
+                'postal_code' => $this->nullableField($this->placePostalCode),
+                'timezone' => $this->nullableField($this->placeTimezone),
             ];
-            if (data_get($currentLink, 'place.id')) {
-                $payload['place'] = [
-                    'name' => Str::squish($this->placeName),
-                    'phone' => $this->nullableField($this->placePhone),
-                    'email' => $this->nullableField(mb_strtolower(trim($this->placeEmail))),
-                    'website' => $this->nullableField($this->placeWebsite),
-                    'address_line_1' => $this->nullableField($this->placeAddressLine1),
-                    'address_line_2' => $this->nullableField($this->placeAddressLine2),
-                    'city' => $this->nullableField($this->placeCity),
-                    'state' => $this->nullableField($this->placeState),
-                    'postal_code' => $this->nullableField($this->placePostalCode),
-                    'timezone' => $this->nullableField($this->placeTimezone),
-                ];
-            }
+        }
 
+        $this->withMutationApi('providers.update', "providers/{$this->editingProviderLinkId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
             $api->updateManagedProvider(
                 $accessToken,
                 $this->requiredOrganizationId(),
                 $this->editingProviderLinkId,
                 $payload,
+                $idempotencyKey,
             );
+            $markMutationSucceeded();
             $this->assignPage('providers', $api->providers(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -608,19 +628,23 @@ class BusinessWorkspace extends Component
             'editingOfferingRequestMode' => ['required', 'in:request,contact,external'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
+        $payload = [
+            'name' => Str::squish($this->editingOfferingName),
+            'description' => $this->nullableField($this->editingOfferingDescription),
+            'default_duration_minutes' => $this->editingOfferingDurationMinutes,
+            'status' => $this->editingOfferingStatus,
+            'request_mode' => $this->editingOfferingRequestMode,
+        ];
+
+        $this->withMutationApi('offerings.update', "offerings/{$this->editingOfferingId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
             $api->updateOffering(
                 $accessToken,
                 $this->requiredOrganizationId(),
                 $this->editingOfferingId,
-                [
-                    'name' => Str::squish($this->editingOfferingName),
-                    'description' => $this->nullableField($this->editingOfferingDescription),
-                    'default_duration_minutes' => $this->editingOfferingDurationMinutes,
-                    'status' => $this->editingOfferingStatus,
-                    'request_mode' => $this->editingOfferingRequestMode,
-                ],
+                $payload,
+                $idempotencyKey,
             );
+            $markMutationSucceeded();
             $this->assignPage('offerings', $api->offerings(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -636,8 +660,9 @@ class BusinessWorkspace extends Component
         $this->authorizeCapability('providers.manage');
         abort_unless(collect($this->offerings)->contains('id', $offeringId), 404);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($offeringId): void {
-            $api->deleteOffering($accessToken, $this->requiredOrganizationId(), $offeringId);
+        $this->withMutationApi('offerings.delete', "offerings/{$offeringId}", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($offeringId): void {
+            $api->deleteOffering($accessToken, $this->requiredOrganizationId(), $offeringId, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('offerings', $api->offerings(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -731,22 +756,23 @@ class BusinessWorkspace extends Component
             'bookingAvailabilityExceptions.*.reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $payload = array_filter([
-                'provider_link_id' => $this->bookingProviderLinkId,
-                'status' => $this->bookingStatus,
-                'timezone' => $this->bookingTimezone,
-                'notification_email' => $this->nullableField(mb_strtolower(trim($this->bookingNotificationEmail))),
-                'notification_phone' => $this->nullableField($this->bookingNotificationPhone),
-                'minimum_notice_hours' => $this->bookingMinimumNoticeHours,
-                'maximum_advance_days' => $this->bookingMaximumAdvanceDays,
-                'response_window_hours' => $this->bookingResponseWindowHours,
-                'customer_instructions' => $this->nullableField($this->bookingCustomerInstructions),
-                'availability_rules' => $this->normalizedBookingAvailabilityRules(),
-                'availability_exceptions' => $this->normalizedBookingAvailabilityExceptions(),
-            ], static fn (mixed $value): bool => $value !== null);
+        $payload = array_filter([
+            'provider_link_id' => $this->bookingProviderLinkId,
+            'status' => $this->bookingStatus,
+            'timezone' => $this->bookingTimezone,
+            'notification_email' => $this->nullableField(mb_strtolower(trim($this->bookingNotificationEmail))),
+            'notification_phone' => $this->nullableField($this->bookingNotificationPhone),
+            'minimum_notice_hours' => $this->bookingMinimumNoticeHours,
+            'maximum_advance_days' => $this->bookingMaximumAdvanceDays,
+            'response_window_hours' => $this->bookingResponseWindowHours,
+            'customer_instructions' => $this->nullableField($this->bookingCustomerInstructions),
+            'availability_rules' => $this->normalizedBookingAvailabilityRules(),
+            'availability_exceptions' => $this->normalizedBookingAvailabilityExceptions(),
+        ], static fn (mixed $value): bool => $value !== null);
 
-            $api->updateBookingProfile($accessToken, $this->requiredOrganizationId(), $payload);
+        $this->withMutationApi('booking_profiles.update', "booking-profiles/{$this->bookingProviderLinkId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $api->updateBookingProfile($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('bookingProfiles', $api->bookingProfiles(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -805,11 +831,14 @@ class BusinessWorkspace extends Component
     public function applyForReferralProgram(): void
     {
         $this->authorizeCapability('programs.manage');
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $api->applyForProgram($accessToken, $this->requiredOrganizationId(), [
-                'program_key' => 'referral',
-                'application_notes' => 'Submitted from the Zigpaw business workspace.',
-            ]);
+        $payload = [
+            'program_key' => 'referral',
+            'application_notes' => 'Submitted from the Zigpaw business workspace.',
+        ];
+
+        $this->withMutationApi('programs.apply', 'programs', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $api->applyForProgram($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('programs', $api->programs(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -827,11 +856,14 @@ class BusinessWorkspace extends Component
             'teamRole' => ['required', 'in:manager,operator,finance,viewer'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
-            $api->inviteTeamMember($accessToken, $this->requiredOrganizationId(), [
-                'email' => mb_strtolower(trim($this->teamEmail)),
-                'role' => $this->teamRole,
-            ]);
+        $payload = [
+            'email' => mb_strtolower(trim($this->teamEmail)),
+            'role' => $this->teamRole,
+        ];
+
+        $this->withMutationApi('team.invitations.create', 'team/invitations', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
+            $api->inviteTeamMember($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('team', $api->team(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -868,13 +900,17 @@ class BusinessWorkspace extends Component
             'editingTeamRole' => ['required', 'in:manager,operator,finance,viewer'],
         ]);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
+        $payload = ['role' => $this->editingTeamRole];
+
+        $this->withMutationApi('team.memberships.update', "team/memberships/{$this->editingTeamMemberId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
             $api->updateTeamMember(
                 $accessToken,
                 $this->requiredOrganizationId(),
                 $this->editingTeamMemberId,
-                ['role' => $this->editingTeamRole],
+                $payload,
+                $idempotencyKey,
             );
+            $markMutationSucceeded();
             $this->reloadTeam($api, $accessToken);
             $this->cancelTeamMemberEdit();
             $this->notice = 'Team role updated.';
@@ -887,8 +923,9 @@ class BusinessWorkspace extends Component
         $member = collect($this->team)->firstWhere('id', $membershipId);
         abort_unless(is_array($member) && ($member['status'] ?? null) === 'invited', 404);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($membershipId): void {
-            $api->resendTeamInvitation($accessToken, $this->requiredOrganizationId(), $membershipId);
+        $this->withMutationApi('team.invitations.resend', "team/invitations/{$membershipId}/resend", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($membershipId): void {
+            $api->resendTeamInvitation($accessToken, $this->requiredOrganizationId(), $membershipId, $idempotencyKey);
+            $markMutationSucceeded();
             $this->reloadTeam($api, $accessToken);
             $this->notice = 'Invitation sent again.';
         });
@@ -900,8 +937,9 @@ class BusinessWorkspace extends Component
         $member = collect($this->team)->firstWhere('id', $membershipId);
         abort_unless(is_array($member) && ! ($member['is_current_user'] ?? false), 404);
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($membershipId): void {
-            $api->revokeTeamMember($accessToken, $this->requiredOrganizationId(), $membershipId);
+        $this->withMutationApi('team.memberships.revoke', "team/memberships/{$membershipId}", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($membershipId): void {
+            $api->revokeTeamMember($accessToken, $this->requiredOrganizationId(), $membershipId, $idempotencyKey);
+            $markMutationSucceeded();
             $this->reloadTeam($api, $accessToken);
             if ($this->editingTeamMemberId === $membershipId) {
                 $this->cancelTeamMemberEdit();
@@ -938,8 +976,9 @@ class BusinessWorkspace extends Component
         $this->authorizeCapability('bookings.manage');
         $this->authorizeFeature('booking_requests');
 
-        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($bookingId, $payload): void {
-            $api->respondToBooking($accessToken, $this->requiredOrganizationId(), $bookingId, $payload);
+        $this->withMutationApi('bookings.respond', "bookings/{$bookingId}/response", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($bookingId, $payload): void {
+            $api->respondToBooking($accessToken, $this->requiredOrganizationId(), $bookingId, $payload, $idempotencyKey);
+            $markMutationSucceeded();
             $this->assignPage('bookings', $api->bookings(
                 $accessToken,
                 $this->requiredOrganizationId(),
@@ -1295,6 +1334,172 @@ class BusinessWorkspace extends Component
         } catch (PlatformApiException $exception) {
             $this->handlePlatformFailure($exception, $tokens, keepWorkspace: true);
         }
+    }
+
+    /**
+     * Execute a management mutation with a session-bound retry key.
+     *
+     * Only the keyed fingerprint and opaque key are retained in the encrypted
+     * BFF session. The browser never receives the payload, token or session ID.
+     * Uncertain upstream outcomes keep their key so a later intent can replay
+     * the same Platform operation within the Platform retention window. Once
+     * the mutation itself succeeds, the key is also retained if a follow-up
+     * hydration read fails; the UI must not turn a committed write into a new
+     * intent merely because its refresh response was lost.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  callable(PlatformApiClient, string, string, callable): void  $callback
+     */
+    private function withMutationApi(string $operation, string $resource, array $payload, callable $callback): void
+    {
+        $organizationId = $this->requiredOrganizationId();
+        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($operation, $resource, $payload, $organizationId, $callback): void {
+            $fingerprint = $this->mutationFingerprint($operation, $resource, $organizationId, $payload);
+            $idempotencyKey = $this->pendingMutationKey($fingerprint, $operation, $resource);
+            $mutationSucceeded = false;
+            $markMutationSucceeded = static function () use (&$mutationSucceeded): void {
+                $mutationSucceeded = true;
+            };
+
+            try {
+                $callback($api, $accessToken, $idempotencyKey, $markMutationSucceeded);
+                $this->forgetPendingMutation($fingerprint);
+            } catch (PlatformApiException $exception) {
+                if (! $mutationSucceeded && ! $this->isUncertainMutationFailure($exception)) {
+                    $this->forgetPendingMutation($fingerprint);
+                }
+
+                throw $exception;
+            }
+        });
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function mutationFingerprint(
+        string $operation,
+        string $resource,
+        string $organizationId,
+        array $payload,
+    ): string {
+        $membershipId = data_get($this->identity, 'membership.id');
+        $accountBinding = is_string($membershipId) && $membershipId !== ''
+            ? $membershipId
+            : session()->get('platform.oauth.token_handle');
+        if (! is_string($accountBinding) || $accountBinding === '') {
+            throw new PlatformApiException(
+                409,
+                'This update cannot be safely retried until the workspace session is re-established.',
+            );
+        }
+        $sessionBinding = hash_hmac('sha256', $this->mutationRetryContext(), (string) config('app.key'));
+
+        return hash_hmac('sha256', json_encode([
+            'version' => 1,
+            'operation' => $operation,
+            'resource' => $resource,
+            'organization' => $organizationId,
+            'account' => $accountBinding,
+            'session' => $sessionBinding,
+            'payload' => $this->canonicalMutationValue($payload),
+        ], JSON_THROW_ON_ERROR), (string) config('app.key'));
+    }
+
+    private function mutationRetryContext(): string
+    {
+        // This opaque nonce is migrated by Session::regenerate() with the
+        // authenticated session data and removed by Session::invalidate().
+        $context = session()->get(self::MUTATION_RETRY_CONTEXT_SESSION_KEY);
+        if (is_string($context) && strlen($context) >= 32) {
+            return $context;
+        }
+
+        $context = Str::random(64);
+        session()->put(self::MUTATION_RETRY_CONTEXT_SESSION_KEY, $context);
+        session()->save();
+
+        return $context;
+    }
+
+    private function canonicalMutationValue(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->canonicalMutationValue($item), $value);
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = $this->canonicalMutationValue($item);
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    private function pendingMutationKey(string $fingerprint, string $operation, string $resource): string
+    {
+        $pending = session()->get(self::PENDING_MUTATIONS_SESSION_KEY, []);
+        $pending = is_array($pending) ? $pending : [];
+        $entry = $pending[$fingerprint] ?? null;
+        if (is_array($entry) && is_string($entry['key'] ?? null) && $entry['key'] !== '') {
+            $createdAt = (int) ($entry['created_at'] ?? 0);
+            if ($createdAt <= 0 || $createdAt < now()->getTimestamp() - self::PENDING_MUTATION_SAFE_RETRY_SECONDS) {
+                throw new PlatformApiException(
+                    409,
+                    'This update is older than the safe retry window. Please start a deliberate new update after confirming its result.',
+                );
+            }
+
+            return $entry['key'];
+        }
+
+        if (count($pending) >= self::MAX_PENDING_MUTATIONS) {
+            throw new PlatformApiException(
+                409,
+                'An earlier update is awaiting confirmation. Please retry it before starting another update.',
+            );
+        }
+
+        $key = (string) Str::uuid();
+        $pending[$fingerprint] = [
+            'key' => $key,
+            'operation' => $operation,
+            'resource' => $resource,
+            'created_at' => now()->getTimestamp(),
+        ];
+        session()->put(self::PENDING_MUTATIONS_SESSION_KEY, $pending);
+        session()->save();
+
+        return $key;
+    }
+
+    private function forgetPendingMutation(string $fingerprint): void
+    {
+        $pending = session()->get(self::PENDING_MUTATIONS_SESSION_KEY, []);
+        if (! is_array($pending) || ! array_key_exists($fingerprint, $pending)) {
+            return;
+        }
+
+        unset($pending[$fingerprint]);
+        if ($pending === []) {
+            session()->forget(self::PENDING_MUTATIONS_SESSION_KEY);
+            session()->save();
+
+            return;
+        }
+
+        session()->put(self::PENDING_MUTATIONS_SESSION_KEY, $pending);
+        session()->save();
+    }
+
+    private function isUncertainMutationFailure(PlatformApiException $exception): bool
+    {
+        // Preserve every conflict key. Platform uses typed 409 conflicts for
+        // in-flight idempotency and a message is not a stable contract.
+        return $exception->status >= 500 || $exception->status === 409;
     }
 
     private function handlePlatformFailure(

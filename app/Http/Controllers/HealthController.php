@@ -72,6 +72,7 @@ class HealthController extends Controller
         return config('app.debug') === false
             && config('cache.default') === 'redis'
             && config('session.driver') === 'redis'
+            && config('session.block') === true
             && config('session.encrypt') === true
             && config('session.secure') === true
             && blank(config('session.domain'))

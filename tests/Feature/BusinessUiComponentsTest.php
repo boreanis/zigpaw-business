@@ -171,6 +171,27 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString('wire:loading.attr="disabled"', $html);
     }
 
+    public function test_business_pagination_disables_both_controls_while_changing_page(): void
+    {
+        $html = Blade::render(
+            '<x-business-pagination :pagination="$pagination" resource="bookings" label="bookings" />',
+            [
+                'pagination' => [
+                    'bookings' => [
+                        'current_page' => 2,
+                        'last_page' => 3,
+                        'total' => 30,
+                    ],
+                ],
+            ],
+        );
+
+        $this->assertSame(2, substr_count($html, 'wire:loading.attr="disabled"'));
+        $this->assertSame(2, substr_count($html, 'wire:target="changePage"'));
+        $this->assertStringContainsString('wire:click="changePage(\'bookings\', 1)"', $html);
+        $this->assertStringContainsString('wire:click="changePage(\'bookings\', 3)"', $html);
+    }
+
     public function test_business_button_centralizes_workflow_specific_action_styles(): void
     {
         $html = Blade::render(<<<'BLADE'

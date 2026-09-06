@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\BusinessWorkspace;
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -11,6 +12,108 @@ use Tests\TestCase;
 
 class BusinessWorkspaceTest extends TestCase
 {
+    public function test_livewire_sessions_are_blocked_before_loading_persisted_state(): void
+    {
+        $this->assertTrue((bool) config('session.block'));
+        $this->assertSame(60, config('session.block_lock_seconds'));
+        $this->assertSame(30, config('session.block_wait_seconds'));
+    }
+
+    public function test_uncertain_management_mutation_reuses_the_session_key_after_component_reload(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'manager-access-token',
+            'refresh_token' => 'manager-refresh-token',
+            'expires_in' => 900,
+        ]);
+        $keys = [];
+        Http::fake(function (Request $request) use (&$keys) {
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/organizations') {
+                return Http::response(['data' => [['id' => 'organization-1', 'name' => 'Laidley Veterinary Surgery']]]);
+            }
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/me') {
+                return Http::response(['data' => [
+                    'organization' => ['id' => 'organization-1', 'name' => 'Laidley Veterinary Surgery'],
+                    'membership' => ['id' => 'membership-1', 'role' => 'manager', 'capabilities' => ['portal.view', 'providers.manage']],
+                    'features' => ['provider_claims' => false, 'booking_requests' => false],
+                ]]);
+            }
+            if (str_contains($request->url(), '/providers')) {
+                return Http::response(self::page([['id' => 'link-1', 'provider' => ['name' => 'Laidley Veterinary Surgery']]]));
+            }
+            if ($request->method() === 'POST' && $request->url() === 'https://api.zigpaw.test/v1/business/offerings') {
+                $keys[] = $request->header('Idempotency-Key')[0] ?? null;
+                if (count($keys) === 1) {
+                    throw new ConnectionException('synthetic lost response');
+                }
+                if (count($keys) === 2) {
+                    return Http::response(['message' => 'A request with this idempotency key is still processing.'], 409);
+                }
+
+                return Http::response(['data' => ['id' => 'offering-1']], 201);
+            }
+            if (str_contains($request->url(), '/offerings')) {
+                return Http::response(self::page([]));
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        Livewire::test(BusinessWorkspace::class)
+            ->set('offeringProviderLinkId', 'link-1')
+            ->set('offeringName', 'Wellness consultation')
+            ->call('createOffering')
+            ->assertSee('Zigpaw is unavailable right now. Please try again shortly.');
+
+        $this->assertCount(1, (array) session('portal.pending_mutations'));
+        $this->assertStringNotContainsString('Wellness consultation', json_encode(session('portal.pending_mutations')));
+
+        $pending = session('portal.pending_mutations');
+        $fingerprint = (string) array_key_first($pending);
+        $pending[$fingerprint]['created_at'] = now()->getTimestamp() - 841;
+        session()->put('portal.pending_mutations', $pending);
+        session()->save();
+
+        Livewire::test(BusinessWorkspace::class)
+            ->set('offeringProviderLinkId', 'link-1')
+            ->set('offeringName', 'Wellness consultation')
+            ->call('createOffering')
+            ->assertSee('This update is older than the safe retry window. Please start a deliberate new update after confirming its result.');
+        $this->assertCount(1, $keys);
+
+        $pending[$fingerprint]['created_at'] = now()->getTimestamp();
+        session()->put('portal.pending_mutations', $pending);
+        session()->save();
+
+        Livewire::test(BusinessWorkspace::class)
+            ->set('offeringProviderLinkId', 'link-1')
+            ->set('offeringName', 'Different service')
+            ->call('createOffering')
+            ->assertSee('A request with this idempotency key is still processing.');
+
+        $this->assertCount(2, (array) session('portal.pending_mutations'));
+
+        Livewire::test(BusinessWorkspace::class)
+            ->set('offeringProviderLinkId', 'link-1')
+            ->set('offeringName', 'Wellness consultation')
+            ->call('createOffering')
+            ->assertSee('Service saved as a draft. Review it before making it available to customers.');
+
+        $this->assertCount(3, $keys);
+        $this->assertNotSame($keys[0], $keys[1]);
+        $this->assertSame($keys[0], $keys[2]);
+
+        Livewire::test(BusinessWorkspace::class)
+            ->set('offeringProviderLinkId', 'link-1')
+            ->set('offeringName', 'Different service')
+            ->call('createOffering')
+            ->assertSee('Service saved as a draft. Review it before making it available to customers.');
+
+        $this->assertCount(4, $keys);
+        $this->assertSame($keys[1], $keys[3]);
+        $this->assertNull(session('portal.pending_mutations'));
+    }
+
     public function test_malformed_upstream_dates_render_as_a_placeholder_instead_of_breaking_the_workspace(): void
     {
         $component = Livewire::test(BusinessWorkspace::class);

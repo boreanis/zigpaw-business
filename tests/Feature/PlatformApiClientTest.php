@@ -44,6 +44,22 @@ class PlatformApiClientTest extends TestCase
             && $request->hasHeader('Idempotency-Key'));
     }
 
+    public function test_business_mutations_forward_a_supplied_idempotency_key_for_retries(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/offerings' => Http::response(['data' => ['id' => 'offering-1']], 201),
+        ]);
+
+        app(PlatformApiClient::class)->createOffering(
+            'access-token',
+            'organization-1',
+            ['provider_link_id' => 'link-1', 'name' => 'Wellness consultation'],
+            'business-intent-123',
+        );
+
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('Idempotency-Key', 'business-intent-123'));
+    }
+
     public function test_workspace_management_mutations_use_the_canonical_business_routes(): void
     {
         Http::fake([
@@ -170,6 +186,29 @@ class PlatformApiClientTest extends TestCase
         } catch (PlatformApiException $exception) {
             $this->assertSame(404, $exception->status);
             $this->assertSame('This business feature is not available for this account.', $exception->getMessage());
+        }
+    }
+
+    public function test_typed_platform_error_codes_are_preserved_for_retry_policy(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/offerings' => Http::response([
+                'message' => 'A request with this idempotency key is still processing.',
+                'error' => [
+                    'code' => 'IDEMPOTENCY_CONFLICT',
+                ],
+            ], 409),
+        ]);
+
+        try {
+            app(PlatformApiClient::class)->createOffering('access-token', 'organization-1', [
+                'provider_link_id' => 'link-1',
+                'name' => 'Wellness consultation',
+            ], 'business-intent-123');
+            self::fail('The idempotency conflict should be surfaced.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(409, $exception->status);
+            $this->assertSame('IDEMPOTENCY_CONFLICT', $exception->errorCode);
         }
     }
 

@@ -7,6 +7,8 @@
         <button
             type="button"
             wire:click="changePage('{{ $resource }}', {{ max(1, (int) $meta['current_page'] - 1) }})"
+            wire:loading.attr="disabled"
+            wire:target="changePage"
             @disabled((int) $meta['current_page'] <= 1)
         >
             Previous
@@ -15,6 +17,8 @@
         <button
             type="button"
             wire:click="changePage('{{ $resource }}', {{ min((int) $meta['last_page'], (int) $meta['current_page'] + 1) }})"
+            wire:loading.attr="disabled"
+            wire:target="changePage"
             @disabled((int) $meta['current_page'] >= (int) $meta['last_page'])
         >
             Next

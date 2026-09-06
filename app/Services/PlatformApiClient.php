@@ -34,9 +34,9 @@ class PlatformApiClient
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function updateBusinessProfile(string $accessToken, string $organizationId, array $payload): array
+    public function updateBusinessProfile(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('PATCH', '/v1/business/me', $accessToken, $organizationId, $payload);
+        return $this->mutate('PATCH', '/v1/business/me', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @return PageEnvelope */
@@ -70,9 +70,9 @@ class PlatformApiClient
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function submitProviderClaim(string $accessToken, string $organizationId, array $payload): array
+    public function submitProviderClaim(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('POST', '/v1/business/provider-claims', $accessToken, $organizationId, $payload);
+        return $this->mutate('POST', '/v1/business/provider-claims', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @return PageEnvelope */
@@ -253,9 +253,9 @@ class PlatformApiClient
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function createOffering(string $accessToken, string $organizationId, array $payload): array
+    public function createOffering(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('POST', '/v1/business/offerings', $accessToken, $organizationId, $payload);
+        return $this->mutate('POST', '/v1/business/offerings', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
@@ -264,16 +264,17 @@ class PlatformApiClient
         string $organizationId,
         string $providerLinkId,
         array $payload,
+        ?string $idempotencyKey = null,
     ): array {
         $providerLinkId = $this->pathSegment($providerLinkId, 'provider link');
 
-        return $this->mutate('PATCH', "/v1/business/providers/{$providerLinkId}", $accessToken, $organizationId, $payload);
+        return $this->mutate('PATCH', "/v1/business/providers/{$providerLinkId}", $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function updateBookingProfile(string $accessToken, string $organizationId, array $payload): array
+    public function updateBookingProfile(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('PUT', '/v1/business/booking-profiles', $accessToken, $organizationId, $payload);
+        return $this->mutate('PUT', '/v1/business/booking-profiles', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
@@ -282,37 +283,38 @@ class PlatformApiClient
         string $organizationId,
         string $offeringId,
         array $payload,
+        ?string $idempotencyKey = null,
     ): array {
         $offeringId = $this->pathSegment($offeringId, 'offering');
 
-        return $this->mutate('PATCH', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId, $payload);
+        return $this->mutate('PATCH', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
-    public function deleteOffering(string $accessToken, string $organizationId, string $offeringId): void
+    public function deleteOffering(string $accessToken, string $organizationId, string $offeringId, ?string $idempotencyKey = null): void
     {
         $offeringId = $this->pathSegment($offeringId, 'offering');
 
-        $this->mutateWithoutContent('DELETE', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId);
+        $this->mutateWithoutContent('DELETE', "/v1/business/offerings/{$offeringId}", $accessToken, $organizationId, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function respondToBooking(string $accessToken, string $organizationId, string $bookingId, array $payload): array
+    public function respondToBooking(string $accessToken, string $organizationId, string $bookingId, array $payload, ?string $idempotencyKey = null): array
     {
         $bookingId = $this->pathSegment($bookingId, 'booking');
 
-        return $this->mutate('POST', "/v1/business/bookings/{$bookingId}/response", $accessToken, $organizationId, $payload);
+        return $this->mutate('POST', "/v1/business/bookings/{$bookingId}/response", $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function applyForProgram(string $accessToken, string $organizationId, array $payload): array
+    public function applyForProgram(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('POST', '/v1/business/programs', $accessToken, $organizationId, $payload);
+        return $this->mutate('POST', '/v1/business/programs', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function inviteTeamMember(string $accessToken, string $organizationId, array $payload): array
+    public function inviteTeamMember(string $accessToken, string $organizationId, array $payload, ?string $idempotencyKey = null): array
     {
-        return $this->mutate('POST', '/v1/business/team/invitations', $accessToken, $organizationId, $payload);
+        return $this->mutate('POST', '/v1/business/team/invitations', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @return array<string, mixed> */
@@ -320,10 +322,11 @@ class PlatformApiClient
         string $accessToken,
         string $organizationId,
         string $membershipId,
+        ?string $idempotencyKey = null,
     ): array {
         $membershipId = $this->pathSegment($membershipId, 'membership');
 
-        return $this->mutate('POST', "/v1/business/team/invitations/{$membershipId}/resend", $accessToken, $organizationId, []);
+        return $this->mutate('POST', "/v1/business/team/invitations/{$membershipId}/resend", $accessToken, $organizationId, [], $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
@@ -332,10 +335,11 @@ class PlatformApiClient
         string $organizationId,
         string $membershipId,
         array $payload,
+        ?string $idempotencyKey = null,
     ): array {
         $membershipId = $this->pathSegment($membershipId, 'membership');
 
-        return $this->mutate('PATCH', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, $payload);
+        return $this->mutate('PATCH', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
     /** @return array<string, mixed> */
@@ -343,10 +347,11 @@ class PlatformApiClient
         string $accessToken,
         string $organizationId,
         string $membershipId,
+        ?string $idempotencyKey = null,
     ): array {
         $membershipId = $this->pathSegment($membershipId, 'membership');
 
-        return $this->mutate('DELETE', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, []);
+        return $this->mutate('DELETE', "/v1/business/team/memberships/{$membershipId}", $accessToken, $organizationId, [], $idempotencyKey);
     }
 
     /** @return array<string, mixed> */
@@ -408,12 +413,13 @@ class PlatformApiClient
         string $accessToken,
         string $organizationId,
         array $payload,
+        ?string $idempotencyKey = null,
     ): array {
         $this->assertAllowedRoute($method, $path);
 
         try {
             $response = $this->request($accessToken, $organizationId, $path)
-                ->withHeader('Idempotency-Key', (string) Str::uuid())
+                ->withHeader('Idempotency-Key', $idempotencyKey === null ? (string) Str::uuid() : $this->idempotencyKey($idempotencyKey))
                 ->send($method, $path, ['json' => $payload]);
         } catch (ConnectionException) {
             throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
@@ -450,12 +456,13 @@ class PlatformApiClient
         string $path,
         string $accessToken,
         string $organizationId,
+        ?string $idempotencyKey = null,
     ): void {
         $this->assertAllowedRoute($method, $path);
 
         try {
             $response = $this->request($accessToken, $organizationId, $path)
-                ->withHeader('Idempotency-Key', (string) Str::uuid())
+                ->withHeader('Idempotency-Key', $idempotencyKey === null ? (string) Str::uuid() : $this->idempotencyKey($idempotencyKey))
                 ->send($method, $path);
         } catch (ConnectionException) {
             throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
@@ -490,6 +497,9 @@ class PlatformApiClient
                 (string) $message,
                 $errors,
                 RequestCorrelation::valid($response->header('X-Request-ID')),
+                is_string(data_get($decoded, 'error.code')) && trim((string) data_get($decoded, 'error.code')) !== ''
+                    ? trim((string) data_get($decoded, 'error.code'))
+                    : (is_string($decoded['code'] ?? null) && trim($decoded['code']) !== '' ? trim($decoded['code']) : null),
             );
         }
 
