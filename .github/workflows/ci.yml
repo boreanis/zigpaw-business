@@ -43,12 +43,20 @@ jobs:
 
       - name: Run static analysis
         run: composer analyse
-
-      - name: Run portal tests
-        run: php artisan test
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          LOG_CHANNEL: stderr
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
 
       - name: Build production assets
         run: npm run build
+
+      - name: Run portal tests
+        run: php artisan test
 
   secrets:
     runs-on: ubuntu-latest

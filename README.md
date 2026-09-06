@@ -216,7 +216,7 @@ npm audit --audit-level=high
 | Gate | Command or check | What it proves |
 | --- | --- | --- |
 | Behavior | `php artisan test --compact` | OAuth state/PKCE, token custody and refresh, capability/feature navigation, organization isolation, writes, pagination, errors, and operational boundaries. |
-| Static contract | `composer analyse` | PHP/Larastan types agree across the portal and platform transport. |
+| Static contract | `composer analyse` | PHP/Larastan types agree across the portal and platform transport; CI supplies a disposable testing key and a 1 GB PHPStan memory budget, never a deployed credential. |
 | Style | `vendor/bin/pint --test` in CI | Committed PHP follows the repository format without a mutating CI pass. |
 | Production assets | `npm run build` | The independently namespaced Business CSS/JavaScript bundle compiles. |
 | Contract drift | `php artisan business:sync-contracts contracts/business-v1.json contracts/clinical-v1.json --check` | The copied Business/Clinical contracts and generated BFF route allowlist match. |
@@ -224,7 +224,13 @@ npm audit --audit-level=high
 | Runtime boundary | `/health`, `/health/ready`, and browser OAuth smoke | The portal, local store, safe OAuth configuration, identity handoff, canonical API, and sign-out/revocation path are production-shaped. |
 | Repository hygiene | CI Gitleaks history scan | Server-only client secrets and OAuth tokens were not committed. |
 
-The CI release gate runs install, dependency audits, Pint check, Larastan, the full PHPUnit suite, production asset build, and a separate full-history secret scan. A UI-only pass is insufficient: the corresponding platform API contract and its authorization/contract tests must pass before this portal is deployable.
+The CI release gate runs install, dependency audits, Pint check, Larastan, production asset build, the full PHPUnit suite, and a separate full-history secret scan. A UI-only pass is insufficient: the corresponding platform API contract and its authorization/contract tests must pass before this portal is deployable.
+
+PHPUnit supplies a disposable encryption key and explicit local Business, API and identity origins, and rejects unmocked HTTP requests. Tests must supply explicit fake API responses and must never depend on a developer's `.env` or contact a live platform/provider.
+
+CI builds the production Vite assets before the portal test step. This is
+intentional: the shared error-page responses render through the real manifest in
+a clean checkout rather than falling back to a test-only asset stub.
 
 The August 16, 2026 checkpoint passed **29 PHPUnit tests / 111 assertions**, Larastan, Pint, the production Vite build, Composer/npm audits, and browser verification of the OAuth handoff and rejection of a customer without Business authority. Treat that as evidence for the reviewed revision, not a substitute for rerunning the gates.
 

@@ -19,6 +19,8 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
+        <env name="APP_URL" value="https://business.zigpaw.test"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
@@ -26,6 +28,10 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="PLATFORM_API_URL" value="https://api.zigpaw.test"/>
+        <env name="PLATFORM_AUTH_URL" value="https://login.zigpaw.test"/>
+        <env name="PLATFORM_OAUTH_REDIRECT_URI" value="https://business.zigpaw.test/auth/callback"/>
+        <env name="PLATFORM_CLINICAL_OAUTH_REDIRECT_URI" value="https://business.zigpaw.test/clinical/auth/callback"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
