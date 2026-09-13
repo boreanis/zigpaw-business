@@ -7,13 +7,17 @@ Before changing this repository, read the binding
 [documentation index](../zigpaw-platform/docs/README.md),
 [project rules](../zigpaw-platform/ZIGPAW_RULES.md), and this repository's
 `README.md`. For provider or clinical work, also read the current platform
-architecture, pets/health, provider, regional, deployment, and matching API
-contract documents.
+architecture, pets/health, provider, data architecture, deployment, and
+matching API contract documents. The current consolidation references are
+[Data Architecture](../zigpaw-platform/docs/14_DATA_ARCHITECTURE.md) and
+[Single-Database Implementation Plan](../zigpaw-platform/docs/16_SINGLE_DATABASE_IMPLEMENTATION_PLAN.md).
 
-This repository is one independently deployed provider workspace. Its
+This repository is one independently deployed provider workspace. The Platform
+owns one canonical domain MySQL database; this client has no Platform/domain
+database access. Its
 veterinary, grooming, boarding, sitting, breeding, shelter, mobile-care, and
 other templates are presentation/capability modes—not separate applications.
-It has no Platform/domain database access; it may own only narrowly scoped
+It may own only narrowly scoped
 host-local encrypted session/cache/queue support state. It is API-only: never
 add Platform models, domain data, Platform/provider/payment credentials,
 direct web-controller calls, shared sessions, or client-owned authorization,

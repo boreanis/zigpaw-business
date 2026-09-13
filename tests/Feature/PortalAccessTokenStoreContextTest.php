@@ -21,14 +21,14 @@ class PortalAccessTokenStoreContextTest extends TestCase
         config()->set([
             'app.url' => 'https://business.zigpaw.test',
             'platform.api_url' => 'https://api.zigpaw.test',
-            'platform.auth_url' => 'https://login.zigpaw.test',
+            'platform.auth_url' => 'https://auth.zigpaw.test',
             'platform.session_endpoint' => '/v1/business/session',
             'platform.oauth_client_id' => 'business-client',
             'platform.oauth_client_secret' => str_repeat('b', 40),
             'platform.oauth_scopes' => ['business:read'],
             'platform.oauth_redirect_uri' => 'https://business.zigpaw.test/auth/callback',
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
-            'platform_clinical.auth_url' => 'https://login.zigpaw.test',
+            'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
             'platform_clinical.oauth_client_id' => 'clinical-client',
             'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
@@ -98,7 +98,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $sessionEndpoint,
     ): void {
         Http::fake([
-            'https://login.zigpaw.test/oauth/token' => Http::response([
+            'https://auth.zigpaw.test/oauth/token' => Http::response([
                 'access_token' => 'fresh-access-token',
                 'refresh_token' => 'rotated-refresh-token',
                 'expires_in' => 900,
@@ -110,11 +110,90 @@ class PortalAccessTokenStoreContextTest extends TestCase
 
         $this->assertSame('fresh-access-token', $store->accessToken());
         Http::assertSent(fn (Request $request): bool => $request['grant_type'] === 'refresh_token'
+            && $request->url() === 'https://auth.zigpaw.test/oauth/token'
             && $request['client_id'] === config($configPrefix.'.oauth_client_id')
             && $request['client_secret'] === config($configPrefix.'.oauth_client_secret')
             && $request['scope'] === implode(' ', config($configPrefix.'.oauth_scopes')));
         $this->assertArrayNotHasKey('platform.oauth.tokens', session()->all());
         $this->assertIsString(session($handleKey));
+    }
+
+    public function test_refresh_and_revoke_use_the_canonical_identity_and_api_origins(): void
+    {
+        Http::fake([
+            'https://auth.zigpaw.test/oauth/token' => Http::response([
+                'access_token' => 'fresh-access-token',
+                'refresh_token' => 'rotated-refresh-token',
+                'expires_in' => 900,
+            ]),
+            'https://api.zigpaw.test/v1/business/session' => Http::response([
+                'data' => ['logout_url' => 'https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed'],
+            ]),
+        ]);
+
+        $store = app(PortalAccessTokenStore::class);
+        $store->put($this->tokenPayload('expired', 1));
+
+        $this->assertSame('fresh-access-token', $store->accessToken());
+        $store->revoke();
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://auth.zigpaw.test/oauth/token');
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/session');
+    }
+
+    #[DataProvider('portalContexts')]
+    public function test_unexpired_access_tokens_do_not_refresh(
+        string $storeClass,
+        string $configPrefix,
+        string $handleKey,
+        string $sessionEndpoint,
+    ): void {
+        Http::fake();
+
+        $store = $this->store($storeClass);
+        $store->put($this->tokenPayload('active'));
+
+        $this->assertSame('active-access-token', $store->accessToken());
+        Http::assertNothingSent();
+    }
+
+    #[DataProvider('portalContexts')]
+    public function test_an_incomplete_refresh_response_preserves_the_old_server_side_session(
+        string $storeClass,
+        string $configPrefix,
+        string $handleKey,
+        string $sessionEndpoint,
+    ): void {
+        Http::fake([
+            'https://auth.zigpaw.test/oauth/token' => Http::response([
+                'access_token' => 'incomplete-access-token',
+                'expires_in' => 900,
+                'token_type' => 'Bearer',
+            ]),
+        ]);
+
+        $store = $this->store($storeClass);
+        $this->expire($store);
+
+        $this->assertNull($store->accessToken());
+        $this->assertSame('expired-access-token', $this->cachedAccessToken($handleKey));
+        Http::assertSentCount(1);
+    }
+
+    #[DataProvider('portalContexts')]
+    public function test_token_payload_metadata_cannot_select_an_api_destination(
+        string $storeClass,
+        string $configPrefix,
+        string $handleKey,
+        string $sessionEndpoint,
+    ): void {
+        $store = $this->store($storeClass);
+        $store->put([
+            ...$this->tokenPayload('active'),
+            'api_url' => 'https://attacker.example',
+        ]);
+
+        $this->assertSame('https://api.zigpaw.test', $store->apiUrl());
     }
 
     #[DataProvider('portalContexts')]
@@ -124,7 +203,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::failedConnection()]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::failedConnection()]);
         $store = $this->store($storeClass);
         [$handle, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -140,7 +219,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['message' => 'Unavailable'], 503)]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response(['message' => 'Unavailable'], 503)]);
         $store = $this->store($storeClass);
         [$handle, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -156,7 +235,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response('not-json', 200, ['Content-Type' => 'text/plain'])]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response('not-json', 200, ['Content-Type' => 'text/plain'])]);
         $store = $this->store($storeClass);
         [$handle, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -172,7 +251,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['error' => 'invalid_grant'], 400)]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response(['error' => 'invalid_grant'], 400)]);
         $store = $this->store($storeClass);
         [, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -188,7 +267,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['message' => 'Unauthenticated'], 401)]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response(['message' => 'Unauthenticated'], 401)]);
         $store = $this->store($storeClass);
         [, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -204,7 +283,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['error' => 'invalid_request'], 400)]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response(['error' => 'invalid_request'], 400)]);
         $store = $this->store($storeClass);
         [$handle, $cacheKey] = $this->expire($store, $handleKey);
 
@@ -220,7 +299,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         string $handleKey,
         string $sessionEndpoint,
     ): void {
-        $logoutUrl = 'https://login.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed';
+        $logoutUrl = 'https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed';
         Http::fake([
             'https://api.zigpaw.test'.$sessionEndpoint => Http::response([
                 'data' => ['logout_url' => $logoutUrl],
@@ -248,7 +327,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         Http::fake([
             'https://api.zigpaw.test'.$sessionEndpoint => Http::response([
                 'data' => [
-                    'logout_url' => 'https://login.zigpaw.test:444/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed',
+                    'logout_url' => 'https://auth.zigpaw.test:444/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed',
                 ],
             ]),
         ]);
@@ -296,9 +375,9 @@ class PortalAccessTokenStoreContextTest extends TestCase
     ): void {
         $store = $this->store($storeClass);
         [$handle, $cacheKey] = $this->expire($store, $handleKey);
-        config()->set($configPrefix.'.auth_url', 'https://login.zigpaw.test.attacker.example');
+        config()->set($configPrefix.'.auth_url', 'https://auth.zigpaw.test.attacker.example');
         Http::fake([
-            'https://login.zigpaw.test.attacker.example/*' => Http::response([
+            'https://auth.zigpaw.test.attacker.example/*' => Http::response([
                 'access_token' => 'stolen',
                 'refresh_token' => 'stolen',
                 'expires_in' => 900,
@@ -324,7 +403,7 @@ class PortalAccessTokenStoreContextTest extends TestCase
         Http::fake([
             'https://api.zigpaw.test.attacker.example/*' => Http::response([
                 'data' => [
-                    'logout_url' => 'https://login.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed',
+                    'logout_url' => 'https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed',
                 ],
             ]),
         ]);
@@ -392,5 +471,16 @@ class PortalAccessTokenStoreContextTest extends TestCase
     private function cacheKey(string $handle): string
     {
         return 'platform.oauth.tokens:'.hash_hmac('sha256', $handle, (string) config('app.key'));
+    }
+
+    private function cachedAccessToken(string $handleKey): ?string
+    {
+        $handle = session($handleKey);
+        $this->assertIsString($handle);
+        $encrypted = Cache::get($this->cacheKey($handle));
+        $this->assertIsString($encrypted);
+        $payload = json_decode(Crypt::decryptString($encrypted), true, flags: JSON_THROW_ON_ERROR);
+
+        return is_array($payload) && is_string($payload['access_token'] ?? null) ? $payload['access_token'] : null;
     }
 }

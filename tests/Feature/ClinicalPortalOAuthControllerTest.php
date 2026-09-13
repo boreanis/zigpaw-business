@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -15,7 +16,7 @@ class ClinicalPortalOAuthControllerTest extends TestCase
         config()->set([
             'app.url' => 'https://business.zigpaw.test',
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
-            'platform_clinical.auth_url' => 'https://login.zigpaw.test',
+            'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
             'platform_clinical.oauth_client_id' => 'clinical-portal-client',
             'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
@@ -27,7 +28,7 @@ class ClinicalPortalOAuthControllerTest extends TestCase
     public function test_it_starts_clinical_pkce_sign_in_at_the_central_auth_host(): void
     {
         $response = $this->get('https://business.zigpaw.test/clinical/auth/login')
-            ->assertRedirectContains('https://login.zigpaw.test/oauth/authorize?')
+            ->assertRedirectContains('https://auth.zigpaw.test/oauth/authorize?')
             ->assertSessionHas('platform.oauth.clinical.state')
             ->assertSessionHas('platform.oauth.clinical.verifier')
             ->assertSessionMissing('platform.oauth.state')
@@ -65,33 +66,82 @@ class ClinicalPortalOAuthControllerTest extends TestCase
 
     public function test_it_handles_a_malformed_clinical_token_response_without_a_server_error(): void
     {
-        Http::fake(['https://login.zigpaw.test/oauth/token' => Http::response(['data' => 'not-a-token-envelope'])]);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response(['data' => 'not-a-token-envelope'])]);
 
         $this->withSession([
             'platform.oauth.clinical.state' => 'expected',
             'platform.oauth.clinical.verifier' => 'verifier',
-        ])->get(route('clinical.auth.callback', ['state' => 'expected', 'code' => 'code']))
+        ])->get(route('clinical.auth.callback', [
+            'state' => 'expected',
+            'code' => 'code',
+        ]))
             ->assertRedirect(route('clinical.dashboard'))
             ->assertSessionHas('error', 'Zigpaw could not complete clinical sign-in. Please try again.');
+    }
+
+    public function test_it_exchanges_a_callback_only_with_the_canonical_identity_origin(): void
+    {
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'clinical-access-token',
+            'refresh_token' => 'clinical-refresh-token',
+            'expires_in' => 900,
+        ])]);
+
+        $this->withSession([
+            'platform.oauth.clinical.state' => 'expected',
+            'platform.oauth.clinical.verifier' => 'verifier',
+        ])->get(route('clinical.auth.callback', [
+            'state' => 'expected',
+            'code' => 'code',
+        ]))->assertRedirect(route('clinical.dashboard'));
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://auth.zigpaw.test/oauth/token'
+            && $request['code'] === 'code'
+            && $request['code_verifier'] === 'verifier');
+        $this->assertNotNull(session('platform.oauth.clinical_token_handle'));
+    }
+
+    public function test_clinical_callback_query_cannot_select_the_token_exchange_origin(): void
+    {
+        Http::fake([
+            'https://auth.zigpaw.test/oauth/token' => Http::response([
+                'access_token' => 'clinical-access-token',
+                'refresh_token' => 'clinical-refresh-token',
+                'expires_in' => 900,
+            ]),
+            'https://attacker.example/*' => Http::response(['access_token' => 'stolen']),
+        ]);
+
+        $this->withSession([
+            'platform.oauth.clinical.state' => 'expected',
+            'platform.oauth.clinical.verifier' => 'verifier',
+        ])->get(route('clinical.auth.callback', [
+            'state' => 'expected',
+            'code' => 'code',
+            'issuer_hint' => 'https://attacker.example/oauth/token',
+        ]))->assertRedirect(route('clinical.dashboard'));
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://auth.zigpaw.test/oauth/token');
+        Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://attacker.example/'));
     }
 
     public function test_it_rejects_unsafe_clinical_identity_and_callback_configuration_before_sending_credentials(): void
     {
         Http::fake([
-            'https://login.zigpaw.test.attacker.example/*' => Http::response([
+            'https://auth.zigpaw.test.attacker.example/*' => Http::response([
                 'access_token' => 'stolen',
                 'refresh_token' => 'stolen',
                 'expires_in' => 900,
             ]),
         ]);
 
-        config()->set('platform_clinical.auth_url', 'https://login.zigpaw.test.attacker.example');
+        config()->set('platform_clinical.auth_url', 'https://auth.zigpaw.test.attacker.example');
         $this->get('/clinical/auth/login')
             ->assertServiceUnavailable()
             ->assertSessionMissing('platform.oauth.clinical.state');
 
         config()->set([
-            'platform_clinical.auth_url' => 'https://login.zigpaw.test',
+            'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test.attacker.example/clinical/auth/callback',
         ]);
         $this->withSession([

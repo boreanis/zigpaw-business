@@ -72,7 +72,14 @@
                         <div class="form-grid form-grid-two">
                             <x-business.field class="form-span-two" label="Business name"><input type="text" wire:model="businessName" autocomplete="organization"></x-business.field>
                             <x-business.field label="Legal name"><input type="text" wire:model="businessLegalName"></x-business.field>
-                            <x-business.field label="Registered country"><input type="text" wire:model="businessRegisteredCountryCode" maxlength="2" autocapitalize="characters" placeholder="AU"></x-business.field>
+                            <x-business.field label="Registered country" :error="$errors->first('businessRegisteredCountryCode')">
+                                <select wire:model="businessRegisteredCountryCode" autocomplete="country">
+                                    <option value="">Select country</option>
+                                    @foreach (data_get($identity, 'profile_options.countries', []) as $country)
+                                        <option value="{{ $country['code'] }}">{{ $country['name'] }}</option>
+                                    @endforeach
+                                </select>
+                            </x-business.field>
                             <x-business.field label="Registration number"><input type="text" wire:model="businessRegistrationNumber"></x-business.field>
                             <x-business.field label="Registration number type"><input type="text" wire:model="businessRegistrationNumberType" placeholder="ABN, company number"></x-business.field>
                             <x-business.field label="Tax identifier"><input type="text" wire:model="businessTaxIdentifier"></x-business.field>

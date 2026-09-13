@@ -46,9 +46,9 @@ The BFF fails closed unless the application, API, identity origin, callback and 
 
 | Environment | Business | API | Identity |
 | --- | --- | --- | --- |
-| Local/testing | `https://business.zigpaw.test` | `https://api.zigpaw.test` | `https://login.zigpaw.test` |
-| Staging | `https://business.staging.zigpaw.app` | `https://api.staging.zigpaw.app` | `https://login.staging.zigpaw.app` |
-| Production | `https://business.zigpaw.app` | `https://api.zigpaw.app` | `https://login.zigpaw.app` |
+| Local/testing | `https://business.zigpaw.test` | `https://api.zigpaw.test` | `https://auth.zigpaw.test` |
+| Staging | `https://business.staging.zigpaw.app` | `https://api.staging.zigpaw.app` | `https://auth.staging.zigpaw.app` |
+| Production | `https://business.zigpaw.app` | `https://api.zigpaw.app` | `https://auth.zigpaw.app` |
 
 User info, ports other than 443, alternate paths, query strings, fragments, suffix lookalikes and callback variations are rejected before credentials are sent. Readiness requires distinct, non-placeholder management and clinical clients and their correct scope audiences.
 

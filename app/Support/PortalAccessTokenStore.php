@@ -69,7 +69,7 @@ class PortalAccessTokenStore
                     ->connectTimeout(3)
                     ->timeout(8)
                     ->post(
-                        config($this->configKey('auth_url')).'/oauth/token',
+                        rtrim((string) config($this->configKey('auth_url')), '/').'/oauth/token',
                         [
                             'grant_type' => 'refresh_token',
                             'client_id' => config($this->configKey('oauth_client_id')),
@@ -123,7 +123,9 @@ class PortalAccessTokenStore
         }
     }
 
-    /** @param array<string, mixed> $payload */
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function put(array $payload): void
     {
         $accessToken = $payload['access_token'] ?? null;
@@ -158,6 +160,13 @@ class PortalAccessTokenStore
         $this->session->forget($this->sessionHandleKey());
     }
 
+    public function apiUrl(): ?string
+    {
+        return PlatformConfiguration::isSafe($this->context)
+            ? rtrim((string) config($this->configKey('api_url')), '/')
+            : null;
+    }
+
     public function revoke(): string
     {
         try {
@@ -169,7 +178,12 @@ class PortalAccessTokenStore
                 throw new \RuntimeException('The portal session is no longer available.');
             }
 
-            $response = Http::baseUrl((string) config($this->configKey('api_url')))
+            $apiUrl = $this->apiUrl();
+            if ($apiUrl === null) {
+                throw new \RuntimeException('The canonical API route is not available.');
+            }
+
+            $response = Http::baseUrl($apiUrl)
                 ->acceptJson()
                 ->withToken($accessToken)
                 ->withHeader('Idempotency-Key', (string) Str::uuid())

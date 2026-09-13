@@ -89,7 +89,7 @@ class ClinicalOperationalBoundaryTest extends TestCase
 
     public function test_hostile_clinical_origins_and_callbacks_fail_readiness_without_a_request(): void
     {
-        config()->set('platform_clinical.auth_url', 'https://login.zigpaw.test.attacker.example');
+        config()->set('platform_clinical.auth_url', 'https://auth.zigpaw.test.attacker.example');
         Http::preventStrayRequests();
 
         $this->get('/health/ready')
@@ -120,13 +120,13 @@ class ClinicalOperationalBoundaryTest extends TestCase
                 'app.debug' => false,
                 'app.url' => 'https://business.staging.zigpaw.app',
                 'platform.api_url' => 'https://api.staging.zigpaw.app',
-                'platform.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform.auth_url' => 'https://auth.staging.zigpaw.app',
                 'platform.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/auth/callback',
                 'platform.oauth_client_id' => 'staging-business-client',
                 'platform.oauth_client_secret' => str_repeat('b', 40),
                 'platform.oauth_scopes' => ['business:read'],
                 'platform_clinical.api_url' => 'https://api.staging.zigpaw.app',
-                'platform_clinical.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform_clinical.auth_url' => 'https://auth.staging.zigpaw.app',
                 'platform_clinical.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/clinical/auth/callback',
                 'platform_clinical.oauth_client_id' => 'staging-clinical-client',
                 'platform_clinical.oauth_client_secret' => hash('sha256', 'zigpaw-local-business-clinical-bff-secret'),
@@ -164,14 +164,14 @@ class ClinicalOperationalBoundaryTest extends TestCase
         config()->set([
             'app.url' => 'https://business.zigpaw.test',
             'platform.api_url' => 'https://api.zigpaw.test',
-            'platform.auth_url' => 'https://login.zigpaw.test',
+            'platform.auth_url' => 'https://auth.zigpaw.test',
             'platform.session_endpoint' => '/v1/business/session',
             'platform.oauth_redirect_uri' => 'https://business.zigpaw.test/auth/callback',
             'platform.oauth_client_id' => 'business-client',
             'platform.oauth_client_secret' => str_repeat('b', 40),
             'platform.oauth_scopes' => ['business:read', 'business:team:read'],
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
-            'platform_clinical.auth_url' => 'https://login.zigpaw.test',
+            'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
             'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test/clinical/auth/callback',
             'platform_clinical.oauth_client_id' => 'clinical-client',

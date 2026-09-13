@@ -123,7 +123,9 @@ class HealthController extends Controller
     private function platformIsReady(): bool
     {
         try {
-            $response = Http::baseUrl((string) config('platform.api_url'))
+            $baseUrl = (string) config('platform.api_url');
+
+            $response = Http::baseUrl($baseUrl)
                 ->acceptJson()
                 ->withHeader('X-Request-ID', RequestCorrelation::id())
                 ->connectTimeout(2)
@@ -133,7 +135,8 @@ class HealthController extends Controller
                 // runtime and is not available on api.zigpaw.app.
                 ->get('/health');
 
-            return $response->successful() && $response->json('status') === 'ok';
+            return $response->successful()
+                && $response->json('status') === 'ok';
         } catch (ConnectionException) {
             return false;
         }

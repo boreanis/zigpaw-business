@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Exceptions\PlatformApiException;
 use App\Services\PlatformApiClient;
+use App\Support\PortalAccessTokenStore;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
@@ -11,6 +12,17 @@ use Tests\TestCase;
 
 class PlatformApiClientTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'access-token',
+            'refresh_token' => 'refresh-token',
+            'expires_in' => 900,
+        ]);
+    }
+
     public function test_it_sends_the_active_organization_header_only_when_selected(): void
     {
         Http::fake([
@@ -22,6 +34,34 @@ class PlatformApiClientTest extends TestCase
         $this->assertSame('organization-1', $identity['organization']['id']);
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer access-token')
             && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1'));
+    }
+
+    public function test_management_requests_use_one_canonical_api_authority_for_all_organizations(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/me' => Http::sequence()
+                ->push(['data' => ['organization' => 'organization-ca']])
+                ->push(['data' => ['organization' => 'organization-au']]),
+        ]);
+
+        $api = app(PlatformApiClient::class);
+        $this->assertSame('organization-ca', $api->identity('ca-access-token', 'organization-ca')['organization']);
+        $this->assertSame('organization-au', $api->identity('au-access-token', 'organization-au')['organization']);
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/me'
+            && $request->hasHeader('X-Zigpaw-Organization-ID'));
+    }
+
+    public function test_management_transport_rejects_a_noncanonical_configured_api_origin(): void
+    {
+        config()->set('platform.api_url', 'https://api.zigpaw.test.attacker.example');
+        Http::fake(['https://api.zigpaw.test.attacker.example/*' => Http::response(['data' => []])]);
+
+        $this->expectException(PlatformApiException::class);
+        $this->expectExceptionMessage('Zigpaw is temporarily unavailable.');
+
+        app(PlatformApiClient::class)->identity('access-token', 'organization-1');
     }
 
     public function test_mutations_use_the_business_contract_and_an_idempotency_key(): void
@@ -231,7 +271,7 @@ class PlatformApiClientTest extends TestCase
                 $operation();
                 self::fail('An unsafe resource identifier was accepted.');
             } catch (InvalidArgumentException) {
-                self::assertTrue(true);
+                continue;
             }
         }
 

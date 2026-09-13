@@ -48,6 +48,14 @@ class PlatformConfiguration
     /** @return array{portal: string, api: string, auth: string}|null */
     private static function expectedOrigins(): ?array
     {
+        if (app()->environment(['local', 'testing']) && config('platform.staged_browser_qa') === true) {
+            return [
+                'portal' => 'https://qa-business.zigpaw.test',
+                'api' => 'https://qa-api.zigpaw.test',
+                'auth' => 'https://qa-auth.zigpaw.test',
+            ];
+        }
+
         $suffix = match (app()->environment()) {
             'local', 'testing' => 'zigpaw.test',
             'staging' => 'staging.zigpaw.app',
@@ -62,7 +70,7 @@ class PlatformConfiguration
         return [
             'portal' => "https://business.{$suffix}",
             'api' => "https://api.{$suffix}",
-            'auth' => "https://login.{$suffix}",
+            'auth' => "https://auth.{$suffix}",
         ];
     }
 

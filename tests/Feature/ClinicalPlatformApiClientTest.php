@@ -23,11 +23,11 @@ class ClinicalPlatformApiClientTest extends TestCase
         config()->set([
             'app.url' => 'https://business.zigpaw.test',
             'platform.api_url' => 'https://api.zigpaw.test',
-            'platform.auth_url' => 'https://login.zigpaw.test',
+            'platform.auth_url' => 'https://auth.zigpaw.test',
             'platform.oauth_redirect_uri' => 'https://business.zigpaw.test/auth/callback',
             'platform.session_endpoint' => '/v1/business/session',
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
-            'platform_clinical.auth_url' => 'https://login.zigpaw.test',
+            'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test/clinical/auth/callback',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
         ]);
@@ -47,6 +47,35 @@ class ClinicalPlatformApiClientTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer clinical-access-token')
             && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1')
             && $request->hasHeader('X-Request-ID'));
+    }
+
+    public function test_clinical_requests_use_one_canonical_api_authority_for_all_organizations(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/me' => Http::sequence()
+                ->push(['data' => ['organization' => 'organization-ca']])
+                ->push(['data' => ['organization' => 'organization-au']]),
+        ]);
+
+        $tokens = app(ClinicalPortalAccessTokenStore::class);
+        $tokens->put([
+            'access_token' => 'ca-clinical-token',
+            'refresh_token' => 'ca-clinical-refresh',
+            'expires_in' => 900,
+        ]);
+        $this->assertSame('organization-ca', $this->api()->clinicalIdentity($tokens, 'organization-ca')['organization']);
+
+        $tokens->forget();
+        $tokens->put([
+            'access_token' => 'au-clinical-token',
+            'refresh_token' => 'au-clinical-refresh',
+            'expires_in' => 900,
+        ]);
+        $this->assertSame('organization-au', $this->api()->clinicalIdentity($tokens, 'organization-au')['organization']);
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/clinical/me'
+            && $request->hasHeader('X-Zigpaw-Organization-ID'));
     }
 
     public function test_it_calls_only_the_named_clinical_contract_and_parses_resource_envelopes(): void

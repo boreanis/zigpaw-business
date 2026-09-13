@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -84,6 +85,42 @@ class PortalOperationalBoundaryTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_readiness_fails_closed_when_the_canonical_api_origin_is_malformed(): void
+    {
+        config()->set('platform.api_url', 'not-a-url');
+        Http::preventStrayRequests();
+
+        $this->get('/health/ready')
+            ->assertServiceUnavailable()
+            ->assertExactJson(['status' => 'not_ready']);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_readiness_uses_canonical_api_status_without_trusting_topology_metadata(): void
+    {
+        config()->set('platform.oauth_client_id', 'portal-client');
+        config()->set('platform.oauth_client_secret', str_repeat('s', 40));
+        config()->set('platform.oauth_scopes', ['business:read']);
+        config()->set('platform_clinical.oauth_client_id', 'clinical-client');
+        config()->set('platform_clinical.oauth_client_secret', str_repeat('c', 40));
+        config()->set('platform_clinical.oauth_scopes', ['clinical:read', 'clinical:submit']);
+        Cache::forget('health:readiness');
+        Http::fake([
+            'https://api.zigpaw.test/health' => Http::response([
+                'status' => 'ok',
+                'routing_hint' => 'https://attacker.example',
+            ]),
+        ]);
+
+        $this->get('/health/ready')
+            ->assertOk()
+            ->assertExactJson(['status' => 'ready']);
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/health');
+    }
+
     public function test_staging_rejects_the_well_known_local_oauth_secret(): void
     {
         $originalEnvironment = app()->environment();
@@ -97,7 +134,7 @@ class PortalOperationalBoundaryTest extends TestCase
                 'app.debug' => false,
                 'app.url' => 'https://business.staging.zigpaw.app',
                 'platform.api_url' => 'https://api.staging.zigpaw.app',
-                'platform.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform.auth_url' => 'https://auth.staging.zigpaw.app',
                 'cache.default' => 'redis',
                 'session.driver' => 'redis',
                 'session.encrypt' => true,
@@ -124,13 +161,13 @@ class PortalOperationalBoundaryTest extends TestCase
                 'app.debug' => false,
                 'app.url' => 'https://business.staging.zigpaw.app',
                 'platform.api_url' => 'https://api.staging.zigpaw.app',
-                'platform.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform.auth_url' => 'https://auth.staging.zigpaw.app',
                 'platform.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/auth/callback',
                 'platform.oauth_client_id' => 'staging-business-client',
                 'platform.oauth_client_secret' => str_repeat('b', 40),
                 'platform.oauth_scopes' => ['business:read'],
                 'platform_clinical.api_url' => 'https://api.staging.zigpaw.app',
-                'platform_clinical.auth_url' => 'https://login.staging.zigpaw.app',
+                'platform_clinical.auth_url' => 'https://auth.staging.zigpaw.app',
                 'platform_clinical.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/clinical/auth/callback',
                 'platform_clinical.oauth_client_id' => 'staging-clinical-client',
                 'platform_clinical.oauth_client_secret' => str_repeat('c', 40),

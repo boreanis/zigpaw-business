@@ -32,6 +32,29 @@ class ClinicalWorkspaceTest extends TestCase
             ->assertSessionHas('error', 'Your secure clinical session has ended. Please sign in again.');
     }
 
+    public function test_management_session_context_does_not_render_clinical_workspace_navigation(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'business-access-token',
+            'refresh_token' => 'business-refresh-token',
+            'expires_in' => 900,
+        ]);
+        session()->put([
+            'portal.organization_id' => 'management-organization',
+            'portal.organization_name' => 'Management organization',
+        ]);
+
+        $this->get('/clinical')
+            ->assertOk()
+            ->assertSee('Sign in securely')
+            ->assertDontSee('class="clinical-nav"', false)
+            ->assertDontSee('class="organization-chip"', false)
+            ->assertDontSee('Management organization');
+
+        $this->assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        $this->assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
+    }
+
     public function test_clinical_api_calls_use_the_canonical_audience_and_separate_credentials(): void
     {
         app(ClinicalPortalAccessTokenStore::class)->put([

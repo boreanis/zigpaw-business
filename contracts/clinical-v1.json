@@ -1837,12 +1837,12 @@
         "securitySchemes": {
             "zigpawOAuth": {
                 "type": "oauth2",
-                "description": "OAuth 2.0 Authorization Code with PKCE. Browser tokens remain in the portal BFF; native clients store them in the platform secure keychain.",
+                "description": "OAuth 2.0 Authorization Code with PKCE through the canonical auth host. Browser tokens remain in the portal BFF; native clients store them in the platform secure keychain. Markets select localized commercial data, not a different issuer or database.",
                 "flows": {
                     "authorizationCode": {
-                        "authorizationUrl": "https://login.zigpaw.app/oauth/authorize",
-                        "tokenUrl": "https://login.zigpaw.app/oauth/token",
-                        "refreshUrl": "https://login.zigpaw.app/oauth/token",
+                        "authorizationUrl": "https://auth.zigpaw.app/oauth/authorize",
+                        "tokenUrl": "https://auth.zigpaw.app/oauth/token",
+                        "refreshUrl": "https://auth.zigpaw.app/oauth/token",
                         "scopes": {
                             "consumer:read": "Read the signed-in customer account and its authorized pet data.",
                             "consumer:write": "Update the signed-in customer account and its authorized pet data.",

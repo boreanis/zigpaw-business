@@ -6,6 +6,7 @@ use App\Exceptions\PlatformApiException;
 use App\Support\ClinicalPortalAccessTokenStore;
 use App\Support\Generated\BusinessApiOperations;
 use App\Support\PlatformConfiguration;
+use App\Support\PortalAccessTokenStore;
 use App\Support\RequestCorrelation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -555,7 +556,21 @@ class PlatformApiClient
         $configPrefix = $this->contextForPath($path) === PlatformConfiguration::CLINICAL
             ? 'platform_clinical'
             : 'platform';
-        $request = Http::baseUrl((string) config("{$configPrefix}.api_url"))
+        $tokens = $configPrefix === 'platform_clinical'
+            ? app(ClinicalPortalAccessTokenStore::class)
+            : app(PortalAccessTokenStore::class);
+        $apiUrl = $tokens->apiUrl();
+
+        if ($apiUrl === null) {
+            throw new PlatformApiException(
+                503,
+                $configPrefix === 'platform_clinical'
+                    ? 'Zigpaw clinical is temporarily unavailable.'
+                    : 'Zigpaw is temporarily unavailable.',
+            );
+        }
+
+        $request = Http::baseUrl($apiUrl)
             ->acceptJson()
             ->withToken($this->headerValue($accessToken, 'access token'))
             ->withHeader('X-Request-ID', RequestCorrelation::id())

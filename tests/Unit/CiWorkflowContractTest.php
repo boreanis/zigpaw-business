@@ -39,8 +39,23 @@ final class CiWorkflowContractTest extends TestCase
 
     public function test_phpunit_bootstrap_has_a_disposable_well_formed_application_key(): void
     {
+        $root = dirname(__DIR__, 2);
         $document = new \DOMDocument;
-        self::assertTrue($document->load(dirname(__DIR__, 2).'/phpunit.xml'));
+        self::assertTrue($document->load($root.'/phpunit.xml'));
+
+        $configuration = $document->documentElement;
+        self::assertNotNull($configuration);
+        foreach (['failOnWarning', 'failOnRisky', 'failOnSkipped', 'failOnIncomplete'] as $attribute) {
+            self::assertSame('true', $configuration->getAttribute($attribute));
+        }
+
+        $environment = $root.'/tests/Fixtures/hermetic.env';
+        self::assertFileExists($environment);
+        self::assertDoesNotMatchRegularExpression('/^[A-Z][A-Z0-9_]*=/m', (string) file_get_contents($environment));
+        self::assertStringContainsString(
+            "->useEnvironmentPath(__DIR__.'/Fixtures')->loadEnvironmentFrom('hermetic.env')",
+            (string) file_get_contents($root.'/tests/TestCase.php'),
+        );
 
         $nodes = (new \DOMXPath($document))->query('/phpunit/php/env[@name="APP_KEY"]');
         self::assertNotFalse($nodes);
@@ -74,7 +89,7 @@ final class CiWorkflowContractTest extends TestCase
 
         self::assertSame('https://business.zigpaw.test', $values['APP_URL'] ?? null);
         self::assertSame('https://api.zigpaw.test', $values['PLATFORM_API_URL'] ?? null);
-        self::assertSame('https://login.zigpaw.test', $values['PLATFORM_AUTH_URL'] ?? null);
+        self::assertSame('https://auth.zigpaw.test', $values['PLATFORM_AUTH_URL'] ?? null);
         self::assertSame('https://business.zigpaw.test/auth/callback', $values['PLATFORM_OAUTH_REDIRECT_URI'] ?? null);
         self::assertSame('https://business.zigpaw.test/clinical/auth/callback', $values['PLATFORM_CLINICAL_OAUTH_REDIRECT_URI'] ?? null);
     }

@@ -272,18 +272,23 @@ class BusinessWorkspaceTest extends TestCase
                     'membership' => ['role' => 'manager', 'capabilities' => ['portal.view', 'organization.manage']],
                     'features' => ['provider_claims' => false, 'booking_requests' => false],
                     'business_profile' => ['legal_name' => 'Laidley Veterinary Surgery Pty Ltd', 'registered_country_code' => 'AU'],
+                    'profile_options' => ['countries' => [['code' => 'AU', 'name' => 'Australia']]],
                 ]])
                 ->push(['data' => [
                     'organization' => ['id' => 'organization-1', 'name' => 'Laidley Animal Care', 'primary_country_code' => 'AU'],
                     'membership' => ['role' => 'manager', 'capabilities' => ['portal.view', 'organization.manage']],
                     'features' => ['provider_claims' => false, 'booking_requests' => false],
                     'business_profile' => ['legal_name' => 'Laidley Veterinary Surgery Pty Ltd', 'registered_country_code' => 'AU'],
+                    'profile_options' => ['countries' => [['code' => 'AU', 'name' => 'Australia']]],
                 ]]),
         ]);
 
         Livewire::test(BusinessWorkspace::class)
             ->assertSee('Business profile')
             ->call('showSection', 'profile')
+            ->assertSee('<select wire:model="businessRegisteredCountryCode" autocomplete="country">', false)
+            ->assertSee('<option value="AU">Australia</option>', false)
+            ->assertDontSee('placeholder="AU"', false)
             ->set('businessName', 'Laidley Animal Care')
             ->call('saveBusinessProfile')
             ->assertSet('businessName', 'Laidley Animal Care')
@@ -292,6 +297,36 @@ class BusinessWorkspaceTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->method() === 'PATCH'
             && $request->url() === 'https://api.zigpaw.test/v1/business/me'
             && $request['name'] === 'Laidley Animal Care');
+    }
+
+    public function test_country_selector_uses_api_options_and_displays_api_validation_without_changing_organization_identity(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'synthetic-manager-token', 'refresh_token' => 'synthetic-refresh-token',
+            'expires_in' => 900,
+        ]);
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/organizations' => Http::response(['data' => [['id' => 'organization-1', 'name' => 'Synthetic business']]]),
+            'https://api.zigpaw.test/v1/business/me' => Http::sequence()
+                ->push(['data' => [
+                    'organization' => ['id' => 'organization-1', 'name' => 'Synthetic business', 'primary_country_code' => 'CA'],
+                    'membership' => ['role' => 'owner', 'capabilities' => ['portal.view', 'organization.manage']],
+                    'business_profile' => ['registered_country_code' => 'CA'],
+                    'profile_options' => ['countries' => [['code' => 'CA', 'name' => 'Canada'], ['code' => 'NZ', 'name' => 'New Zealand']]],
+                ]])
+                ->push(['message' => 'Please check the selected country.', 'errors' => ['registered_country_code' => ['This country is no longer available.']]], 422),
+        ]);
+        Livewire::test(BusinessWorkspace::class)
+            ->call('showSection', 'profile')
+            ->assertSee('<option value="NZ">New Zealand</option>', false)
+            ->set('businessRegisteredCountryCode', 'NZ')
+            ->call('saveBusinessProfile')
+            ->assertHasErrors('businessRegisteredCountryCode')
+            ->assertSee('This country is no longer available.')
+            ->assertSet('identity.organization.primary_country_code', 'CA');
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'PATCH'
+            && $request['registered_country_code'] === 'NZ'
+            && ! isset($request['primary_country_code']));
     }
 
     public function test_role_and_feature_boundaries_hide_workspace_configuration_from_an_operator(): void

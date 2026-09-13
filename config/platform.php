@@ -5,8 +5,10 @@ $localClientSecret = in_array(env('APP_ENV'), ['local', 'testing'], true)
     : null;
 
 return [
+    'staged_browser_qa' => (bool) env('ZIGPAW_STAGED_BROWSER_QA', false),
+    'ca_bundle_path' => env('PLATFORM_CA_BUNDLE_PATH'),
     'api_url' => rtrim((string) env('PLATFORM_API_URL', 'https://api.zigpaw.test'), '/'),
-    'auth_url' => rtrim((string) env('PLATFORM_AUTH_URL', 'https://login.zigpaw.test'), '/'),
+    'auth_url' => rtrim((string) env('PLATFORM_AUTH_URL', 'https://auth.zigpaw.test'), '/'),
     'session_endpoint' => '/v1/business/session',
     'oauth_client_id' => env('PLATFORM_OAUTH_CLIENT_ID'),
     'oauth_client_secret' => env('PLATFORM_OAUTH_CLIENT_SECRET', $localClientSecret),

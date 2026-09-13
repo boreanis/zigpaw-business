@@ -89,4 +89,14 @@ class ClinicalUiComponentsTest extends TestCase
         $this->assertStringContainsString('class="theme-control"', $html);
         $this->assertStringContainsString('wire:loading.attr="disabled"', $html);
     }
+
+    public function test_patient_cards_reserve_space_for_content_and_bound_the_navigation_arrow(): void
+    {
+        $css = (string) file_get_contents(resource_path('css/business.css'));
+
+        $this->assertStringContainsString('.clinical-workspace .patient-card-body { min-width: 0; flex: 1 1 auto; }', $css);
+        $this->assertStringContainsString('.clinical-workspace .patient-card-title h2 { min-width: 0; flex: 1 1 auto;', $css);
+        $this->assertStringContainsString('.clinical-workspace .patient-card-title .status-badge { flex: 0 0 auto; }', $css);
+        $this->assertStringContainsString('.clinical-workspace .patient-card > .row-arrow { width: 18px; height: 18px; flex: 0 0 18px;', $css);
+    }
 }

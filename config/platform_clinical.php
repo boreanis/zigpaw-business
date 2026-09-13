@@ -6,7 +6,7 @@ $localClientSecret = in_array(env('APP_ENV'), ['local', 'testing'], true)
 
 return [
     'api_url' => rtrim((string) env('PLATFORM_API_URL', 'https://api.zigpaw.test'), '/'),
-    'auth_url' => rtrim((string) env('PLATFORM_AUTH_URL', 'https://login.zigpaw.test'), '/'),
+    'auth_url' => rtrim((string) env('PLATFORM_AUTH_URL', 'https://auth.zigpaw.test'), '/'),
     'session_endpoint' => '/v1/business/clinical/session',
     'oauth_client_id' => env('PLATFORM_CLINICAL_OAUTH_CLIENT_ID'),
     'oauth_client_secret' => env('PLATFORM_CLINICAL_OAUTH_CLIENT_SECRET', $localClientSecret),

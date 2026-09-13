@@ -1,5 +1,14 @@
 # Zigpaw Business
 
+> **Current canonical source; local runtime and acceptance verified.** This independent API-only
+> Business client has no Platform/domain database and calls the unified
+> Platform API backed by one canonical domain MySQL database. See the Platform
+> [Data Architecture](https://github.com/boreanis/zigpaw-platform/blob/main/docs/14_DATA_ARCHITECTURE.md)
+> and [Single-Database Implementation Plan](https://github.com/boreanis/zigpaw-platform/blob/main/docs/16_SINGLE_DATABASE_IMPLEMENTATION_PLAN.md). The Platform
+> [handover](https://github.com/boreanis/zigpaw-platform/blob/main/docs/00_HANDOVER.md)
+> records the verified local checkpoint. Production deployment and readiness
+> require their own release checks.
+
 `zigpaw-business` is one provider workspace for every organization that serves pets. It is a single Laravel/Livewire BFF at `business.zigpaw.app`; the workspace selects a category template instead of deploying separate vet, groomer, kennel, breeder, or shelter applications.
 
 The browser receives only an opaque, host-only session and never receives platform access or refresh tokens.
@@ -46,14 +55,20 @@ flowchart TD
 
 - Production: `business.zigpaw.app`.
 - Local: `business.zigpaw.test`.
-- Identity: `login.zigpaw.app` using Authorization Code, PKCE and confidential clients.
-- Canonical API: `https://api.zigpaw.app/v1`.
+- Identity: `auth.zigpaw.app` using Authorization Code, PKCE and confidential clients.
+- Canonical API: `https://api.zigpaw.app`. Management and clinical requests
+  use this fixed server-configured origin with separate OAuth clients, scopes,
+  token stores, session endpoints and generated operation allowlists.
 - Management audience: `/v1/business/*` with `business:*` scopes.
 - Clinical audience: `/v1/business/clinical/*` with `clinical:read` and `clinical:submit` scopes.
 - Organization context: every tenant request carries an explicit `X-Zigpaw-Organization-ID` selected from active memberships.
 - Data ownership: the canonical `zigpaw-platform` platform owns organizations, provider listings, locations, bookings, agreements, partner programs, commission accruals, clinical grants, submissions, and opaque references to externally completed settlements. Zigpaw does not collect provider bank details or execute provider payouts in this phase. This repository owns presentation, browser sessions, and server-side OAuth token custody only.
 
 The platform checks both token scope and the authenticated user's active organization membership before it returns data or accepts a write. Sign-out requests canonical token revocation and a signed identity-session termination, then always invalidates the local portal session even if the upstream service is unavailable. Do not add direct database access as a shortcut.
+
+`auth.zigpaw.app` is the only identity and OAuth issuer. Authorization-code
+exchange and refresh use its fixed server-configured token endpoint; browser
+input cannot select an issuer or API origin.
 
 Provider identity and commercial participation are intentionally separate. A business can claim and manage a listing without joining a referral program, and a commercial agreement never changes organic directory ranking.
 
@@ -71,7 +86,7 @@ flowchart LR
         UI -->|"opaque session handle"| LocalState
     end
 
-    Identity["login.zigpaw.app<br/>Fortify + Passport"]
+    Identity["auth.zigpaw.app<br/>Fortify + Passport"]
     API["api.zigpaw.app/v1/business/*<br/>canonical business API"]
     Platform["Platform policies, models, database, queues and provider adapters"]
 
@@ -97,7 +112,7 @@ idempotency and provider-operation guarantees.
 sequenceDiagram
     actor User as Business user
     participant BFF as business.zigpaw.app BFF
-    participant Identity as login.zigpaw.app
+    participant Identity as auth.zigpaw.app
     participant API as api.zigpaw.app/v1
 
     User->>BFF: GET /auth/login
@@ -181,7 +196,13 @@ php artisan business:sync-contracts /absolute/path/to/business-v1.json /absolute
 npm run build
 ```
 
-Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`, `PLATFORM_OAUTH_CLIENT_ID`, `PLATFORM_OAUTH_CLIENT_SECRET`, and `PLATFORM_OAUTH_REDIRECT_URI`. Configure the clinical client separately with `PLATFORM_CLINICAL_OAUTH_CLIENT_ID`, `PLATFORM_CLINICAL_OAUTH_CLIENT_SECRET`, `PLATFORM_CLINICAL_OAUTH_SCOPES`, and `PLATFORM_CLINICAL_OAUTH_REDIRECT_URI`. The callbacks are explicitly allowlisted on their matching platform clients; secrets remain server-only.
+Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`,
+`PLATFORM_OAUTH_CLIENT_ID`, `PLATFORM_OAUTH_CLIENT_SECRET`, and
+`PLATFORM_OAUTH_REDIRECT_URI`. Configure the clinical client separately with
+`PLATFORM_CLINICAL_OAUTH_CLIENT_ID`,
+`PLATFORM_CLINICAL_OAUTH_CLIENT_SECRET`, `PLATFORM_CLINICAL_OAUTH_SCOPES`, and
+`PLATFORM_CLINICAL_OAUTH_REDIRECT_URI`. The callbacks are explicitly
+allowlisted on their matching platform clients; secrets remain server-only.
 
 The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 

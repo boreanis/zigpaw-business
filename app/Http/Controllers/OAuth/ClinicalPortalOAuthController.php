@@ -83,7 +83,7 @@ class ClinicalPortalOAuthController
                 ->withHeader('X-Request-ID', RequestCorrelation::id())
                 ->connectTimeout(3)
                 ->timeout(8)
-                ->post(config('platform_clinical.auth_url').'/oauth/token', [
+                ->post(rtrim((string) config('platform_clinical.auth_url'), '/').'/oauth/token', [
                     'grant_type' => 'authorization_code',
                     'client_id' => config('platform_clinical.oauth_client_id'),
                     'client_secret' => config('platform_clinical.oauth_client_secret'),

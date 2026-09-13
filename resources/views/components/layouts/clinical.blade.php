@@ -13,6 +13,10 @@
     @livewireStyles
 </head>
 <body>
+    @php
+        $hasClinicalWorkspace = session()->has('platform.oauth.clinical_token_handle')
+            && session()->has('portal.organization_id');
+    @endphp
     <a class="skip-link" href="#main-content">Skip to clinical workspace</a>
     <div class="clinical-app-frame">
         <header class="clinical-app-header">
@@ -22,7 +26,7 @@
                 <span>Business · Clinical</span>
             </a>
 
-            @if (session()->has('portal.organization_id'))
+            @if ($hasClinicalWorkspace)
                 <nav class="clinical-nav" aria-label="Clinical workspace">
                     <a @class(['active' => request()->routeIs('clinical.dashboard')]) href="{{ route('clinical.dashboard') }}" wire:navigate>Overview</a>
                     <a @class(['active' => request()->routeIs('clinical.patients.*')]) href="{{ route('clinical.patients.index') }}" wire:navigate>Patients</a>
@@ -34,7 +38,7 @@
                 <x-clinical.button variant="theme" data-theme-toggle aria-label="Change appearance">
                     <span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span>
                 </x-clinical.button>
-                @if (session()->has('portal.organization_id'))
+                @if ($hasClinicalWorkspace)
                     <span class="organization-chip">{{ session('portal.organization_name', 'Clinical workspace') }}</span>
                 @endif
                 @if (session()->has('platform.oauth.clinical_token_handle'))

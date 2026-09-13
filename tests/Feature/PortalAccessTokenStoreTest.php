@@ -30,7 +30,7 @@ class PortalAccessTokenStoreTest extends TestCase
     public function test_it_refreshes_an_expired_access_token_without_exposing_tokens_to_the_browser(): void
     {
         Http::fake([
-            'https://login.zigpaw.test/oauth/token' => Http::response([
+            'https://auth.zigpaw.test/oauth/token' => Http::response([
                 'access_token' => 'fresh-access-token',
                 'refresh_token' => 'rotated-refresh-token',
                 'expires_in' => 900,
@@ -46,6 +46,7 @@ class PortalAccessTokenStoreTest extends TestCase
 
         $this->assertSame('fresh-access-token', $store->accessToken());
         Http::assertSent(fn (Request $request): bool => $request['grant_type'] === 'refresh_token'
+            && $request->url() === 'https://auth.zigpaw.test/oauth/token'
             && $request['client_secret'] === config('platform.oauth_client_secret'));
         $this->assertArrayNotHasKey('platform.oauth.tokens', session()->all());
     }
@@ -74,7 +75,7 @@ class PortalAccessTokenStoreTest extends TestCase
     {
         Http::fake([
             'https://api.zigpaw.test/v1/business/session' => Http::response([
-                'data' => ['logout_url' => 'https://login.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed'],
+                'data' => ['logout_url' => 'https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed'],
             ]),
         ]);
         $store = app(PortalAccessTokenStore::class);
@@ -91,14 +92,14 @@ class PortalAccessTokenStoreTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer active-access-token')
             && $request->hasHeader('Idempotency-Key'));
         $this->assertNull($store->accessToken());
-        $this->assertSame('https://login.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed', $logoutUrl);
+        $this->assertSame('https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed', $logoutUrl);
     }
 
     public function test_it_rejects_a_logout_redirect_on_a_different_identity_origin_without_forgetting_tokens(): void
     {
         Http::fake([
             'https://api.zigpaw.test/v1/business/session' => Http::response([
-                'data' => ['logout_url' => 'https://login.zigpaw.test:444/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed'],
+                'data' => ['logout_url' => 'https://auth.zigpaw.test:444/session/end/019f5a00-0000-7000-8000-000000000099?nonce=nonce&expires=1786400000&signature=signed'],
             ]),
         ]);
         $store = app(PortalAccessTokenStore::class);

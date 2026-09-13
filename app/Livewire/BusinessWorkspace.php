@@ -1507,6 +1507,10 @@ class BusinessWorkspace extends Component
         PortalAccessTokenStore $tokens,
         bool $keepWorkspace = false,
     ): void {
+        if ($exception->status === 422 && isset($exception->errors['registered_country_code'][0])) {
+            $this->addError('businessRegisteredCountryCode', $exception->errors['registered_country_code'][0]);
+        }
+
         if ($exception->status === 401) {
             $tokens->forget();
             $this->state = 'signed_out';
