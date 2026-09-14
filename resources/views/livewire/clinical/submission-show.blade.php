@@ -27,7 +27,9 @@
         </section>
 
         <section class="plain-section">
-            <div class="section-heading-inline"><div><p class="eyebrow">Submitted record set</p><h2>{{ $submission['records_pending_review'] ?? 0 }} records</h2></div><span>Provenance preserved</span></div>
+            <x-clinical.section-heading eyebrow="Submitted record set" title="{{ $submission['records_pending_review'] ?? 0 }} records">
+                <x-slot:meta><span>Provenance preserved</span></x-slot:meta>
+            </x-clinical.section-heading>
             <div class="record-count-grid">
                 @foreach (['visits' => 'Visits', 'weights' => 'Weights', 'vaccinations' => 'Vaccinations', 'medications' => 'Medications', 'conditions' => 'Conditions & allergies'] as $key => $label)
                     <div><strong>{{ data_get($submission, 'record_counts.'.$key, 0) }}</strong><span>{{ $label }}</span></div>

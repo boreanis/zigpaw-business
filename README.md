@@ -143,6 +143,24 @@ The portal presents:
 - read-only commission statements and disclosed agreements, with no bank or payout onboarding;
 - role-scoped team access.
 
+### UI ownership and responsive maintenance
+
+Business owns the presentation layer and keeps repeated UI contracts in shared
+components. Clinical titled panel headings use
+`resources/views/components/clinical/section-heading.blade.php`; its trailing
+`meta` or `actions` slot renders directly beside the heading so existing layout
+classes and responsive behavior remain stable. Add a new heading variant only
+when this shared contract cannot represent the released design.
+
+Standalone mobile controls target a 44px touch area in
+`resources/css/business.css` while preserving the denser desktop treatment
+where appropriate. Keep responsive changes CSS/component-driven and never move
+authorization, feature release, clinical, booking, or workflow rules into the
+browser.
+
+Run the dependency-free sidebar behavior regression with `npm run test:js`;
+run it alongside the hermetic PHP suite and `npm run build` for UI changes.
+
 New behavior remains API-first: implement authorization, validation, resources, versioned routes and contract tests in `zigpaw-platform`, then consume it here. Never add direct access to the platform database.
 
 ## Commerce boundary

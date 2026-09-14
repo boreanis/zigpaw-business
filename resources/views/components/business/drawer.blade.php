@@ -24,7 +24,7 @@
     @unless ($open) hidden inert @endunless
 >
     <aside
-        @class(['business-drawer', 'has-overlay-footer' => $hasFooter])
+        @class(['business-drawer'])
         role="dialog"
         aria-modal="true"
         aria-labelledby="{{ $headingId }}"

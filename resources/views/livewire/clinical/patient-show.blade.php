@@ -43,10 +43,9 @@
 
         @if (($capabilities['read_care'] ?? false) === true)
             <section class="plain-section">
-                <div class="section-heading-inline">
-                    <div><p class="eyebrow">Current care context</p><h2>Information approved for sharing</h2></div>
-                    <span>Read only</span>
-                </div>
+                <x-clinical.section-heading eyebrow="Current care context" title="Information approved for sharing">
+                    <x-slot:meta><span>Read only</span></x-slot:meta>
+                </x-clinical.section-heading>
 
                 <div class="clinical-summary-grid">
                     <div>
@@ -73,7 +72,9 @@
 
             <div class="clinical-columns">
                 <section class="plain-section">
-                    <div class="section-heading-inline"><div><p class="eyebrow">Conditions & allergies</p><h2>Relevant history</h2></div><span>{{ count($care['conditions'] ?? []) }}</span></div>
+                    <x-clinical.section-heading eyebrow="Conditions & allergies" title="Relevant history">
+                        <x-slot:meta><span>{{ count($care['conditions'] ?? []) }}</span></x-slot:meta>
+                    </x-clinical.section-heading>
                     @forelse ($care['conditions'] ?? [] as $condition)
                         <article class="clinical-row">
                             <div><strong>{{ $condition['name'] }}</strong><span>{{ collect([str((string) ($condition['type'] ?? 'condition'))->headline(), $condition['severity'] ?? null, $condition['status'] ?? null])->filter()->join(' · ') }}</span></div>
@@ -85,7 +86,9 @@
                 </section>
 
                 <section class="plain-section">
-                    <div class="section-heading-inline"><div><p class="eyebrow">Medications</p><h2>Shared medication records</h2></div><span>{{ count($care['medications'] ?? []) }}</span></div>
+                    <x-clinical.section-heading eyebrow="Medications" title="Shared medication records">
+                        <x-slot:meta><span>{{ count($care['medications'] ?? []) }}</span></x-slot:meta>
+                    </x-clinical.section-heading>
                     @forelse ($care['medications'] ?? [] as $medication)
                         <article class="clinical-row">
                             <div><strong>{{ $medication['name'] }}</strong><span>{{ collect([$medication['dosage'] ?? null, $medication['frequency'] ?? null, $medication['route'] ?? null])->filter()->join(' · ') }}</span></div>
@@ -98,7 +101,9 @@
             </div>
 
             <section class="plain-section">
-                <div class="section-heading-inline"><div><p class="eyebrow">Clinical history</p><h2>Visits shared by the family</h2></div><span>{{ count($care['visits'] ?? []) }}</span></div>
+                <x-clinical.section-heading eyebrow="Clinical history" title="Visits shared by the family">
+                    <x-slot:meta><span>{{ count($care['visits'] ?? []) }}</span></x-slot:meta>
+                </x-clinical.section-heading>
                 <div class="timeline">
                     @forelse ($care['visits'] ?? [] as $visit)
                         <article>
@@ -116,7 +121,9 @@
             </section>
 
             <section class="plain-section">
-                <div class="section-heading-inline"><div><p class="eyebrow">Vaccinations</p><h2>Shared vaccination history</h2></div><span>{{ count($care['vaccinations'] ?? []) }}</span></div>
+                <x-clinical.section-heading eyebrow="Vaccinations" title="Shared vaccination history">
+                    <x-slot:meta><span>{{ count($care['vaccinations'] ?? []) }}</span></x-slot:meta>
+                </x-clinical.section-heading>
                 <div class="record-list">
                     @forelse ($care['vaccinations'] ?? [] as $vaccination)
                         <article><div><strong>{{ $vaccination['name'] }}</strong><span>{{ collect([$vaccination['manufacturer'] ?? null, $vaccination['batch_number'] ?? null, $vaccination['clinic_name'] ?? null])->filter()->join(' · ') }}</span></div><div><span>Given {{ $vaccination['administered_date'] ?? '—' }}</span><small>{{ ($vaccination['next_due_date'] ?? null) ? 'Next due '.$vaccination['next_due_date'] : 'No next due date shared' }}</small></div></article>
@@ -130,7 +137,9 @@
         @endif
 
         <section class="plain-section">
-            <div class="section-heading-inline"><div><p class="eyebrow">Shared media</p><h2>Photos and clinical documents</h2></div><span>{{ count($media) }}</span></div>
+            <x-clinical.section-heading eyebrow="Shared media" title="Photos and clinical documents">
+                <x-slot:meta><span>{{ count($media) }}</span></x-slot:meta>
+            </x-clinical.section-heading>
             @if (($capabilities['read_media'] ?? false) !== true)
                 <p class="quiet-empty">Media access is not included in this grant.</p>
             @elseif ($media === [])

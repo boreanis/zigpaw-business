@@ -55,6 +55,9 @@ jobs:
       - name: Build production assets
         run: npm run build
 
+      - name: Run JavaScript interaction tests
+        run: npm run test:js
+
       - name: Run portal tests
         run: php artisan test
 

@@ -27,10 +27,9 @@
             </section>
 
             <section class="plain-section">
-                <div class="section-heading-inline">
-                    <div><p class="eyebrow">Submission queue</p><h2>Family review remains in control</h2></div>
-                    <a href="{{ route('clinical.submissions.index') }}" wire:navigate>View history</a>
-                </div>
+                <x-clinical.section-heading eyebrow="Submission queue" title="Family review remains in control">
+                    <x-slot:actions><a href="{{ route('clinical.submissions.index') }}" wire:navigate>View history</a></x-slot:actions>
+                </x-clinical.section-heading>
                 <p>Clinical records are held as pending until the profile manager reviews them. Existing approved history is never changed directly from this workspace.</p>
                 <div class="status-key">
                     <span><i class="dot dot-amber"></i>{{ data_get($overview, 'submissions.pending', 0) }} pending</span>
@@ -42,10 +41,9 @@
 
         @if (count(data_get($overview, 'locations', [])) > 0)
             <section class="plain-section">
-                <div class="section-heading-inline">
-                    <div><p class="eyebrow">Organisation locations</p><h2>Available clinical locations</h2></div>
-                    <span>{{ count(data_get($overview, 'locations', [])) }} listed</span>
-                </div>
+                <x-clinical.section-heading eyebrow="Organisation locations" title="Available clinical locations">
+                    <x-slot:meta><span>{{ count(data_get($overview, 'locations', [])) }} listed</span></x-slot:meta>
+                </x-clinical.section-heading>
                 <div class="compact-list">
                     @foreach (data_get($overview, 'locations', []) as $location)
                         <div><strong>{{ $location['name'] }}</strong><span>{{ collect([$location['city'] ?? null, $location['state'] ?? null, $location['country_code'] ?? null])->filter()->join(' · ') }}</span></div>

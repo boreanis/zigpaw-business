@@ -24,7 +24,7 @@
     @unless ($open) hidden inert @endunless
 >
     <section
-        @class(['business-modal', 'has-overlay-footer' => $hasFooter])
+        @class(['business-modal'])
         role="dialog"
         aria-modal="true"
         aria-labelledby="{{ $headingId }}"

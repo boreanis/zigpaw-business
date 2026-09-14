@@ -242,14 +242,13 @@ select, input, textarea { width: 100%; min-height: 44px; border: 1px solid var(-
 .overlay-heading { min-width: 0; }
 .overlay-heading h2 { margin-top: 5px; }
 .overlay-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 24px; }
-.overlay-scroll-cue { position: absolute; z-index: 2; right: 50%; bottom: 14px; display: inline-flex; min-height: 38px; align-items: center; gap: 9px; transform: translateX(50%); border: 0; border-radius: 999px; padding: 0 17px; color: var(--blue); background: color-mix(in srgb, var(--surface-raised) 42%, transparent); box-shadow: 0 8px 28px rgb(8 26 48 / 9%); -webkit-backdrop-filter: blur(28px) saturate(135%); backdrop-filter: blur(28px) saturate(135%); cursor: pointer; font-size: .76rem; }
-.has-overlay-footer .overlay-scroll-cue { bottom: calc(var(--overlay-footer-height, 70px) / 2 - 19px); }
+.overlay-scroll-cue { position: static; display: inline-flex; flex: 0 0 auto; align-self: center; min-height: 44px; align-items: center; gap: 9px; margin: 0 24px 8px; border: 0; border-radius: 999px; padding: 0 17px; color: var(--blue); background: color-mix(in srgb, var(--surface-raised) 42%, transparent); box-shadow: 0 8px 28px rgb(8 26 48 / 9%); -webkit-backdrop-filter: blur(28px) saturate(135%); backdrop-filter: blur(28px) saturate(135%); cursor: pointer; font-size: .76rem; }
 .overlay-scroll-cue:hover { color: var(--blue-strong); background: color-mix(in srgb, var(--surface-raised) 54%, transparent); }
 .overlay-scroll-cue[hidden] { display: none; }
-.overlay-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent); padding: 15px 24px; background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(22px) saturate(125%); backdrop-filter: blur(22px) saturate(125%); }
+.overlay-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent); padding: 15px 24px max(15px, calc(15px + env(safe-area-inset-bottom))); background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(22px) saturate(125%); backdrop-filter: blur(22px) saturate(125%); }
 .overlay-footer-copy { min-width: 0; flex: 1; color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .overlay-footer-copy .text-action { margin: 0; }
-.overlay-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 9px; }
+.overlay-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; }
 .overlay-context { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border: 1px solid var(--line); border-radius: var(--radius-control); padding: 14px 15px; background: var(--surface-soft); }
 .overlay-context > div { display: grid; min-width: 0; gap: 4px; }
 .overlay-context strong { overflow: hidden; color: var(--text); font-size: .9rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
@@ -277,23 +276,26 @@ body[data-overlay-locked="true"] { overscroll-behavior: none; }
     .clinical-workspace .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .schedule-rule-grid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
     .schedule-rule-grid .schedule-toggle, .schedule-rule-grid .schedule-remove { justify-self: start; }
+    .schedule-exception-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .schedule-exception-grid .schedule-reason { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
     .business-sidebar { inset: 0 auto 0 0; width: min(286px, calc(100vw - 38px)); min-height: 100vh; border-right: 1px solid var(--line); border-bottom: 0; padding: 20px 16px 18px; transform: translateX(-105%); transition: transform .2s ease; }
     .business-sidebar[data-sidebar-open="true"] { transform: translateX(0); box-shadow: var(--shadow-lg); }
-    .sidebar-close { display: grid; width: 34px; height: 34px; align-items: center; justify-content: center; align-self: flex-end; margin: -4px 0 2px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--surface-raised); cursor: pointer; font-size: 1.3rem; line-height: 1; }
+    .sidebar-close { display: grid; width: 44px; height: 44px; align-items: center; justify-content: center; align-self: flex-end; margin: -4px 0 2px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--surface-raised); cursor: pointer; font-size: 1.3rem; line-height: 1; }
     .sidebar-close:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
     .business-nav { display: grid; margin-top: 30px; }
-    .sidebar-theme-control { width: 100%; margin: 20px 0 0; }
+    .sidebar-theme-control { width: 100%; min-height: 44px; margin: 20px 0 0; }
     .sidebar-account { margin-top: auto; }
-    .sidebar-menu-toggle { display: inline-flex; min-height: 38px; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 0 11px; color: var(--muted); background: var(--surface-raised); cursor: pointer; font-size: .77rem; }
+    .sidebar-menu-toggle { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 0 11px; color: var(--muted); background: var(--surface-raised); cursor: pointer; font-size: .77rem; }
     .sidebar-menu-toggle:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
     .sidebar-menu-icon { display: grid; width: 15px; gap: 3px; }
     .sidebar-menu-icon i { display: block; height: 1px; border-radius: 1px; background: currentColor; }
     .sidebar-backdrop { position: fixed; z-index: 20; inset: 0; width: 100%; border: 0; background: rgb(6 16 29 / 35%); cursor: pointer; }
     .sidebar-backdrop[hidden] { display: none; }
     .workspace-main { margin-left: 0; padding: 20px 14px 46px; }
-    .workspace-header, .section-heading, .clinical-workspace .page-heading, .clinical-workspace .patient-hero { align-items: flex-start; flex-direction: column; }
+    .workspace-header, .section-heading, .clinical-workspace .page-heading { align-items: flex-start; flex-direction: column; }
+    .clinical-workspace .patient-hero { grid-template-columns: 1fr; align-items: flex-start; }
     .workspace-header { gap: 14px; }
     .workspace-header .organization-switcher { width: 100%; }
     .organization-switcher select { min-width: 0; }
@@ -321,6 +323,7 @@ body[data-overlay-locked="true"] { overscroll-behavior: none; }
     .clinical-app-frame { width: min(100% - 20px, 1440px); padding-top: 10px; }
     .clinical-app-header { align-items: flex-start; flex-wrap: wrap; padding-inline: 2px; }
     .clinical-nav { order: 3; width: 100%; overflow-x: auto; }
+    .clinical-nav a { display: inline-flex; min-height: 44px; align-items: center; padding-block: 0; }
     .clinical-header-actions { width: 100%; min-width: 0; margin-left: 0; flex-wrap: wrap; justify-content: flex-end; }
     .clinical-header-actions .organization-chip { min-width: 0; max-width: 100%; }
     .clinical-header-actions .organization-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -341,9 +344,11 @@ body[data-overlay-locked="true"] { overscroll-behavior: none; }
     .clinical-workspace .record-list > article { flex-direction: column; gap: 9px; }
     .clinical-workspace .record-list > article > div:last-child { text-align: left; }
     .clinical-workspace .segmented-filter { width: 100%; overflow-x: auto; flex-wrap: nowrap; }
-    .clinical-workspace .segmented-filter button { flex: 0 0 auto; }
+    .clinical-workspace .segmented-filter button { min-height: 44px; flex: 0 0 auto; }
+    .clinical-workspace .primary-button, .clinical-workspace .secondary-button { min-height: 44px; }
+    .clinical-workspace .text-button { min-height: 44px; }
     .clinical-workspace .pagination { justify-content: space-between; gap: 8px; }
-    .clinical-workspace .pagination .secondary-button { padding-inline: 12px; }
+    .clinical-workspace .pagination .secondary-button { min-height: 44px; padding-inline: 12px; }
     .clinical-workspace .form-section-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
     .clinical-workspace .form-section-heading .text-button { margin: 0 0 0 -8px; }
     .clinical-workspace .form-footer { align-items: stretch; flex-direction: column; gap: 12px; }
@@ -354,10 +359,12 @@ body[data-overlay-locked="true"] { overscroll-behavior: none; }
     .access-card { margin-top: 9vh; }
     .overlay { padding: 10px; }
     .business-modal { width: 100%; max-height: calc(100vh - 20px); border-radius: 18px; }
+    .icon-button, .toast-close { width: 44px; height: 44px; }
+    .theme-control { min-height: 44px; }
     .overlay-header, .overlay-body, .overlay-footer { padding-inline: 18px; }
     .overlay-footer { align-items: stretch; flex-direction: column; gap: 11px; }
     .overlay-actions { width: 100%; }
-    .overlay-actions .button { flex: 1; }
+    .overlay-actions .button { flex: 1; min-height: 44px; }
     .overlay-context { align-items: stretch; flex-direction: column; gap: 10px; }
     .business-drawer { width: 100%; }
 }

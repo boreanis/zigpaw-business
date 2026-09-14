@@ -33,6 +33,7 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString('data-overlay-scroll-cue', $html);
         $this->assertStringContainsString('class="overlay-footer"', $html);
         $this->assertStringContainsString('class="overlay-actions"', $html);
+        $this->assertMatchesRegularExpression('/data-overlay-scroll-body.*data-overlay-scroll-cue.*class="overlay-footer"/s', $html);
         $this->assertSame(1, substr_count($html, 'Review submission'));
 
         $modal = file_get_contents(resource_path('views/components/business/modal.blade.php'));
@@ -59,6 +60,7 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString('wire:click="cancelEdit"', $html);
         $this->assertStringContainsString('form="location-form"', $html);
         $this->assertStringContainsString('data-overlay-scroll-cue', $html);
+        $this->assertMatchesRegularExpression('/data-overlay-scroll-body.*data-overlay-scroll-cue.*class="overlay-footer"/s', $html);
     }
 
     public function test_toast_region_has_live_feedback_and_dismissal_hooks(): void
@@ -88,8 +90,17 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString("document.body.style.overflow = 'hidden'", $script);
         $this->assertStringContainsString('overlay.dataset.overlayBackdropClose', $script);
         $this->assertStringContainsString('restoreTarget.focus', $script);
+        $this->assertStringContainsString('const restoreDescriptor = this.restoreTargets.get(overlay);', $script);
+        $this->assertStringContainsString('this.resolveRestoreTarget(restoreDescriptor)', $script);
+        $this->assertStringContainsString("overlay.dataset.overlayOpenState !== 'true'", $script);
         $this->assertStringContainsString("this.sidebar.setAttribute('inert', '')", $script);
         $this->assertStringContainsString("this.sidebar.removeAttribute('inert')", $script);
+        $this->assertStringContainsString('this.handleResize = this.handleResize.bind(this);', $script);
+        $this->assertStringContainsString('window.addEventListener(\'resize\', this.handleResize)', $script);
+        $this->assertStringContainsString("if (!window.matchMedia('(max-width: 760px)').matches && this.isOpen())", $script);
+        $this->assertStringContainsString('this.close(false);', $script);
+        $this->assertStringContainsString('this.unlockBody();', $script);
+        $this->assertStringNotContainsString('--overlay-footer-height', $script);
         $this->assertStringContainsString('body.scrollHeight - body.clientHeight - body.scrollTop', $script);
         $this->assertStringContainsString('body?.scrollBy', $script);
         $this->assertStringContainsString("window.addEventListener('business:toast'", $script);
@@ -102,7 +113,12 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertIsString($css);
         $this->assertDoesNotMatchRegularExpression('/font-weight:\s*(?:600|700|800|900|bold)\b/', $css);
         $this->assertStringContainsString('overflow-y: auto; overscroll-behavior: contain;', $css);
-        $this->assertStringContainsString('.has-overlay-footer .overlay-scroll-cue { bottom: calc(var(--overlay-footer-height, 70px) / 2 - 19px); }', $css);
+        $this->assertStringContainsString('.overlay-scroll-cue { position: static; display: inline-flex; flex: 0 0 auto; align-self: center;', $css);
+        $this->assertStringNotContainsString('.overlay-scroll-cue { position: absolute;', $css);
+        $this->assertStringNotContainsString('--overlay-footer-height', $css);
+        $this->assertStringContainsString('.overlay-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; }', $css);
+        $this->assertStringContainsString('.overlay-actions .button { flex: 1; min-height: 44px; }', $css);
+        $this->assertStringContainsString('env(safe-area-inset-bottom)', $css);
     }
 
     public function test_explicit_theme_choice_overrides_the_system_wordmark_variant(): void
@@ -240,5 +256,27 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('.workspace-section { max-width: 1380px; min-height:', $css);
         $this->assertStringContainsString('.data-table {', $css);
         $this->assertStringContainsString('overflow-x: auto;', $css);
+    }
+
+    public function test_business_responsive_contracts_stack_narrow_layouts_and_keep_touch_targets_comfortable(): void
+    {
+        $css = file_get_contents(resource_path('css/business.css'));
+
+        $this->assertIsString($css);
+        $this->assertStringContainsString('.clinical-workspace .patient-hero { grid-template-columns: 1fr; align-items: flex-start; }', $css);
+        $this->assertStringContainsString('.schedule-exception-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }', $css);
+        $this->assertStringContainsString('.schedule-exception-grid .schedule-reason { grid-column: 1 / -1; }', $css);
+        $this->assertStringContainsString('.theme-control { min-height: 44px; }', $css);
+        $this->assertStringContainsString('.icon-button, .toast-close { width: 44px; height: 44px; }', $css);
+        $this->assertStringContainsString('.clinical-workspace .segmented-filter button { min-height: 44px;', $css);
+    }
+
+    public function test_business_workspace_uses_the_shared_heading_component_for_titled_sections(): void
+    {
+        $workspace = file_get_contents(resource_path('views/livewire/business-workspace.blade.php'));
+
+        $this->assertIsString($workspace);
+        $this->assertGreaterThanOrEqual(12, substr_count($workspace, '<x-business.section-heading'));
+        $this->assertDoesNotMatchRegularExpression('/<div class="section-heading(?:\s+[^"]*)?">\s*<div>.*?<h2>/s', $workspace);
     }
 }

@@ -90,6 +90,37 @@ class ClinicalUiComponentsTest extends TestCase
         $this->assertStringContainsString('wire:loading.attr="disabled"', $html);
     }
 
+    public function test_clinical_section_heading_preserves_direct_trailing_meta_and_action_markup(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-clinical.section-heading eyebrow="Locations" title="Available locations">
+                <x-slot:meta><span>3 listed</span></x-slot:meta>
+            </x-clinical.section-heading>
+            <x-clinical.section-heading eyebrow="Queue" title="Pending records">
+                <x-slot:actions><a href="/clinical/submissions">View history</a></x-slot:actions>
+            </x-clinical.section-heading>
+        BLADE);
+
+        $this->assertSame(2, substr_count($html, 'class="section-heading-inline"'));
+        $this->assertSame(2, substr_count($html, '<p class="eyebrow">'));
+        $this->assertStringContainsString('<span>3 listed</span>', $html);
+        $this->assertStringContainsString('<a href="/clinical/submissions">View history</a>', $html);
+        $this->assertStringNotContainsString('section-heading-actions', $html);
+        $this->assertMatchesRegularExpression('/section-heading-inline.*<\/div>\s*<span>3 listed<\/span>\s*<\/div>/s', $html);
+    }
+
+    public function test_clinical_workspaces_reuse_the_shared_section_heading_component(): void
+    {
+        $sources = collect([
+            resource_path('views/livewire/clinical-dashboard.blade.php'),
+            ...glob(resource_path('views/livewire/clinical/*.blade.php')),
+        ])->map(fn (string $path): string => (string) file_get_contents($path));
+        $combined = $sources->join("\n");
+
+        $this->assertSame(9, substr_count($combined, '<x-clinical.section-heading'));
+        $this->assertStringNotContainsString('section-heading-inline', $combined);
+    }
+
     public function test_patient_cards_reserve_space_for_content_and_bound_the_navigation_arrow(): void
     {
         $css = (string) file_get_contents(resource_path('css/business.css'));

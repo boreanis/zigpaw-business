@@ -70,6 +70,7 @@ class BusinessSidebarController {
         });
         this.handleClick = this.handleClick.bind(this);
         this.handleKeydown = this.handleKeydown.bind(this);
+        this.handleResize = this.handleResize.bind(this);
     }
 
     start() {
@@ -77,7 +78,7 @@ class BusinessSidebarController {
         document.addEventListener('keydown', this.handleKeydown);
         document.addEventListener('livewire:navigating', () => this.close(false));
         document.addEventListener('livewire:navigated', () => this.sync());
-        window.addEventListener('resize', () => this.syncVisibility());
+        window.addEventListener('resize', this.handleResize);
         this.sync();
         this.observer.observe(document.body, { childList: true, subtree: true });
     }
@@ -99,6 +100,20 @@ class BusinessSidebarController {
         // its links and controls from the keyboard and accessibility trees.
         if (hidden) this.sidebar.setAttribute('inert', '');
         else this.sidebar.removeAttribute('inert');
+    }
+
+    handleResize() {
+        if (!this.sidebar) return;
+
+        // A mobile drawer owns the body scroll lock. If the viewport crosses
+        // into the desktop layout while it is open, clear that state so the
+        // desktop page remains scrollable and the next mobile open is clean.
+        if (!window.matchMedia('(max-width: 760px)').matches && this.isOpen()) {
+            this.close(false);
+            return;
+        }
+
+        this.syncVisibility();
     }
 
     handleClick(event) {
@@ -210,6 +225,7 @@ class BusinessOverlayController {
     constructor() {
         this.openOverlays = [];
         this.restoreTargets = new WeakMap();
+        this.pendingRestoreTarget = null;
         this.pendingClose = new WeakSet();
         this.previousBodyStyles = null;
         this.observer = new MutationObserver((mutations) => this.handleMutations(mutations));
@@ -235,6 +251,11 @@ class BusinessOverlayController {
 
     handleClick(event) {
         if (!(event.target instanceof Element)) return;
+
+        const wireAction = event.target.closest('[wire\\:click]');
+        if (wireAction && !wireAction.closest(overlaySelector)) {
+            this.pendingRestoreTarget = this.describeRestoreTarget(wireAction);
+        }
 
         const openControl = event.target.closest('[data-overlay-open]');
         if (openControl) {
@@ -334,17 +355,21 @@ class BusinessOverlayController {
             this.open(overlay);
         } else if (overlay.dataset.overlayOpenState !== 'true') {
             this.pendingClose.delete(overlay);
-            this.close(overlay, false);
+            this.close(overlay);
         }
     }
 
     open(overlay, trigger = null) {
         if (this.openOverlays.includes(overlay)) return;
 
+        const restoreTarget = trigger instanceof HTMLElement
+            ? trigger
+            : this.pendingRestoreTarget || document.activeElement;
         this.restoreTargets.set(
             overlay,
-            trigger instanceof HTMLElement ? trigger : document.activeElement,
+            this.describeRestoreTarget(restoreTarget),
         );
+        if (this.pendingRestoreTarget === restoreTarget) this.pendingRestoreTarget = null;
         overlay.hidden = false;
         overlay.removeAttribute('inert');
         overlay.setAttribute('aria-hidden', 'false');
@@ -390,13 +415,51 @@ class BusinessOverlayController {
         this.updateStacking();
         if (this.openOverlays.length === 0) this.unlockBody();
 
-        const restoreTarget = this.restoreTargets.get(overlay);
+        const restoreDescriptor = this.restoreTargets.get(overlay);
         this.restoreTargets.delete(overlay);
-        if (restoreFocus && restoreTarget instanceof HTMLElement && restoreTarget.isConnected) {
-            requestAnimationFrame(() => restoreTarget.focus({ preventScroll: true }));
+        if (restoreFocus && restoreDescriptor) {
+            requestAnimationFrame(() => {
+                // Livewire may morph both the overlay and its trigger after the
+                // close action. Resolve the descriptor at callback time so the
+                // replacement trigger is available before focus is restored.
+                const active = document.activeElement;
+                const userChoseAnotherTarget = active instanceof HTMLElement
+                    && active.isConnected
+                    && active !== document.body
+                    && active !== document.documentElement
+                    && !overlay.contains(active);
+                if (userChoseAnotherTarget) return;
+
+                const restoreTarget = this.resolveRestoreTarget(restoreDescriptor);
+                if (restoreTarget instanceof HTMLElement && restoreTarget.isConnected) {
+                    restoreTarget.focus({ preventScroll: true });
+                }
+            });
         }
 
         overlay.dispatchEvent(new CustomEvent('business:overlay-closed', { bubbles: true }));
+    }
+
+    describeRestoreTarget(target) {
+        if (!(target instanceof HTMLElement)) return target;
+
+        return {
+            element: target,
+            action: target.getAttribute('wire:click'),
+            text: target.textContent?.replace(/\s+/g, ' ').trim(),
+        };
+    }
+
+    resolveRestoreTarget(target) {
+        if (!target) return null;
+        if (target instanceof HTMLElement) return target;
+        if (target.element instanceof HTMLElement && target.element.isConnected) return target.element;
+        if (!target.action) return target.element instanceof HTMLElement ? target.element : null;
+
+        const expectedText = target.text || '';
+        return [...document.querySelectorAll('[wire\\:click]')]
+            .find((candidate) => candidate.getAttribute('wire:click') === target.action
+                && candidate.textContent?.replace(/\s+/g, ' ').trim() === expectedText) || null;
     }
 
     cleanupRemovedNode(node) {
@@ -456,8 +519,6 @@ class BusinessOverlayController {
         const cue = overlay.querySelector('[data-overlay-scroll-cue]');
         if (!(body instanceof HTMLElement) || !(cue instanceof HTMLElement)) return;
 
-        const footer = overlay.querySelector('.overlay-footer');
-        overlay.style.setProperty('--overlay-footer-height', `${footer?.offsetHeight || 0}px`);
         const remaining = body.scrollHeight - body.clientHeight - body.scrollTop;
         cue.hidden = body.scrollHeight <= body.clientHeight + 8 || remaining <= 8;
     }
@@ -590,3 +651,5 @@ if (document.readyState === 'loading') {
 } else {
     startBusinessInteractions();
 }
+
+export { BusinessOverlayController, BusinessSidebarController };

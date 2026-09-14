@@ -36,12 +36,7 @@
                     </div>
 
                     @if ($this->hasCapability('bookings.manage') && $this->featureIsAvailable('booking_requests'))
-                        <div class="section-heading section-heading-spaced">
-                            <div>
-                                <p class="eyebrow">Needs attention</p>
-                                <h2>Keep work moving</h2>
-                            </div>
-                        </div>
+                        <x-business.section-heading class="section-heading-spaced" eyebrow="Needs attention" title="Keep work moving" />
                         <div class="action-list">
                             @forelse (collect($bookings)->where('status', 'requested')->take(5) as $booking)
                                 <x-business.button variant="action" wire:click="showSection('bookings')">
@@ -59,14 +54,13 @@
                 </section>
             @elseif ($section === 'profile')
                 <section class="workspace-section narrow-section">
-                    <div class="section-heading">
-                        <div>
-                            <p class="eyebrow">Business profile</p>
-                            <h2>Details your team relies on</h2>
-                            <p>Keep the legal identity and operational contact current. Sensitive fields are only returned to people who can manage the organization.</p>
-                        </div>
-                        <x-business.status :tone="data_get($identity, 'business_profile.verified_at') ? 'good' : 'warn'">{{ data_get($identity, 'business_profile.verified_at') ? 'Verified' : 'Verification pending' }}</x-business.status>
-                    </div>
+                    <x-business.section-heading
+                        eyebrow="Business profile"
+                        title="Details your team relies on"
+                        description="Keep the legal identity and operational contact current. Sensitive fields are only returned to people who can manage the organization."
+                    >
+                        <x-slot:actions><x-business.status :tone="data_get($identity, 'business_profile.verified_at') ? 'good' : 'warn'">{{ data_get($identity, 'business_profile.verified_at') ? 'Verified' : 'Verification pending' }}</x-business.status></x-slot:actions>
+                    </x-business.section-heading>
 
                     <form class="form-panel" wire:submit="saveBusinessProfile">
                         <div class="form-grid form-grid-two">
@@ -102,13 +96,11 @@
                 </section>
             @elseif ($section === 'listings')
                 <section class="workspace-section">
-                    <div class="section-heading">
-                        <div>
-                            <p class="eyebrow">Managed locations · {{ data_get($pagination, 'providers.total', count($providers)) }}</p>
-                            <h2>Business listings</h2>
-                            <p>Verified authority lets your team correct public details without changing organic ranking.</p>
-                        </div>
-                    </div>
+                    <x-business.section-heading
+                        eyebrow="Managed locations · {{ data_get($pagination, 'providers.total', count($providers)) }}"
+                        title="Business listings"
+                        description="Verified authority lets your team correct public details without changing organic ranking."
+                    />
                     <div class="listing-grid">
                         @forelse ($providers as $link)
                             <article class="listing-card">
@@ -175,9 +167,12 @@
                     <x-business-pagination resource="providers" label="locations" :pagination="$pagination" />
 
                     @if ($this->featureIsAvailable('provider_claims'))
-                        <div class="section-heading section-heading-spaced">
-                            <div><p class="eyebrow">Add a location</p><h2>Find your public listing</h2><p>Search Zigpaw’s local directory. Results are limited to the country registered on this workspace.</p></div>
-                        </div>
+                        <x-business.section-heading
+                            class="section-heading-spaced"
+                            eyebrow="Add a location"
+                            title="Find your public listing"
+                            description="Search Zigpaw’s local directory. Results are limited to the country registered on this workspace."
+                        />
                         <form class="inline-form claim-search-form" wire:submit="searchClaimableProviders">
                             <x-business.field class="form-grow" label="Business or location name"><input type="search" wire:model="claimSearch" placeholder="Laidley Veterinary Surgery" autocomplete="off"></x-business.field>
                             <x-business.button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="searchClaimableProviders">Search directory</x-business.button>
@@ -236,9 +231,7 @@
                     @endif
 
                     @if ($this->featureIsAvailable('provider_claims') && $providerClaims !== [])
-                        <div class="section-heading section-heading-spaced">
-                            <div><p class="eyebrow">Claims</p><h2>Verification progress</h2></div>
-                        </div>
+                        <x-business.section-heading class="section-heading-spaced" eyebrow="Claims" title="Verification progress" />
                         <x-business.data-table label="Listing claim status" class="data-list">
                             @foreach ($providerClaims as $claim)
                                 <div class="data-row">
@@ -254,13 +247,11 @@
                 </section>
             @elseif ($section === 'bookings')
                 <section class="workspace-section">
-                    <div class="section-heading">
-                        <div>
-                            <p class="eyebrow">Booking requests · {{ data_get($pagination, 'bookings.total', count($bookings)) }}</p>
-                            <h2>Requests from pet families</h2>
-                            <p>Zigpaw carries the request and conversation. Payment remains between the business and customer.</p>
-                        </div>
-                    </div>
+                    <x-business.section-heading
+                        eyebrow="Booking requests · {{ data_get($pagination, 'bookings.total', count($bookings)) }}"
+                        title="Requests from pet families"
+                        description="Zigpaw carries the request and conversation. Payment remains between the business and customer."
+                    />
                     <div class="booking-list">
                         @forelse ($bookings as $booking)
                             @php($customerWindows = collect($booking['requested_windows'] ?? [])->where('source', 'customer')->where('status', 'requested'))
@@ -320,13 +311,11 @@
                 </section>
             @elseif ($section === 'booking-setup')
                 <section class="workspace-section narrow-section">
-                    <div class="section-heading">
-                        <div>
-                            <p class="eyebrow">Booking setup</p>
-                            <h2>Choose how requests reach your team</h2>
-                            <p>Configure one managed location at a time. The portal itself is a delivery path, so a duplicate email or phone is optional.</p>
-                        </div>
-                    </div>
+                    <x-business.section-heading
+                        eyebrow="Booking setup"
+                        title="Choose how requests reach your team"
+                        description="Configure one managed location at a time. The portal itself is a delivery path, so a duplicate email or phone is optional."
+                    />
 
                     @if ($providers !== [])
                         <form class="form-panel" wire:submit="saveBookingConfiguration">
@@ -433,9 +422,11 @@
                 </section>
             @elseif ($section === 'services')
                 <section class="workspace-section">
-                    <div class="section-heading">
-                        <div><p class="eyebrow">Services · {{ data_get($pagination, 'offerings.total', count($offerings)) }}</p><h2>What customers can request</h2><p>Offerings describe the service. Availability controls when requests can be made.</p></div>
-                    </div>
+                    <x-business.section-heading
+                        eyebrow="Services · {{ data_get($pagination, 'offerings.total', count($offerings)) }}"
+                        title="What customers can request"
+                        description="Offerings describe the service. Availability controls when requests can be made."
+                    />
                     @if ($providers !== [])
                         <form class="inline-form" wire:submit="createOffering">
                             <x-business.field label="Managed location"><select wire:model="offeringProviderLinkId">@foreach ($providers as $link)<option value="{{ $link['id'] }}">{{ data_get($link, 'place.name') ?: data_get($link, 'provider.name') }}</option>@endforeach</select></x-business.field>
@@ -487,7 +478,11 @@
                 </section>
             @elseif ($section === 'programs')
                 <section class="workspace-section narrow-section">
-                    <div class="section-heading"><div><p class="eyebrow">Optional commercial programs</p><h2>Grow with Zigpaw</h2><p>Business verification and directory ranking never depend on joining a commercial program.</p></div></div>
+                    <x-business.section-heading
+                        eyebrow="Optional commercial programs"
+                        title="Grow with Zigpaw"
+                        description="Business verification and directory ranking never depend on joining a commercial program."
+                    />
                     <div class="program-card">
                         <div><x-business.status tone="blue">Referral program</x-business.status><h3>Recommend Zigpaw when it genuinely helps</h3><p>Approved businesses receive an attributable referral code. Commercial participation never changes organic directory placement.</p></div>
                         @php($referral = collect($programs)->firstWhere('program_key', 'referral'))
@@ -501,7 +496,11 @@
                 </section>
             @elseif ($section === 'revenue')
                 <section class="workspace-section">
-                    <div class="section-heading"><div><p class="eyebrow">Revenue</p><h2>Commission activity and agreements</h2><p>Track approved referral activity and the commercial terms Zigpaw has recorded with your business. Organic directory ranking remains independent.</p></div></div>
+                    <x-business.section-heading
+                        eyebrow="Revenue"
+                        title="Commission activity and agreements"
+                        description="Track approved referral activity and the commercial terms Zigpaw has recorded with your business. Organic directory ranking remains independent."
+                    />
                     <div class="metric-grid">
                         @forelse (data_get($financials, 'currencies', []) as $currency)
                             <article class="metric-card"><span>{{ $currency['currency'] }}</span><strong>{{ number_format(collect($currency['commissions'])->sum('amount_cents') / 100, 2) }}</strong><small>{{ collect($currency['commissions'])->sum('entry_count') }} commission entries</small></article>
@@ -540,7 +539,11 @@
                 </section>
             @elseif ($section === 'team')
                 <section class="workspace-section">
-                    <div class="section-heading"><div><p class="eyebrow">Team · {{ data_get($pagination, 'team.total', count($team)) }}</p><h2>People with business access</h2><p>Give each person the smallest role needed for their work.</p></div></div>
+                    <x-business.section-heading
+                        eyebrow="Team · {{ data_get($pagination, 'team.total', count($team)) }}"
+                        title="People with business access"
+                        description="Give each person the smallest role needed for their work."
+                    />
                     <form class="inline-form" wire:submit="inviteTeamMember">
                         <x-business.field class="form-grow" label="Email address"><input type="email" wire:model="teamEmail" placeholder="colleague@example.com"></x-business.field>
                         <x-business.field label="Role"><select wire:model="teamRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></select></x-business.field>
