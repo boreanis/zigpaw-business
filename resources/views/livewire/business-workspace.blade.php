@@ -15,15 +15,15 @@
                         @if ($this->hasCapability('bookings.manage') && $this->featureIsAvailable('booking_requests'))
                             <article class="metric-card">
                                 <span>Open bookings</span>
-                                <strong>{{ collect($bookings)->whereIn('status', ['requested', 'proposed', 'accepted'])->count() }}</strong>
-                                <small>{{ collect($bookings)->where('status', 'requested')->count() }} waiting for a response</small>
+                                <strong>{{ data_get($identity, 'booking_summary.open', 0) }}</strong>
+                                <small>{{ data_get($identity, 'booking_summary.requested', 0) }} waiting for a response</small>
                             </article>
                         @endif
                         @if ($this->hasCapability('programs.view'))
                             <article class="metric-card">
                                 <span>Programs</span>
-                                <strong>{{ collect($programs)->where('status', 'approved')->count() }}</strong>
-                                <small>{{ collect($programs)->where('status', 'pending_review')->count() }} under review</small>
+                                <strong>{{ data_get($identity, 'program_summary.approved', 0) }}</strong>
+                                <small>{{ data_get($identity, 'program_summary.pending_review', 0) + data_get($identity, 'program_summary.under_review', 0) }} under review</small>
                             </article>
                         @endif
                         @if (! $this->hasCapability('providers.manage') && ! $this->hasCapability('bookings.manage') && ! $this->hasCapability('programs.view'))

@@ -22,6 +22,18 @@ use InvalidArgumentException;
  */
 class PlatformApiClient
 {
+    /** @var list<string> */
+    private const CLINICAL_MEDIA_CONTENT_TYPES = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    private const MAX_ERROR_BODY_BYTES = 64 * 1024;
+
+    public const MAX_CLINICAL_MEDIA_BYTES = 10 * 1024 * 1024;
+
     /** @return list<array<string, mixed>> */
     public function organizations(string $accessToken): array
     {
@@ -89,9 +101,16 @@ class PlatformApiClient
     }
 
     /** @return PageEnvelope */
-    public function bookings(string $accessToken, string $organizationId, int $page = 1, int $perPage = 25): array
-    {
-        return $this->getPage('/v1/business/bookings', $accessToken, $organizationId, $page, $perPage);
+    public function bookings(
+        string $accessToken,
+        string $organizationId,
+        int $page = 1,
+        int $perPage = 25,
+        ?string $status = null,
+    ): array {
+        $parameters = $status === null ? [] : ['status' => $status];
+
+        return $this->getPage('/v1/business/bookings', $accessToken, $organizationId, $page, $perPage, $parameters);
     }
 
     /** @return array<string, mixed> */
@@ -195,16 +214,45 @@ class PlatformApiClient
         ClinicalPortalAccessTokenStore $tokens,
         string $organizationId,
         string $grantId,
-        int|string $mediaId,
+        string $mediaId,
     ): Response {
         $grantId = $this->uuid($grantId, 'provider grant');
-        $mediaId = $this->positiveInteger($mediaId, 'media');
+        $mediaId = $this->uuid($mediaId, 'media');
 
-        return $this->getResponse(
+        $response = $this->getStreamResponse(
             "/v1/business/clinical/provider-grants/{$grantId}/media/{$mediaId}",
             $this->clinicalToken($tokens),
             $organizationId,
         );
+
+        if (! $response->successful()) {
+            $this->throwForResponse($response, self::MAX_ERROR_BODY_BYTES, true);
+        }
+
+        $contentLength = $response->header('Content-Length');
+        if (preg_match('/^[0-9]+$/D', $contentLength) === 1
+            && (int) $contentLength > self::MAX_CLINICAL_MEDIA_BYTES) {
+            $this->closeStream($response);
+
+            throw new PlatformApiException(
+                502,
+                'Zigpaw returned an unexpectedly large media response.',
+                requestId: RequestCorrelation::valid($response->header('X-Request-ID')),
+            );
+        }
+
+        $contentType = $this->mediaContentType($response->header('Content-Type'));
+        if ($contentType === null) {
+            $this->closeStream($response);
+
+            throw new PlatformApiException(
+                502,
+                'Zigpaw returned an unexpected media response.',
+                requestId: RequestCorrelation::valid($response->header('X-Request-ID')),
+            );
+        }
+
+        return $response;
     }
 
     /** @return PageEnvelope */
@@ -478,30 +526,7 @@ class PlatformApiClient
     private function data(Response $response): array
     {
         if (! $response->successful()) {
-            $decoded = $this->safeJson($response);
-            $errors = $this->validationErrors($decoded['errors'] ?? null);
-            $validationMessage = collect($errors)
-                ->flatten()
-                ->first(fn (mixed $message): bool => is_string($message) && $message !== '');
-            $message = is_string($decoded['message'] ?? null) && trim($decoded['message']) !== ''
-                ? trim($decoded['message'])
-                : (is_string($decoded['detail'] ?? null) && trim($decoded['detail']) !== ''
-                    ? trim($decoded['detail'])
-                    : ($validationMessage ?: 'Zigpaw could not complete that request.'));
-
-            if ($response->serverError()) {
-                $message = 'Zigpaw is temporarily unavailable. Please try again shortly.';
-            }
-
-            throw new PlatformApiException(
-                $response->status(),
-                (string) $message,
-                $errors,
-                RequestCorrelation::valid($response->header('X-Request-ID')),
-                is_string(data_get($decoded, 'error.code')) && trim((string) data_get($decoded, 'error.code')) !== ''
-                    ? trim((string) data_get($decoded, 'error.code'))
-                    : (is_string($decoded['code'] ?? null) && trim($decoded['code']) !== '' ? trim($decoded['code']) : null),
-            );
+            $this->throwForResponse($response, self::MAX_ERROR_BODY_BYTES);
         }
 
         $decoded = $this->safeJson($response);
@@ -525,6 +550,79 @@ class PlatformApiClient
             return $this->request($accessToken, $organizationId, $path)->get($path);
         } catch (ConnectionException) {
             throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
+        }
+    }
+
+    private function getStreamResponse(string $path, string $accessToken, ?string $organizationId = null): Response
+    {
+        $this->assertAllowedRoute('GET', $path);
+
+        try {
+            return $this->request($accessToken, $organizationId, $path)
+                ->withOptions(['stream' => true])
+                ->get($path);
+        } catch (ConnectionException) {
+            throw new PlatformApiException(503, 'Zigpaw is unavailable right now. Please try again shortly.');
+        }
+    }
+
+    private function throwForResponse(Response $response, int $maxBodyBytes, bool $sanitizeMessage = false): never
+    {
+        $decoded = $this->safeJson($response, $maxBodyBytes);
+        $errors = $this->validationErrors($decoded['errors'] ?? null);
+        $validationMessage = collect($errors)
+            ->flatten()
+            ->first(fn (mixed $message): bool => is_string($message) && $message !== '');
+        $message = is_string($decoded['message'] ?? null) && trim($decoded['message']) !== ''
+            ? trim($decoded['message'])
+            : (is_string($decoded['detail'] ?? null) && trim($decoded['detail']) !== ''
+                ? trim($decoded['detail'])
+                : ($validationMessage ?: 'Zigpaw could not complete that request.'));
+
+        if ($response->serverError()) {
+            $message = 'Zigpaw is temporarily unavailable. Please try again shortly.';
+        }
+
+        if ($sanitizeMessage) {
+            $message = match ($response->status()) {
+                401 => 'Zigpaw authorization is no longer valid.',
+                403 => 'Zigpaw denied this request.',
+                404 => 'Zigpaw could not find that resource.',
+                422 => 'Zigpaw rejected that request.',
+                default => 'Zigpaw could not complete that request.',
+            };
+        }
+
+        $errorCode = is_string(data_get($decoded, 'error.code')) && trim((string) data_get($decoded, 'error.code')) !== ''
+            ? trim((string) data_get($decoded, 'error.code'))
+            : (is_string($decoded['code'] ?? null) && trim($decoded['code']) !== '' ? trim($decoded['code']) : null);
+
+        if ($sanitizeMessage) {
+            $errors = [];
+            $errorCode = null;
+        }
+
+        throw new PlatformApiException(
+            $response->status(),
+            (string) $message,
+            $errors,
+            RequestCorrelation::valid($response->header('X-Request-ID')),
+            $errorCode,
+        );
+    }
+
+    private function mediaContentType(string $header): ?string
+    {
+        $contentType = strtolower(trim((string) strtok($header, ';')));
+
+        return in_array($contentType, self::CLINICAL_MEDIA_CONTENT_TYPES, true) ? $contentType : null;
+    }
+
+    private function closeStream(Response $response): void
+    {
+        $stream = $response->resource();
+        if (is_resource($stream)) {
+            fclose($stream);
         }
     }
 
@@ -590,15 +688,29 @@ class PlatformApiClient
     }
 
     /** @return array<string, mixed> */
-    private function safeJson(Response $response): array
+    private function safeJson(Response $response, ?int $maxBodyBytes = null): array
     {
         try {
-            $decoded = $response->json();
+            $body = $maxBodyBytes === null ? $response->body() : $this->boundedBody($response, $maxBodyBytes);
+            $decoded = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return [];
         }
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function boundedBody(Response $response, int $maxBodyBytes): string
+    {
+        $stream = $response->resource();
+        if (! is_resource($stream)) {
+            return '';
+        }
+
+        $body = stream_get_contents($stream, $maxBodyBytes);
+        fclose($stream);
+
+        return is_string($body) ? $body : '';
     }
 
     /** @return array<string, list<string>> */
@@ -644,16 +756,6 @@ class PlatformApiClient
         }
 
         return strtolower($identifier);
-    }
-
-    private function positiveInteger(int|string $identifier, string $label): string
-    {
-        if ((! is_int($identifier) && preg_match('/^[1-9][0-9]*$/D', $identifier) !== 1)
-            || (int) $identifier < 1) {
-            throw new InvalidArgumentException("Invalid {$label} identifier.");
-        }
-
-        return (string) $identifier;
     }
 
     private function headerValue(string $value, string $label): string

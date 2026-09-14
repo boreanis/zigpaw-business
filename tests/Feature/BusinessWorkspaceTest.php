@@ -152,6 +152,16 @@ class BusinessWorkspaceTest extends TestCase
                 ]],
                 'features' => ['provider_claims' => true, 'booking_requests' => true],
                 'managed_provider_count' => 1,
+                'program_summary' => [
+                    'total' => 12,
+                    'approved' => 7,
+                    'pending_review' => 2,
+                    'under_review' => 3,
+                    'rejected' => 0,
+                    'suspended' => 0,
+                    'terminated' => 0,
+                ],
+                'booking_summary' => ['open' => 8, 'requested' => 3],
             ]]),
             'https://api.zigpaw.test/v1/business/providers*' => Http::response(self::page([[
                 'id' => 'link-1',
@@ -167,7 +177,6 @@ class BusinessWorkspaceTest extends TestCase
                 'pet' => ['name' => 'Diesel'],
                 'provider' => ['name' => 'Laidley Veterinary Surgery'],
             ]])),
-            'https://api.zigpaw.test/v1/business/programs*' => Http::response(self::page([])),
         ]);
 
         Livewire::test(BusinessWorkspace::class)
@@ -176,7 +185,57 @@ class BusinessWorkspaceTest extends TestCase
             ->assertSee('Laidley Veterinary Surgery')
             ->assertSee('Change appearance')
             ->assertSee('data-theme-toggle', false)
-            ->assertSee('Diesel needs a response');
+            ->assertSee('Diesel needs a response')
+            ->assertSee('<strong>8</strong>', false)
+            ->assertSee('<small>3 waiting for a response</small>', false)
+            ->assertSee('<strong>7</strong>', false)
+            ->assertSee('<small>5 under review</small>', false);
+
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/business/programs'));
+    }
+
+    public function test_overview_requests_only_requested_bookings_for_attention_after_completed_rows_fill_the_first_page(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'business-access-token',
+            'refresh_token' => 'business-refresh-token',
+            'expires_in' => 900,
+        ]);
+
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), '/business/organizations')) {
+                return Http::response(['data' => [['id' => 'organization-1', 'name' => 'Laidley Veterinary Surgery']]]);
+            }
+            if (str_contains($request->url(), '/business/me')) {
+                return Http::response(['data' => [
+                    'organization' => ['id' => 'organization-1', 'name' => 'Laidley Veterinary Surgery'],
+                    'membership' => ['role' => 'manager', 'capabilities' => ['portal.view', 'bookings.manage']],
+                    'features' => ['provider_claims' => false, 'booking_requests' => true],
+                    'booking_summary' => ['open' => 6, 'requested' => 1],
+                ]]);
+            }
+            if (str_contains($request->url(), '/business/bookings?status=requested')) {
+                return Http::response(self::page([[
+                    'id' => 'booking-old-request',
+                    'request_number' => 'ZPBR20260801OLDREQ',
+                    'status' => 'requested',
+                    'pet' => ['name' => 'Diesel'],
+                    'provider' => ['name' => 'Laidley Veterinary Surgery'],
+                ]]));
+            }
+
+            return Http::response(self::page(array_map(static fn (int $number): array => [
+                'id' => "booking-completed-{$number}",
+                'status' => 'completed',
+            ], range(1, 5))));
+        });
+
+        Livewire::test(BusinessWorkspace::class)
+            ->assertSee('Diesel needs a response')
+            ->assertSee('<strong>6</strong>', false)
+            ->assertSee('<small>1 waiting for a response</small>', false);
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/v1/business/bookings?status=requested&page=1&per_page=5'));
     }
 
     public function test_finance_role_loads_read_only_programs_and_financial_information(): void
@@ -222,6 +281,8 @@ class BusinessWorkspaceTest extends TestCase
             ->assertDontSee('Apply')
             ->call('applyForReferralProgram')
             ->assertForbidden();
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/v1/business/programs?page=1&per_page=25'));
     }
 
     public function test_disabled_booking_rollout_removes_booking_navigation_and_blocks_tampering(): void

@@ -204,6 +204,12 @@ Configure the management client with `PLATFORM_API_URL`, `PLATFORM_AUTH_URL`,
 `PLATFORM_CLINICAL_OAUTH_REDIRECT_URI`. The callbacks are explicitly
 allowlisted on their matching platform clients; secrets remain server-only.
 
+For local Herd HTTPS requests, set the existing `PLATFORM_CA_BUNDLE_PATH` to a
+readable trusted Herd CA bundle so PHP streaming requests can verify the local
+certificate. Keep certificate verification enabled; never replace this with
+`verify => false` or another verification bypass. Production uses its
+deployment trust store and does not use a local Herd CA path.
+
 The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 
 The former standalone veterinary portal is consolidated here as the

@@ -188,6 +188,7 @@ select, input, textarea { width: 100%; min-height: 44px; border: 1px solid var(-
 .data-label { color: var(--soft); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
 .document-tile { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 13px; padding: 12px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .document-tile:hover { border-color: var(--blue); background: var(--surface-hover); }
+.clinical-workspace .document-tile > svg { width: 32px; height: 32px; flex: 0 0 32px; stroke: var(--blue); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
 .capability-list { display: grid; gap: 9px; margin-top: 14px; padding: 0; list-style: none; color: var(--muted); font-size: .8rem; }
 .capability-list li { display: flex; align-items: center; gap: 8px; }
 .capability-list li::before { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); content: ""; }

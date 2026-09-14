@@ -44,7 +44,7 @@ Route::middleware(RequireClinicalWorkspace::class)->group(function (): void {
         ->name('clinical.patients.submissions.create');
     Route::get('/clinical/patients/{grantId}/media/{mediaId}', ProviderMediaController::class)
         ->whereUuid('grantId')
-        ->whereNumber('mediaId')
+        ->whereUuid('mediaId')
         ->name('clinical.patients.media.show');
     Route::get('/clinical/submissions', SubmissionIndex::class)->name('clinical.submissions.index');
     Route::get('/clinical/submissions/{submissionId}', SubmissionShow::class)

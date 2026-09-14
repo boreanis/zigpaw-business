@@ -53,6 +53,18 @@ class PlatformApiClientTest extends TestCase
             && $request->hasHeader('X-Zigpaw-Organization-ID'));
     }
 
+    public function test_booking_status_filter_is_forwarded_to_the_business_api(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/bookings*' => Http::response(self::page([])),
+        ]);
+
+        app(PlatformApiClient::class)->bookings('access-token', 'organization-1', 1, 5, 'requested');
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/bookings?status=requested&page=1&per_page=5'
+            && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1'));
+    }
+
     public function test_management_transport_rejects_a_noncanonical_configured_api_origin(): void
     {
         config()->set('platform.api_url', 'https://api.zigpaw.test.attacker.example');
@@ -287,5 +299,15 @@ class PlatformApiClientTest extends TestCase
         app(PlatformApiClient::class)->identity('access-token', 'organization/other');
 
         Http::assertNothingSent();
+    }
+
+    /** @param list<array<string, mixed>> $data @return array<string, mixed> */
+    private static function page(array $data): array
+    {
+        return [
+            'data' => $data,
+            'links' => ['first' => null, 'last' => null, 'prev' => null, 'next' => null],
+            'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 25, 'total' => count($data)],
+        ];
     }
 }

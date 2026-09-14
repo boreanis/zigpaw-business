@@ -1019,11 +1019,9 @@ class BusinessWorkspace extends Component
         }
 
         if ($this->hasCapability('bookings.manage') && $this->featureIsAvailable('booking_requests')) {
-            $this->assignPage('bookings', $api->bookings($accessToken, $organizationId, 1, 6));
-        }
-
-        if ($this->hasCapability('programs.view')) {
-            $this->assignPage('programs', $api->programs($accessToken, $organizationId, 1, 6));
+            // The identity response owns the complete booking metric. This request is
+            // only the bounded requested-items feed used by the attention list.
+            $this->assignPage('bookings', $api->bookings($accessToken, $organizationId, 1, 5, 'requested'));
         }
     }
 

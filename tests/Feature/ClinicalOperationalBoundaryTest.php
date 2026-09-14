@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\HealthController;
+use App\Support\ClinicalPortalAccessTokenStore;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -36,6 +37,36 @@ class ClinicalOperationalBoundaryTest extends TestCase
         $this->assertStringContainsString("script-src 'self' 'nonce-", $policy);
         $this->assertStringNotContainsString("script-src 'self' 'unsafe-inline'", $policy);
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+    }
+
+    public function test_clinical_inline_scripts_use_the_response_csp_nonce_on_unauthenticated_and_ready_pages(): void
+    {
+        $this->assertClinicalInlineScriptsUseCspNonce($this->get('/clinical')->assertOk());
+
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/organizations' => Http::response(['data' => [
+                ['id' => 'organization-1', 'name' => 'Riverbank Clinic'],
+            ]]),
+            'https://api.zigpaw.test/v1/business/clinical/me' => Http::response(['data' => [
+                'organization' => ['id' => 'organization-1', 'name' => 'Riverbank Clinic'],
+            ]]),
+            'https://api.zigpaw.test/v1/business/clinical/dashboard' => Http::response(['data' => [
+                'grants' => ['active' => 0, 'expiring_soon' => 0],
+                'submissions' => ['pending' => 0, 'total' => 0, 'approved' => 0, 'partially_approved' => 0],
+                'locations' => [],
+            ]]),
+        ]);
+        app(ClinicalPortalAccessTokenStore::class)->put([
+            'access_token' => 'clinical-access-token',
+            'refresh_token' => 'clinical-refresh-token',
+            'expires_in' => 900,
+        ]);
+        session()->put([
+            'portal.organization_id' => 'organization-1',
+            'portal.organization_name' => 'Riverbank Clinic',
+        ]);
+
+        $this->assertClinicalInlineScriptsUseCspNonce($this->get('/clinical')->assertOk());
     }
 
     public function test_readiness_requires_both_distinct_business_and_clinical_clients(): void
@@ -178,5 +209,29 @@ class ClinicalOperationalBoundaryTest extends TestCase
             'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
             'platform_clinical.oauth_scopes' => ['clinical:read', 'clinical:submit'],
         ]);
+    }
+
+    private function assertClinicalInlineScriptsUseCspNonce($response): void
+    {
+        $html = (string) $response->getContent();
+        $policy = (string) $response->headers->get('Content-Security-Policy');
+        $this->assertMatchesRegularExpression("/script-src 'self' 'nonce-([^']+)'/", $policy, 'Clinical CSP must publish a script nonce.');
+        preg_match("/script-src 'self' 'nonce-([^']+)'/", $policy, $policyMatches);
+
+        preg_match_all('/<script\\b([^>]*)>(.*?)<\\/script>/is', $html, $scripts, PREG_SET_ORDER);
+        $inlineCount = 0;
+        foreach ($scripts as $script) {
+            $attributes = $script[1];
+            if (preg_match('/\\bsrc\\s*=/i', $attributes) === 1) {
+                continue;
+            }
+
+            $inlineCount++;
+            $this->assertMatchesRegularExpression('/\\bnonce="([^"]+)"/i', $attributes);
+            preg_match('/\\bnonce="([^"]+)"/i', $attributes, $nonceMatches);
+            $this->assertSame($policyMatches[1], $nonceMatches[1]);
+        }
+
+        $this->assertGreaterThan(0, $inlineCount, 'Clinical layout must retain an explicitly nonce-protected inline initializer.');
     }
 }

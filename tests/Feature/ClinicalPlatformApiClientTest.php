@@ -14,6 +14,8 @@ class ClinicalPlatformApiClientTest extends TestCase
 {
     private const GRANT_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b1';
 
+    private const MEDIA_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b2';
+
     private const SUBMISSION_ID = '019fd545-0f9d-71f4-9767-99cb7f143b2c';
 
     protected function setUp(): void
@@ -84,7 +86,7 @@ class ClinicalPlatformApiClientTest extends TestCase
             'https://api.zigpaw.test/v1/business/clinical/organizations' => Http::response(['data' => [['id' => 'org-1']]]),
             'https://api.zigpaw.test/v1/business/clinical/dashboard' => Http::response(['data' => ['grants' => ['active' => 1]]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/care-context' => Http::response(['data' => ['pet' => ['id' => 'pet-1']]]),
-            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media' => Http::response(['data' => [['id' => 42]]]),
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media' => Http::response(['data' => [['id' => self::MEDIA_ID]]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response(['data' => ['id' => self::GRANT_ID]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants?*' => Http::response($this->page([['id' => self::GRANT_ID]])),
             'https://api.zigpaw.test/v1/business/clinical/submissions/'.self::SUBMISSION_ID => Http::response(['data' => ['id' => self::SUBMISSION_ID]]),
@@ -102,7 +104,7 @@ class ClinicalPlatformApiClientTest extends TestCase
         );
         $this->assertSame(self::GRANT_ID, $api->clinicalProviderGrant($tokens, 'org-1', self::GRANT_ID)['id']);
         $this->assertSame('pet-1', $api->clinicalCareContext($tokens, 'org-1', self::GRANT_ID)['pet']['id']);
-        $this->assertSame(42, $api->clinicalProviderMedia($tokens, 'org-1', self::GRANT_ID)[0]['id']);
+        $this->assertSame(self::MEDIA_ID, $api->clinicalProviderMedia($tokens, 'org-1', self::GRANT_ID)[0]['id']);
         $this->assertSame(
             self::SUBMISSION_ID,
             $api->clinicalSubmissions($tokens, 'org-1', 1, 10, 'pending')['data'][0]['id'],
@@ -158,7 +160,7 @@ class ClinicalPlatformApiClientTest extends TestCase
     public function test_it_returns_media_as_an_untouched_response_for_the_secure_proxy(): void
     {
         Http::fake([
-            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media/42' => Http::response(
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media/'.self::MEDIA_ID => Http::response(
                 'binary-image-body',
                 200,
                 ['Content-Type' => 'image/jpeg'],
@@ -169,7 +171,7 @@ class ClinicalPlatformApiClientTest extends TestCase
             $this->tokens(),
             'organization-1',
             self::GRANT_ID,
-            42,
+            self::MEDIA_ID,
         );
 
         $this->assertSame('binary-image-body', $response->body());
@@ -190,7 +192,7 @@ class ClinicalPlatformApiClientTest extends TestCase
         }
 
         try {
-            $this->api()->clinicalProviderMediaDownload($this->tokens(), 'org-1', self::GRANT_ID, 0);
+            $this->api()->clinicalProviderMediaDownload($this->tokens(), 'org-1', self::GRANT_ID, 'not-a-uuid');
             self::fail('A non-positive media identifier should be rejected.');
         } catch (InvalidArgumentException $exception) {
             $this->assertSame('Invalid media identifier.', $exception->getMessage());
@@ -260,6 +262,28 @@ class ClinicalPlatformApiClientTest extends TestCase
             $this->assertSame(502, $exception->status);
             $this->assertSame('Zigpaw returned an unexpected response.', $exception->getMessage());
             $this->assertSame('request-87654321', data_get($exception, 'requestId'));
+        }
+    }
+
+    public function test_binary_transport_bounds_and_sanitizes_upstream_error_payloads(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media/'.self::MEDIA_ID => Http::response([
+                'message' => 'private upstream details',
+                'errors' => ['document' => ['private field details']],
+                'code' => 'PRIVATE_UPSTREAM_CODE',
+            ], 422),
+        ]);
+
+        try {
+            $this->api()->clinicalProviderMediaDownload($this->tokens(), 'org-1', self::GRANT_ID, self::MEDIA_ID);
+            self::fail('An upstream binary error should throw.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(422, $exception->status);
+            $this->assertSame('Zigpaw rejected that request.', $exception->getMessage());
+            $this->assertSame([], $exception->errors);
+            $this->assertNull($exception->errorCode);
+            $this->assertStringNotContainsString('private upstream details', $exception->getMessage());
         }
     }
 

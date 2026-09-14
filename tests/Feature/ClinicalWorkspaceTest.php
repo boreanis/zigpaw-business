@@ -16,7 +16,7 @@ class ClinicalWorkspaceTest extends TestCase
 {
     private const GRANT_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b1';
 
-    private const MEDIA_ID = 42;
+    private const MEDIA_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b2';
 
     private const SUBMISSION_ID = '019fef67-1853-732a-82cf-e76f955e4d32';
 
@@ -189,6 +189,40 @@ class ClinicalWorkspaceTest extends TestCase
         $this->assertStringNotContainsString('api.zigpaw.test/v1/business/clinical/provider-grants', $response->getContent());
     }
 
+    public function test_patient_page_renders_a_bounded_styled_document_icon_for_shared_files(): void
+    {
+        $this->signIn();
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response(['data' => [
+                'id' => self::GRANT_ID,
+                'purpose' => 'vet_visit',
+                'status' => 'active',
+                'capabilities' => ['read_profile' => true, 'read_care' => false, 'read_media' => true],
+                'pet' => ['id' => 'pet-1', 'name' => 'Patchy'],
+                'location' => ['id' => 'location-1', 'name' => 'Riverbank Clinic'],
+                'expires_at' => null,
+            ]]),
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media' => Http::response(['data' => [[
+                'id' => self::MEDIA_ID,
+                'kind' => 'clinical_document',
+                'label' => 'DHPP certificate',
+                'mime_type' => 'application/pdf',
+            ]]]),
+        ]);
+
+        $this->get('/clinical/patients/'.self::GRANT_ID)
+            ->assertOk()
+            ->assertSee('document-tile', false)
+            ->assertSee('DHPP certificate')
+            ->assertSee('pdf');
+
+        $css = (string) file_get_contents(resource_path('css/business.css'));
+        $this->assertStringContainsString(
+            '.clinical-workspace .document-tile > svg { width: 32px; height: 32px; flex: 0 0 32px; stroke: var(--blue);',
+            $css,
+        );
+    }
+
     public function test_patient_page_does_not_fetch_or_offer_capabilities_the_family_did_not_share(): void
     {
         $this->signIn();
@@ -281,11 +315,11 @@ class ClinicalWorkspaceTest extends TestCase
         $response = $this->get(route('clinical.patients.media.show', ['grantId' => self::GRANT_ID, 'mediaId' => self::MEDIA_ID]))
             ->assertOk()
             ->assertHeader('Content-Type', 'image/jpeg')
-            ->assertHeader('Content-Disposition', 'inline; filename="patchy.jpg"')
-            ->assertHeaderMissing('X-Upstream-Secret')
-            ->assertSee('image-content');
+            ->assertHeader('Content-Disposition', 'attachment; filename="clinical-media-'.self::MEDIA_ID.'"')
+            ->assertHeaderMissing('X-Upstream-Secret');
 
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('image-content', $response->streamedContent());
     }
 
     public function test_submission_history_and_review_status_render_the_bounded_platform_summary(): void

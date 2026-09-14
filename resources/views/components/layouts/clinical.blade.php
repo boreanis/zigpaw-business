@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
     <title>{{ $title ?? 'Zigpaw Business clinical workspace' }}</title>
-    <script>
+    <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
         (() => { const value = localStorage.getItem('zigpaw-business-theme'); if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value; })();
     </script>
     @vite(['resources/css/business.css', 'resources/js/business.js'])

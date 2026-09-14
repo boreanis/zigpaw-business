@@ -247,6 +247,27 @@
                 ],
                 "parameters": [
                     {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "draft",
+                                "requested",
+                                "proposed",
+                                "accepted",
+                                "declined",
+                                "cancelled",
+                                "completed",
+                                "expired",
+                                null
+                            ]
+                        }
+                    },
+                    {
                         "name": "per_page",
                         "in": "query",
                         "schema": {
@@ -394,6 +415,9 @@
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -1485,45 +1509,60 @@
                                                 "managed_provider_count": {
                                                     "type": "integer"
                                                 },
-                                                "programs": {
-                                                    "anyOf": [
-                                                        {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "object",
-                                                                "properties": {
-                                                                    "id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "program_key": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "status": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "code": {
-                                                                        "type": [
-                                                                            "string",
-                                                                            "null"
-                                                                        ]
-                                                                    }
-                                                                },
-                                                                "required": [
-                                                                    "id",
-                                                                    "program_key",
-                                                                    "status",
-                                                                    "code"
-                                                                ]
-                                                            }
+                                                "program_summary": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "total": {
+                                                            "type": "integer"
                                                         },
-                                                        {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "string"
-                                                            },
-                                                            "minItems": 0,
-                                                            "maxItems": 0
+                                                        "approved": {
+                                                            "type": "integer"
+                                                        },
+                                                        "pending_review": {
+                                                            "type": "integer"
+                                                        },
+                                                        "under_review": {
+                                                            "type": "integer"
+                                                        },
+                                                        "rejected": {
+                                                            "type": "integer"
+                                                        },
+                                                        "suspended": {
+                                                            "type": "integer"
+                                                        },
+                                                        "terminated": {
+                                                            "type": "integer"
                                                         }
+                                                    },
+                                                    "required": [
+                                                        "total",
+                                                        "approved",
+                                                        "pending_review",
+                                                        "under_review",
+                                                        "rejected",
+                                                        "suspended",
+                                                        "terminated"
+                                                    ]
+                                                },
+                                                "booking_summary": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "open": {
+                                                            "type": "integer"
+                                                        },
+                                                        "requested": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "open",
+                                                        "requested"
                                                     ]
                                                 }
                                             },
@@ -1535,7 +1574,8 @@
                                                 "business_profile",
                                                 "profile_options",
                                                 "managed_provider_count",
-                                                "programs"
+                                                "program_summary",
+                                                "booking_summary"
                                             ]
                                         }
                                     },
@@ -1846,45 +1886,60 @@
                                                 "managed_provider_count": {
                                                     "type": "integer"
                                                 },
-                                                "programs": {
-                                                    "anyOf": [
-                                                        {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "object",
-                                                                "properties": {
-                                                                    "id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "program_key": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "status": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "code": {
-                                                                        "type": [
-                                                                            "string",
-                                                                            "null"
-                                                                        ]
-                                                                    }
-                                                                },
-                                                                "required": [
-                                                                    "id",
-                                                                    "program_key",
-                                                                    "status",
-                                                                    "code"
-                                                                ]
-                                                            }
+                                                "program_summary": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "total": {
+                                                            "type": "integer"
                                                         },
-                                                        {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "string"
-                                                            },
-                                                            "minItems": 0,
-                                                            "maxItems": 0
+                                                        "approved": {
+                                                            "type": "integer"
+                                                        },
+                                                        "pending_review": {
+                                                            "type": "integer"
+                                                        },
+                                                        "under_review": {
+                                                            "type": "integer"
+                                                        },
+                                                        "rejected": {
+                                                            "type": "integer"
+                                                        },
+                                                        "suspended": {
+                                                            "type": "integer"
+                                                        },
+                                                        "terminated": {
+                                                            "type": "integer"
                                                         }
+                                                    },
+                                                    "required": [
+                                                        "total",
+                                                        "approved",
+                                                        "pending_review",
+                                                        "under_review",
+                                                        "rejected",
+                                                        "suspended",
+                                                        "terminated"
+                                                    ]
+                                                },
+                                                "booking_summary": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "open": {
+                                                            "type": "integer"
+                                                        },
+                                                        "requested": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "open",
+                                                        "requested"
                                                     ]
                                                 }
                                             },
@@ -1896,7 +1951,8 @@
                                                 "business_profile",
                                                 "profile_options",
                                                 "managed_provider_count",
-                                                "programs"
+                                                "program_summary",
+                                                "booking_summary"
                                             ]
                                         }
                                     },
@@ -2291,8 +2347,7 @@
                                                         "type": "boolean"
                                                     },
                                                     "managed_provider_count": {
-                                                        "type": "integer",
-                                                        "minimum": 0
+                                                        "type": "integer"
                                                     }
                                                 },
                                                 "required": [
