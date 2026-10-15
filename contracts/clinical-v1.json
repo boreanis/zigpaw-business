@@ -1197,6 +1197,47 @@
             "StoreProviderCareSubmissionRequest": {
                 "type": "object",
                 "properties": {
+                    "body_condition_score": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 9
+                    },
+                    "temperature": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "temperature_unit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "\u00b0C",
+                            "\u00b0F",
+                            null
+                        ]
+                    },
+                    "heart_rate": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "respiratory_rate": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 200
+                    },
                     "vet_name": {
                         "type": "string",
                         "maxLength": 255
@@ -1258,49 +1299,6 @@
                             "lbs",
                             null
                         ]
-                    },
-                    "body_condition_score": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
-                        "minimum": 1,
-                        "maximum": 9
-                    },
-                    "temperature": {
-                        "type": [
-                            "number",
-                            "null"
-                        ],
-                        "minimum": 0,
-                        "maximum": 120
-                    },
-                    "temperature_unit": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
-                        "enum": [
-                            "\u00b0C",
-                            "\u00b0F",
-                            null
-                        ]
-                    },
-                    "heart_rate": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
-                        "minimum": 0,
-                        "maximum": 500
-                    },
-                    "respiratory_rate": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
-                        "minimum": 0,
-                        "maximum": 200
                     },
                     "diagnosis": {
                         "type": [
