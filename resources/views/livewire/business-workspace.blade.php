@@ -1,6 +1,6 @@
 <div class="business-workspace-root">
 @if ($state === 'ready')
-    <x-business.shell :section="$section" :navigation-sections="$navigationSections" :organizations="$organizations" :organization-id="$organizationId" :identity="$identity" :message="$message">
+    <x-business.shell :section="$section" :navigation-sections="$navigationSections" :organizations="$organizations" :organization-id="$organizationId" :identity="$identity" :message="$message" :pagination="$pagination">
         @if ($section === 'overview')
                 <section class="workspace-section">
                     <x-business.section-heading eyebrow="Today" title="Your business at a glance" />
@@ -64,33 +64,30 @@
 
                     <form class="form-panel" wire:submit="saveBusinessProfile">
                         <div class="form-grid form-grid-two">
-                            <x-business.field class="form-span-two" label="Business name"><input type="text" wire:model="businessName" autocomplete="organization"></x-business.field>
-                            <x-business.field label="Legal name"><input type="text" wire:model="businessLegalName"></x-business.field>
-                            <x-business.field label="Registered country" :error="$errors->first('businessRegisteredCountryCode')">
-                                <select wire:model="businessRegisteredCountryCode" autocomplete="country">
+                            <x-business.field class="form-span-two" label="Business name" name="businessName"><x-business.control type="text" wire:model="businessName" autocomplete="organization" /></x-business.field>
+                            <x-business.field label="Legal name" name="businessLegalName"><x-business.control type="text" wire:model="businessLegalName" /></x-business.field>
+                            <x-business.field label="Registered country" name="businessRegisteredCountryCode">
+                                <x-business.control as="select" wire:model="businessRegisteredCountryCode" autocomplete="country">
                                     <option value="">Select country</option>
                                     @foreach (data_get($identity, 'profile_options.countries', []) as $country)
                                         <option value="{{ $country['code'] }}">{{ $country['name'] }}</option>
                                     @endforeach
-                                </select>
+                                </x-business.control>
                             </x-business.field>
-                            <x-business.field label="Registration number"><input type="text" wire:model="businessRegistrationNumber"></x-business.field>
-                            <x-business.field label="Registration number type"><input type="text" wire:model="businessRegistrationNumberType" placeholder="ABN, company number"></x-business.field>
-                            <x-business.field label="Tax identifier"><input type="text" wire:model="businessTaxIdentifier"></x-business.field>
-                            <x-business.field label="Tax identifier type"><input type="text" wire:model="businessTaxIdentifierType" placeholder="GST, VAT"></x-business.field>
+                            <x-business.field label="Registration number" name="businessRegistrationNumber"><x-business.control type="text" wire:model="businessRegistrationNumber" /></x-business.field>
+                            <x-business.field label="Registration number type" name="businessRegistrationNumberType"><x-business.control type="text" wire:model="businessRegistrationNumberType" placeholder="ABN, company number" /></x-business.field>
+                            <x-business.field label="Tax identifier" name="businessTaxIdentifier"><x-business.control type="text" wire:model="businessTaxIdentifier" /></x-business.field>
+                            <x-business.field label="Tax identifier type" name="businessTaxIdentifierType"><x-business.control type="text" wire:model="businessTaxIdentifierType" placeholder="GST, VAT" /></x-business.field>
                         </div>
 
                         <div class="form-divider"></div>
                         <p class="eyebrow">Primary contact</p>
                         <div class="form-grid form-grid-two">
-                            <x-business.field label="Name"><input type="text" wire:model="businessPrimaryContactName" autocomplete="name"></x-business.field>
-                            <x-business.field label="Email"><input type="email" wire:model="businessPrimaryContactEmail" autocomplete="email"></x-business.field>
-                            <x-business.field label="Phone"><input type="tel" wire:model="businessPrimaryContactPhone" autocomplete="tel"></x-business.field>
-                            <x-business.field label="Website"><input type="url" wire:model="businessWebsite" placeholder="https://"></x-business.field>
+                            <x-business.field label="Name" name="businessPrimaryContactName"><x-business.control type="text" wire:model="businessPrimaryContactName" autocomplete="name" /></x-business.field>
+                            <x-business.field label="Email" name="businessPrimaryContactEmail"><x-business.control type="email" wire:model="businessPrimaryContactEmail" autocomplete="email" /></x-business.field>
+                            <x-business.field label="Phone" name="businessPrimaryContactPhone"><x-business.control type="tel" wire:model="businessPrimaryContactPhone" autocomplete="tel" /></x-business.field>
+                            <x-business.field label="Website" name="businessWebsite"><x-business.control type="url" wire:model="businessWebsite" placeholder="https://" /></x-business.field>
                         </div>
-                        @error('businessName') <p class="field-error">{{ $message }}</p> @enderror
-                        @error('businessPrimaryContactEmail') <p class="field-error">{{ $message }}</p> @enderror
-                        @error('businessWebsite') <p class="field-error">{{ $message }}</p> @enderror
                         <div class="form-actions"><x-business.button variant="primary" type="submit">Save profile</x-business.button></div>
                     </form>
                 </section>
@@ -131,32 +128,28 @@
                         <x-slot:body>
                         <form id="provider-edit-form" wire:submit="saveProvider">
                             <div class="form-grid form-grid-two">
-                                <x-business.field label="Provider name"><input type="text" wire:model="providerName" data-overlay-initial-focus></x-business.field>
-                                <x-business.field label="Location name"><input type="text" wire:model="placeName" @disabled(! data_get($editingProvider, 'place.id'))></x-business.field>
-                                <x-business.field class="form-span-two" label="Description"><textarea wire:model="providerDescription" rows="4"></textarea></x-business.field>
-                                <x-business.field label="Provider phone"><input type="tel" wire:model="providerPhone"></x-business.field>
-                                <x-business.field label="Provider email"><input type="email" wire:model="providerEmail"></x-business.field>
-                                <x-business.field label="Provider website"><input type="url" wire:model="providerWebsite" placeholder="https://"></x-business.field>
-                                <x-business.field label="Location phone"><input type="tel" wire:model="placePhone" @disabled(! data_get($editingProvider, 'place.id'))></x-business.field>
+                                <x-business.field label="Provider name" name="providerName"><x-business.control type="text" wire:model="providerName" data-overlay-initial-focus /></x-business.field>
+                                <x-business.field label="Location name" name="placeName"><x-business.control type="text" wire:model="placeName" @disabled(! data_get($editingProvider, 'place.id')) /></x-business.field>
+                                <x-business.field class="form-span-two" label="Description" name="providerDescription"><x-business.control as="textarea" wire:model="providerDescription" rows="4"></x-business.control></x-business.field>
+                                <x-business.field label="Provider phone" name="providerPhone"><x-business.control type="tel" wire:model="providerPhone" /></x-business.field>
+                                <x-business.field label="Provider email" name="providerEmail"><x-business.control type="email" wire:model="providerEmail" /></x-business.field>
+                                <x-business.field label="Provider website" name="providerWebsite"><x-business.control type="url" wire:model="providerWebsite" placeholder="https://" /></x-business.field>
+                                <x-business.field label="Location phone" name="placePhone"><x-business.control type="tel" wire:model="placePhone" @disabled(! data_get($editingProvider, 'place.id')) /></x-business.field>
                             </div>
                             @if (data_get($editingProvider, 'place.id'))
                                 <div class="form-divider"></div>
                                 <p class="eyebrow">Location details</p>
                                 <div class="form-grid form-grid-two">
-                                    <x-business.field label="Location email"><input type="email" wire:model="placeEmail"></x-business.field>
-                                    <x-business.field label="Location website"><input type="url" wire:model="placeWebsite" placeholder="https://"></x-business.field>
-                                    <x-business.field label="Street address"><input type="text" wire:model="placeAddressLine1"></x-business.field>
-                                    <x-business.field label="Address line 2"><input type="text" wire:model="placeAddressLine2"></x-business.field>
-                                    <x-business.field label="City or suburb"><input type="text" wire:model="placeCity"></x-business.field>
-                                    <x-business.field label="State or region"><input type="text" wire:model="placeState"></x-business.field>
-                                    <x-business.field label="Postcode"><input type="text" wire:model="placePostalCode"></x-business.field>
-                                    <x-business.field label="Timezone"><input type="text" wire:model="placeTimezone" placeholder="Australia/Brisbane"></x-business.field>
+                                    <x-business.field label="Location email" name="placeEmail"><x-business.control type="email" wire:model="placeEmail" /></x-business.field>
+                                    <x-business.field label="Location website" name="placeWebsite"><x-business.control type="url" wire:model="placeWebsite" placeholder="https://" /></x-business.field>
+                                    <x-business.field label="Street address" name="placeAddressLine1"><x-business.control type="text" wire:model="placeAddressLine1" /></x-business.field>
+                                    <x-business.field label="Address line 2" name="placeAddressLine2"><x-business.control type="text" wire:model="placeAddressLine2" /></x-business.field>
+                                    <x-business.field label="City or suburb" name="placeCity"><x-business.control type="text" wire:model="placeCity" /></x-business.field>
+                                    <x-business.field label="State or region" name="placeState"><x-business.control type="text" wire:model="placeState" /></x-business.field>
+                                    <x-business.field label="Postcode" name="placePostalCode"><x-business.control type="text" wire:model="placePostalCode" /></x-business.field>
+                                    <x-business.field label="Timezone" name="placeTimezone"><x-business.control type="text" wire:model="placeTimezone" placeholder="Australia/Brisbane" /></x-business.field>
                                 </div>
                             @endif
-                            @error('providerName') <p class="field-error">{{ $message }}</p> @enderror
-                            @error('providerEmail') <p class="field-error">{{ $message }}</p> @enderror
-                            @error('providerWebsite') <p class="field-error">{{ $message }}</p> @enderror
-                            @error('placeTimezone') <p class="field-error">{{ $message }}</p> @enderror
                         </form>
                         </x-slot:body>
                         <x-slot:actions>
@@ -174,10 +167,9 @@
                             description="Search Zigpaw’s local directory. Results are limited to the country registered on this workspace."
                         />
                         <form class="inline-form claim-search-form" wire:submit="searchClaimableProviders">
-                            <x-business.field class="form-grow" label="Business or location name"><input type="search" wire:model="claimSearch" placeholder="Laidley Veterinary Surgery" autocomplete="off"></x-business.field>
+                            <x-business.field class="form-grow" label="Business or location name" name="claimSearch"><x-business.control type="search" wire:model="claimSearch" placeholder="Laidley Veterinary Surgery" autocomplete="off" /></x-business.field>
                             <x-business.button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="searchClaimableProviders">Search directory</x-business.button>
                         </form>
-                        @error('claimSearch') <p class="field-error">{{ $message }}</p> @enderror
 
                         @if ($claimableProviders !== [])
                             <div class="claim-result-list" aria-label="Claimable provider listings">
@@ -208,18 +200,14 @@
                                     <x-business.button variant="text" wire:click="cancelProviderClaim">Choose another</x-business.button>
                                 </div>
                                 <div class="form-grid form-grid-two">
-                                    <x-business.field label="Your authority"><select wire:model="claimAuthorityType" data-overlay-initial-focus><option value="">Choose your role</option><option value="owner">Business owner</option><option value="manager">Business manager</option><option value="location_manager">Location manager</option></select></x-business.field>
-                                    <x-business.field label="How should we verify you?"><select wire:model.live="claimVerificationMethod"><option value="">Choose a method</option><option value="domain_email">Business email</option><option value="phone">Business phone</option></select></x-business.field>
+                                    <x-business.field label="Your authority" name="claimAuthorityType"><x-business.control as="select" wire:model="claimAuthorityType" data-overlay-initial-focus><option value="">Choose your role</option><option value="owner">Business owner</option><option value="manager">Business manager</option><option value="location_manager">Location manager</option></x-business.control></x-business.field>
+                                    <x-business.field label="How should we verify you?" name="claimVerificationMethod"><x-business.control as="select" wire:model.live="claimVerificationMethod"><option value="">Choose a method</option><option value="domain_email">Business email</option><option value="phone">Business phone</option></x-business.control></x-business.field>
                                     @if ($claimVerificationMethod === 'domain_email')
-                                        <x-business.field class="form-span-two" label="Business email"><input type="email" wire:model="claimantEmail" autocomplete="email" placeholder="you@business.example"></x-business.field>
+                                        <x-business.field class="form-span-two" label="Business email" name="claimantEmail"><x-business.control type="email" wire:model="claimantEmail" autocomplete="email" placeholder="you@business.example" /></x-business.field>
                                     @elseif ($claimVerificationMethod === 'phone')
-                                        <x-business.field class="form-span-two" label="Business phone"><input type="tel" wire:model="claimantPhone" autocomplete="tel"></x-business.field>
+                                        <x-business.field class="form-span-two" label="Business phone" name="claimantPhone"><x-business.control type="tel" wire:model="claimantPhone" autocomplete="tel" /></x-business.field>
                                     @endif
                                 </div>
-                                @error('claimAuthorityType') <p class="field-error">{{ $message }}</p> @enderror
-                                @error('claimVerificationMethod') <p class="field-error">{{ $message }}</p> @enderror
-                                @error('claimantEmail') <p class="field-error">{{ $message }}</p> @enderror
-                                @error('claimantPhone') <p class="field-error">{{ $message }}</p> @enderror
                             </form>
                             </x-slot:body>
                             <x-slot:footer>Submitting does not change the public listing until Zigpaw verifies your authority.</x-slot:footer>
@@ -297,9 +285,9 @@
                                         <x-business.button variant="primary" wire:click="completeBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Mark this appointment complete? This will end appointment-based pet access.">Mark complete</x-business.button>
                                     @endif
                                     @if (in_array('decline', $booking['available_actions'] ?? [], true))
-                                        <input type="text" wire:model="declineReasons.{{ $booking['id'] }}" placeholder="Reason for declining" aria-label="Reason for declining {{ $booking['request_number'] }}">
+                                        <x-business.control type="text" wire:model="declineReasons.{{ $booking['id'] }}" placeholder="Reason for declining" aria-label="Reason for declining {{ $booking['request_number'] }}" />
                                         <x-business.button variant="danger" wire:click="declineBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Decline this booking request? The customer will be notified.">Decline</x-business.button>
-                                        @error('declineReasons.'.$booking['id']) <p class="field-error booking-field-error">{{ $message }}</p> @enderror
+                                        @error('declineReasons.'.$booking['id']) <p class="field-error booking-field-error" id="business-field-declineReasons-{{ $booking['id'] }}-error" role="alert">{{ $message }}</p> @enderror
                                     @endif
                                 </div>
                             </article>
@@ -317,21 +305,27 @@
                         description="Configure one managed location at a time. The portal itself is a delivery path, so a duplicate email or phone is optional."
                     />
 
-                    @if ($providers !== [])
+                    <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$bookingProviderLinkId" :selected-label="data_get($selectedBookingProvider, 'place.name') ?: data_get($selectedBookingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectBookingProvider" field-name="bookingProviderLinkId" :pagination="$pagination" />
+                    @if ($providerOptions !== [] || $bookingProviderLinkId !== '')
+                        @if ($loadedBookingProviderLinkId === null)
+                            <x-business.error-state title="Booking settings could not be loaded" message="Choose a location or retry before changing its settings.">
+                                <x-slot:actions><x-business.button wire:click="selectBookingProvider({{ Illuminate\Support\Js::from($bookingProviderLinkId) }})">Retry selected location</x-business.button></x-slot:actions>
+                            </x-business.error-state>
+                        @else
                         <form class="form-panel" wire:submit="saveBookingConfiguration">
+                            @if ($bookingConfigurationState === 'unconfigured')<p role="status">This location has no booking setup yet. Choose its settings before saving.</p>@endif
                             <div class="form-grid form-grid-two">
-                                <x-business.field class="form-span-two" label="Managed location"><select wire:model="bookingProviderLinkId" wire:change="selectBookingProvider($event.target.value)">@foreach ($providers as $link)<option value="{{ $link['id'] }}">{{ data_get($link, 'place.name') ?: data_get($link, 'provider.name') }}</option>@endforeach</select></x-business.field>
-                                <x-business.field label="Booking requests"><select wire:model="bookingStatus"><option value="">Choose a status</option><option value="disabled">Off</option><option value="enabled">Accepting requests</option><option value="paused">Paused</option></select></x-business.field>
-                                <x-business.field label="Timezone"><input type="text" wire:model="bookingTimezone" placeholder="Australia/Brisbane"></x-business.field>
-                                <x-business.field label="Notification email (optional)"><input type="email" wire:model="bookingNotificationEmail"></x-business.field>
-                                <x-business.field label="Notification phone (optional)"><input type="tel" wire:model="bookingNotificationPhone"></x-business.field>
-                                <x-business.field label="Minimum notice (hours)"><input type="number" min="0" max="8760" wire:model="bookingMinimumNoticeHours"></x-business.field>
-                                <x-business.field label="Book up to (days)"><input type="number" min="1" max="730" wire:model="bookingMaximumAdvanceDays"></x-business.field>
-                                <x-business.field label="Response window (hours)"><input type="number" min="1" max="720" wire:model="bookingResponseWindowHours"></x-business.field>
-                                <x-business.field class="form-span-two" label="Customer instructions"><textarea wire:model="bookingCustomerInstructions" rows="4" placeholder="What should a customer know before sending a request?"></textarea></x-business.field>
+                                <x-business.field label="Booking requests" name="bookingStatus"><x-business.control as="select" wire:model="bookingStatus"><option value="">Choose a status</option><option value="disabled">Off</option><option value="enabled">Accepting requests</option><option value="paused">Paused</option></x-business.control></x-business.field>
+                                <x-business.field label="Timezone" name="bookingTimezone"><x-business.control type="text" wire:model="bookingTimezone" placeholder="Australia/Brisbane" /></x-business.field>
+                                <x-business.field label="Notification email (optional)" name="bookingNotificationEmail"><x-business.control type="email" wire:model="bookingNotificationEmail" /></x-business.field>
+                                <x-business.field label="Notification phone (optional)" name="bookingNotificationPhone"><x-business.control type="tel" wire:model="bookingNotificationPhone" /></x-business.field>
+                                <x-business.field label="Minimum notice (hours)" name="bookingMinimumNoticeHours"><x-business.control type="number" min="0" max="8760" wire:model="bookingMinimumNoticeHours" /></x-business.field>
+                                <x-business.field label="Book up to (days)" name="bookingMaximumAdvanceDays"><x-business.control type="number" min="1" max="730" wire:model="bookingMaximumAdvanceDays" /></x-business.field>
+                                <x-business.field label="Response window (hours)" name="bookingResponseWindowHours"><x-business.control type="number" min="1" max="720" wire:model="bookingResponseWindowHours" /></x-business.field>
+                                <x-business.field class="form-span-two" label="Customer instructions" name="bookingCustomerInstructions"><x-business.control as="textarea" wire:model="bookingCustomerInstructions" rows="4" placeholder="What should a customer know before sending a request?"></x-business.control></x-business.field>
                             </div>
 
-                            <section class="schedule-editor" aria-labelledby="weekly-availability-heading">
+                            <section id="business-field-bookingAvailabilityRules" class="schedule-editor" aria-labelledby="weekly-availability-heading" tabindex="-1">
                                 <div class="schedule-editor-heading">
                                     <div>
                                         <p class="eyebrow">Weekly availability</p>
@@ -346,8 +340,8 @@
                                         <fieldset class="schedule-item" wire:key="booking-rule-{{ $index }}">
                                             <legend>Window {{ $index + 1 }}</legend>
                                             <div class="schedule-rule-grid">
-                                                <x-business.field label="Day" :error="$errors->first('bookingAvailabilityRules.'.$index.'.day_of_week')">
-                                                    <select wire:model="bookingAvailabilityRules.{{ $index }}.day_of_week">
+                                                <x-business.field label="Day" name="bookingAvailabilityRules.{{ $index }}.day_of_week">
+                                                    <x-business.control as="select" wire:model="bookingAvailabilityRules.{{ $index }}.day_of_week">
                                                         <option value="0">Sunday</option>
                                                         <option value="1">Monday</option>
                                                         <option value="2">Tuesday</option>
@@ -355,10 +349,10 @@
                                                         <option value="4">Thursday</option>
                                                         <option value="5">Friday</option>
                                                         <option value="6">Saturday</option>
-                                                    </select>
+                                                    </x-business.control>
                                                 </x-business.field>
-                                                <x-business.field label="Opens" :error="$errors->first('bookingAvailabilityRules.'.$index.'.starts_at')"><input type="time" wire:model="bookingAvailabilityRules.{{ $index }}.starts_at"></x-business.field>
-                                                <x-business.field label="Closes" :error="$errors->first('bookingAvailabilityRules.'.$index.'.ends_at')"><input type="time" wire:model="bookingAvailabilityRules.{{ $index }}.ends_at"></x-business.field>
+                                                <x-business.field label="Opens" name="bookingAvailabilityRules.{{ $index }}.starts_at"><x-business.control type="time" wire:model="bookingAvailabilityRules.{{ $index }}.starts_at" /></x-business.field>
+                                                <x-business.field label="Closes" name="bookingAvailabilityRules.{{ $index }}.ends_at"><x-business.control type="time" wire:model="bookingAvailabilityRules.{{ $index }}.ends_at" /></x-business.field>
                                                 <label class="schedule-toggle">
                                                     <input type="checkbox" wire:model="bookingAvailabilityRules.{{ $index }}.is_active">
                                                     <span>Active</span>
@@ -368,8 +362,8 @@
                                             <details class="schedule-effective-dates">
                                                 <summary>Limit to a date range</summary>
                                                 <div class="schedule-date-grid">
-                                                    <x-business.field label="Starts on" :error="$errors->first('bookingAvailabilityRules.'.$index.'.effective_from')"><input type="date" wire:model="bookingAvailabilityRules.{{ $index }}.effective_from"></x-business.field>
-                                                    <x-business.field label="Ends on" :error="$errors->first('bookingAvailabilityRules.'.$index.'.effective_until')"><input type="date" wire:model="bookingAvailabilityRules.{{ $index }}.effective_until"></x-business.field>
+                                                    <x-business.field label="Starts on" name="bookingAvailabilityRules.{{ $index }}.effective_from"><x-business.control type="date" wire:model="bookingAvailabilityRules.{{ $index }}.effective_from" /></x-business.field>
+                                                    <x-business.field label="Ends on" name="bookingAvailabilityRules.{{ $index }}.effective_until"><x-business.control type="date" wire:model="bookingAvailabilityRules.{{ $index }}.effective_until" /></x-business.field>
                                                 </div>
                                             </details>
                                         </fieldset>
@@ -379,7 +373,7 @@
                                 </div>
                             </section>
 
-                            <section class="schedule-editor" aria-labelledby="availability-exceptions-heading">
+                            <section id="business-field-bookingAvailabilityExceptions" class="schedule-editor" aria-labelledby="availability-exceptions-heading" tabindex="-1">
                                 <div class="schedule-editor-heading">
                                     <div>
                                         <p class="eyebrow">Date exceptions</p>
@@ -394,13 +388,13 @@
                                         <fieldset class="schedule-item" wire:key="booking-exception-{{ $index }}">
                                             <legend>Exception {{ $index + 1 }}</legend>
                                             <div class="schedule-exception-grid">
-                                                <x-business.field label="Date" :error="$errors->first('bookingAvailabilityExceptions.'.$index.'.date')"><input type="date" wire:model="bookingAvailabilityExceptions.{{ $index }}.date"></x-business.field>
-                                                <x-business.field label="Availability" :error="$errors->first('bookingAvailabilityExceptions.'.$index.'.availability')">
-                                                    <select wire:model="bookingAvailabilityExceptions.{{ $index }}.availability"><option value="unavailable">Closed</option><option value="available">Open</option></select>
+                                                <x-business.field label="Date" name="bookingAvailabilityExceptions.{{ $index }}.date"><x-business.control type="date" wire:model="bookingAvailabilityExceptions.{{ $index }}.date" /></x-business.field>
+                                                <x-business.field label="Availability" name="bookingAvailabilityExceptions.{{ $index }}.availability">
+                                                    <x-business.control as="select" wire:model="bookingAvailabilityExceptions.{{ $index }}.availability"><option value="unavailable">Closed</option><option value="available">Open</option></x-business.control>
                                                 </x-business.field>
-                                                <x-business.field label="Opens (optional)" :error="$errors->first('bookingAvailabilityExceptions.'.$index.'.starts_at')"><input type="time" wire:model="bookingAvailabilityExceptions.{{ $index }}.starts_at"></x-business.field>
-                                                <x-business.field label="Closes (optional)" :error="$errors->first('bookingAvailabilityExceptions.'.$index.'.ends_at')"><input type="time" wire:model="bookingAvailabilityExceptions.{{ $index }}.ends_at"></x-business.field>
-                                                <x-business.field class="schedule-reason" label="Reason (optional)" :error="$errors->first('bookingAvailabilityExceptions.'.$index.'.reason')"><input type="text" wire:model="bookingAvailabilityExceptions.{{ $index }}.reason" placeholder="Public holiday"></x-business.field>
+                                                <x-business.field label="Opens (optional)" name="bookingAvailabilityExceptions.{{ $index }}.starts_at"><x-business.control type="time" wire:model="bookingAvailabilityExceptions.{{ $index }}.starts_at" /></x-business.field>
+                                                <x-business.field label="Closes (optional)" name="bookingAvailabilityExceptions.{{ $index }}.ends_at"><x-business.control type="time" wire:model="bookingAvailabilityExceptions.{{ $index }}.ends_at" /></x-business.field>
+                                                <x-business.field class="schedule-reason" label="Reason (optional)" name="bookingAvailabilityExceptions.{{ $index }}.reason"><x-business.control type="text" wire:model="bookingAvailabilityExceptions.{{ $index }}.reason" placeholder="Public holiday" /></x-business.field>
                                                 <x-business.button class="schedule-remove" variant="danger" wire:click="removeBookingAvailabilityException({{ $index }})" aria-label="Remove availability exception {{ $index + 1 }}">Remove</x-business.button>
                                             </div>
                                         </fieldset>
@@ -409,13 +403,9 @@
                                     @endforelse
                                 </div>
                             </section>
-
-                            @error('bookingStatus') <p class="field-error">{{ $message }}</p> @enderror
-                            @error('bookingTimezone') <p class="field-error">{{ $message }}</p> @enderror
-                            @error('bookingNotificationEmail') <p class="field-error">{{ $message }}</p> @enderror
                             <div class="form-actions"><x-business.button variant="primary" type="submit">Save booking setup</x-business.button></div>
                         </form>
-                        <x-business-pagination resource="bookingProfiles" label="booking configurations" :pagination="$pagination" />
+                        @endif
                     @else
                         <x-business.empty-state title="No managed locations yet" description="A verified location is required before booking requests can be configured." />
                     @endif
@@ -427,14 +417,13 @@
                         title="What customers can request"
                         description="Offerings describe the service. Availability controls when requests can be made."
                     />
-                    @if ($providers !== [])
+                    <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$offeringProviderLinkId" :selected-label="data_get($selectedOfferingProvider, 'place.name') ?: data_get($selectedOfferingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectOfferingProvider" field-name="offeringProviderLinkId" :pagination="$pagination" />
+                    @if ($providerOptions !== [] || $selectedOfferingProvider !== null)
                         <form class="inline-form" wire:submit="createOffering">
-                            <x-business.field label="Managed location"><select wire:model="offeringProviderLinkId">@foreach ($providers as $link)<option value="{{ $link['id'] }}">{{ data_get($link, 'place.name') ?: data_get($link, 'provider.name') }}</option>@endforeach</select></x-business.field>
-                            <x-business.field class="form-grow" label="Service name"><input type="text" wire:model="offeringName" placeholder="Wellness consultation"></x-business.field>
-                            <x-business.field label="Minutes"><input type="number" min="5" max="1440" step="5" wire:model="offeringDurationMinutes" placeholder="30"></x-business.field>
+                            <x-business.field class="form-grow" label="Service name" name="offeringName"><x-business.control type="text" wire:model="offeringName" placeholder="Wellness consultation" /></x-business.field>
+                            <x-business.field label="Minutes" name="offeringDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="offeringDurationMinutes" placeholder="30" /></x-business.field>
                             <x-business.button variant="primary" type="submit">Add service</x-business.button>
                         </form>
-                        @error('offeringName') <p class="field-error">{{ $message }}</p> @enderror
                     @endif
                     <x-business.data-table label="Published services" class="data-list">
                         @forelse ($offerings as $offering)
@@ -457,13 +446,12 @@
                         <x-slot:body>
                         <form id="offering-edit-form" wire:submit="saveOffering">
                             <div class="form-grid form-grid-two">
-                                <x-business.field label="Service name"><input type="text" wire:model="editingOfferingName" data-overlay-initial-focus></x-business.field>
-                                <x-business.field label="Duration (minutes)"><input type="number" min="5" max="1440" step="5" wire:model="editingOfferingDurationMinutes"></x-business.field>
-                                <x-business.field label="Status"><select wire:model="editingOfferingStatus"><option value="draft">Draft</option><option value="active">Available</option><option value="paused">Paused</option></select></x-business.field>
-                                <x-business.field label="How customers respond"><select wire:model="editingOfferingRequestMode"><option value="request">Request in Zigpaw</option><option value="contact">Contact the business</option><option value="external">Use an external page</option></select></x-business.field>
-                                <x-business.field class="form-span-two" label="Description"><textarea wire:model="editingOfferingDescription" rows="4"></textarea></x-business.field>
+                                <x-business.field label="Service name" name="editingOfferingName"><x-business.control type="text" wire:model="editingOfferingName" data-overlay-initial-focus /></x-business.field>
+                                <x-business.field label="Duration (minutes)" name="editingOfferingDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="editingOfferingDurationMinutes" /></x-business.field>
+                                <x-business.field label="Status" name="editingOfferingStatus"><x-business.control as="select" wire:model="editingOfferingStatus"><option value="draft">Draft</option><option value="active">Available</option><option value="paused">Paused</option></x-business.control></x-business.field>
+                                <x-business.field label="How customers respond" name="editingOfferingRequestMode"><x-business.control as="select" wire:model="editingOfferingRequestMode"><option value="request">Request in Zigpaw</option><option value="contact">Contact the business</option><option value="external">Use an external page</option></x-business.control></x-business.field>
+                                <x-business.field class="form-span-two" label="Description" name="editingOfferingDescription"><x-business.control as="textarea" wire:model="editingOfferingDescription" rows="4"></x-business.control></x-business.field>
                             </div>
-                            @error('editingOfferingName') <p class="field-error">{{ $message }}</p> @enderror
                         </form>
                         </x-slot:body>
                         <x-slot:footer>
@@ -545,11 +533,10 @@
                         description="Give each person the smallest role needed for their work."
                     />
                     <form class="inline-form" wire:submit="inviteTeamMember">
-                        <x-business.field class="form-grow" label="Email address"><input type="email" wire:model="teamEmail" placeholder="colleague@example.com"></x-business.field>
-                        <x-business.field label="Role"><select wire:model="teamRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></select></x-business.field>
+                        <x-business.field class="form-grow" label="Email address" name="teamEmail"><x-business.control type="email" wire:model="teamEmail" placeholder="colleague@example.com" /></x-business.field>
+                        <x-business.field label="Role" name="teamRole"><x-business.control as="select" wire:model="teamRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></x-business.control></x-business.field>
                         <x-business.button variant="primary" type="submit">Send invitation</x-business.button>
                     </form>
-                    @error('teamEmail') <p class="field-error">{{ $message }}</p> @enderror
                     <x-business.data-table label="People with business access" class="data-list">
                         @forelse ($team as $member)
                             <div class="data-row">
@@ -581,8 +568,7 @@
                     >
                         <x-slot:body>
                         <form id="team-access-form" wire:submit="saveTeamMemberRole">
-                            <x-business.field label="Role"><select wire:model="editingTeamRole" data-overlay-initial-focus><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></select></x-business.field>
-                            @error('editingTeamRole') <p class="field-error">{{ $message }}</p> @enderror
+                            <x-business.field label="Role" name="editingTeamRole"><x-business.control as="select" wire:model="editingTeamRole" data-overlay-initial-focus><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></x-business.control></x-business.field>
                         </form>
                         </x-slot:body>
                         <x-slot:actions>
@@ -603,7 +589,8 @@
             <section class="access-card">
                 @if ($state === 'choose_organization')
                     <p class="eyebrow">Business workspace</p><h1>Choose where you’re working.</h1><p>Each workspace keeps locations, bookings, staff and financial information isolated.</p>
-                    <div class="organization-list">@foreach ($organizations as $organization)<x-business.button variant="organization" wire:click="selectOrganization({{ Illuminate\Support\Js::from($organization['id']) }})"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-business.button>@endforeach</div>
+                    <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" :list="true" />
+                    @if ($message)<p role="alert">{{ $message }}</p>@endif
                 @elseif ($state === 'forbidden')
                     <p class="eyebrow">Business access</p><h1>No active business workspace.</h1><p>{{ $message ?: 'Ask the business owner to invite you, or sign in with another account.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Use another account</x-business.button>
                 @elseif ($state === 'unavailable')

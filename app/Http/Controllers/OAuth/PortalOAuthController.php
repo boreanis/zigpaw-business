@@ -122,12 +122,20 @@ class PortalOAuthController
 
         try {
             $logoutUrl = $tokens->revoke();
-        } catch (\RuntimeException $exception) {
+        } catch (\Throwable $exception) {
             Log::warning('Upstream portal token revocation failed during local sign-out.', ['exception' => $exception::class]);
         } finally {
-            $tokens->forget();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            try {
+                $tokens->forget();
+            } catch (\Throwable $exception) {
+                Log::warning('Portal token cleanup failed during local sign-out.', ['exception' => $exception::class]);
+            } finally {
+                try {
+                    $request->session()->invalidate();
+                } finally {
+                    $request->session()->regenerateToken();
+                }
+            }
         }
 
         if ($logoutUrl === null) {

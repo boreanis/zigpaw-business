@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 final class CiWorkflowContractTest extends TestCase
 {
@@ -103,5 +104,40 @@ final class CiWorkflowContractTest extends TestCase
         self::assertIsInt($build);
         self::assertIsInt($tests);
         self::assertLessThan($tests, $build);
+    }
+
+    public function test_native_phpunit_bootstrap_overrides_poisoned_inherited_runtime_settings(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $configuration = new \DOMDocument;
+        self::assertTrue($configuration->load($root.'/phpunit.xml', LIBXML_NONET));
+        $variables = $configuration->getElementsByTagName('env');
+        self::assertGreaterThan(0, $variables->length);
+
+        // Child checks receive no undeclared parent application credentials.
+        $environment = array_fill_keys(array_unique([
+            ...array_keys(getenv() ?: []), ...array_keys($_ENV), ...array_keys($_SERVER),
+        ]), false);
+        $environment['PATH'] = getenv('PATH') ?: '/usr/bin:/bin';
+        $environment['TMPDIR'] = sys_get_temp_dir();
+        foreach ($variables as $variable) {
+            self::assertSame('true', $variable->getAttribute('force'), $variable->getAttribute('name'));
+            $environment[$variable->getAttribute('name')] = 'synthetic-inherited-poison';
+        }
+        $environment['SESSION_DRIVER'] = 'redis';
+        $environment['CACHE_STORE'] = 'redis';
+        $environment['QUEUE_CONNECTION'] = 'redis';
+        $environment['APP_ENV'] = 'production';
+
+        // This probe never boots Laravel or resolves a Redis/database adapter,
+        // so an isolation regression cannot touch another runtime's state.
+        $process = new Process([
+            PHP_BINARY, $root.'/vendor/bin/phpunit', '--configuration', $root.'/phpunit.xml',
+            '--no-logging', '--fail-on-warning', '--fail-on-risky', '--fail-on-skipped',
+            $root.'/tests/Fixtures/PhpunitEnvironmentProbeTest.php',
+        ], $root, $environment, timeout: 30);
+        $process->run();
+
+        self::assertSame(0, $process->getExitCode(), $process->getOutput().$process->getErrorOutput());
     }
 }

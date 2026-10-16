@@ -23,7 +23,7 @@
             <div class="patient-hero-copy">
                 <div class="heading-with-status"><p class="eyebrow">Family-approved access</p><x-clinical.status :tone="$statusTone">{{ str($status)->headline() }}</x-clinical.status></div>
                 <h1>{{ $displayName }}</h1>
-                <p>{{ collect([data_get($grant, 'pet.species'), data_get($grant, 'pet.breed')])->filter()->join(' · ') ?: 'Profile details are not included in this grant.' }}</p>
+                <p>{{ collect([data_get($grant, 'pet.species'), data_get($grant, 'pet.breed')])->filter()->join(' · ') ?: 'No species or breed details available.' }}</p>
             </div>
             @if (($capabilities['submit_care'] ?? false) === true)
                 <x-clinical.button variant="primary" :href="route('clinical.patients.submissions.create', ['grantId' => $grantId])" wire:navigate>Submit care records</x-clinical.button>

@@ -52,10 +52,10 @@
                     <div class="patient-avatar" aria-hidden="true">{{ str($title)->substr(0, 1)->upper() }}</div>
                     <div class="patient-card-body">
                         <div class="patient-card-title"><h2>{{ $title }}</h2><x-clinical.status :tone="$statusTone">{{ str($grantStatus)->headline() }}</x-clinical.status></div>
-                        <p>{{ $details !== '' ? $details : 'Profile details are not included in this grant.' }}</p>
+                        <p>{{ $details !== '' ? $details : 'No species or breed details available.' }}</p>
                         <div class="patient-meta">
                             @if (data_get($grant, 'location.name'))<span>{{ data_get($grant, 'location.name') }}</span>@endif
-                            @if ($grant['expires_at'] ?? null)<span>Ends {{ str((string) $grant['expires_at'])->before('T') }}</span>@else<span>No set end date</span>@endif
+                            @if ($grant['expires_at'] ?? null)<span>Access expires {{ str((string) $grant['expires_at'])->before('T') }}</span>@else<span>Access has no set expiry</span>@endif
                         </div>
                     </div>
                     <svg class="row-arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m9 5 7 7-7 7"/></svg>

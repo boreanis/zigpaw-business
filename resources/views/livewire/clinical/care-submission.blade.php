@@ -8,6 +8,12 @@
     @if (! $canSubmit)
         <x-clinical.alert title="Submission is not available" :description="$message ?: 'This grant does not include permission to submit clinical records.'" tone="error" />
     @else
+        @if ($hasPendingSubmission)
+            <x-clinical.alert title="Previous submission unconfirmed" description="A previous attempt may already have reached the family’s review queue. Retry its unchanged records, or check submission history before starting another submission.">
+                <x-clinical.button variant="text" :href="route('clinical.submissions.index')" wire:navigate>Check submission history</x-clinical.button>
+                <x-clinical.button variant="text" wire:click="startNewSubmission" wire:confirm="A previous attempt may already have been submitted. Have you checked submission history and confirmed that you need a new submission? This starts a new attempt; it does not cancel the previous one.">Start another submission after checking</x-clinical.button>
+            </x-clinical.alert>
+        @endif
         <form class="clinical-form" wire:submit="submit" novalidate>
             @error('submission')<x-clinical.alert title="The submission could not be sent" :description="$message" tone="error" />@enderror
 

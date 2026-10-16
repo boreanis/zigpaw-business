@@ -34,10 +34,18 @@ class PlatformApiClient
 
     public const MAX_CLINICAL_MEDIA_BYTES = 10 * 1024 * 1024;
 
-    /** @return list<array<string, mixed>> */
-    public function organizations(string $accessToken): array
+    /** @return PageEnvelope */
+    public function organizations(string $accessToken, int $page = 1, string $search = ''): array
     {
-        return array_values($this->get('/v1/business/organizations', $accessToken));
+        return $this->organizationPage('/v1/business/organizations', $accessToken, $page, $search);
+    }
+
+    /** @return array<string, mixed> */
+    public function organization(string $accessToken, string $organizationId): array
+    {
+        $organizationId = $this->pathSegment($organizationId, 'organization');
+
+        return $this->get("/v1/business/organizations/{$organizationId}", $accessToken);
     }
 
     /** @return array<string, mixed> */
@@ -53,9 +61,36 @@ class PlatformApiClient
     }
 
     /** @return PageEnvelope */
-    public function providers(string $accessToken, string $organizationId, int $page = 1, int $perPage = 25): array
+    public function providers(string $accessToken, string $organizationId, int $page = 1, int $perPage = 25, string $search = '', bool $activeOnly = false): array
     {
-        return $this->getPage('/v1/business/providers', $accessToken, $organizationId, $page, $perPage);
+        return $this->getPage('/v1/business/providers', $accessToken, $organizationId, $page, $perPage, array_filter([
+            'search' => trim($search),
+            'active_only' => $activeOnly ? 1 : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== ''));
+    }
+
+    /** @return array<string, mixed> */
+    public function provider(string $accessToken, string $organizationId, string $providerLinkId): array
+    {
+        $providerLinkId = $this->pathSegment($providerLinkId, 'provider link');
+
+        return $this->get("/v1/business/providers/{$providerLinkId}", $accessToken, $organizationId);
+    }
+
+    /** @return array<string, mixed>|null */
+    public function bookingProfile(string $accessToken, string $organizationId, string $providerLinkId): ?array
+    {
+        $providerLinkId = $this->pathSegment($providerLinkId, 'provider link');
+        $response = $this->getResponse("/v1/business/providers/{$providerLinkId}/booking-profile", $accessToken, $organizationId);
+        if (! $response->successful()) {
+            $this->throwForResponse($response, self::MAX_ERROR_BODY_BYTES);
+        }
+        $decoded = $this->safeJson($response);
+        if (array_key_exists('data', $decoded) && $decoded['data'] === null) {
+            return null;
+        }
+
+        return $this->data($response);
     }
 
     /** @return PageEnvelope */
@@ -151,10 +186,18 @@ class PlatformApiClient
         return $this->getPage('/v1/business/team', $accessToken, $organizationId, $page, $perPage);
     }
 
-    /** @return list<array<string, mixed>> */
-    public function clinicalOrganizations(ClinicalPortalAccessTokenStore $tokens): array
+    /** @return PageEnvelope */
+    public function clinicalOrganizations(ClinicalPortalAccessTokenStore $tokens, int $page = 1, string $search = ''): array
     {
-        return array_values($this->get('/v1/business/clinical/organizations', $this->clinicalToken($tokens)));
+        return $this->organizationPage('/v1/business/clinical/organizations', $this->clinicalToken($tokens), $page, $search);
+    }
+
+    /** @return array<string, mixed> */
+    public function clinicalOrganization(ClinicalPortalAccessTokenStore $tokens, string $organizationId): array
+    {
+        $organizationId = $this->pathSegment($organizationId, 'organization');
+
+        return $this->get("/v1/business/clinical/organizations/{$organizationId}", $this->clinicalToken($tokens));
     }
 
     /** @return array<string, mixed> */
@@ -424,7 +467,7 @@ class PlatformApiClient
     private function getPage(
         string $path,
         string $accessToken,
-        string $organizationId,
+        ?string $organizationId,
         int $page,
         int $perPage,
         array $parameters = [],
@@ -434,6 +477,24 @@ class PlatformApiClient
             'per_page' => min(100, max(1, $perPage)),
         ]]);
         $response = $this->getResponse("{$path}?{$query}", $accessToken, $organizationId);
+
+        return $this->page($response, $perPage);
+    }
+
+    /** @return PageEnvelope */
+    private function organizationPage(string $path, string $accessToken, int $page, string $search): array
+    {
+        $query = http_build_query(array_filter([
+            'page' => $page > 1 ? min(100_000, $page) : null,
+            'search' => trim($search),
+        ], static fn (mixed $value): bool => $value !== null && $value !== ''));
+
+        return $this->page($this->getResponse($path.($query === '' ? '' : '?'.$query), $accessToken), 25);
+    }
+
+    /** @return PageEnvelope */
+    private function page(Response $response, int $perPage): array
+    {
         $data = $this->data($response);
         $meta = $response->json('meta');
         $links = $response->json('links');

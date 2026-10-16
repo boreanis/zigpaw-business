@@ -12,6 +12,46 @@ use Tests\TestCase;
 
 class PlatformApiClientTest extends TestCase
 {
+    public function test_exact_booking_lookup_distinguishes_explicit_absence_from_invalid_and_failed_responses(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/providers/link-1/booking-profile' => Http::sequence()
+                ->push(['data' => null])
+                ->push(['unexpected' => true])
+                ->push(['data' => null, 'message' => 'Temporarily unavailable.'], 503),
+        ]);
+        $api = app(PlatformApiClient::class);
+        $this->assertNull($api->bookingProfile('access-token', 'organization-1', 'link-1'));
+        foreach ([502, 503] as $status) {
+            try {
+                $api->bookingProfile('access-token', 'organization-1', 'link-1');
+                self::fail('An invalid or failed lookup was treated as an absent configuration.');
+            } catch (PlatformApiException $exception) {
+                $this->assertSame($status, $exception->status);
+            }
+        }
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer access-token')
+            && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1'));
+    }
+
+    public function test_organization_pages_and_exact_selected_record_use_fixed_allowlisted_operations(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/organizations?*' => Http::response([
+                'data' => [['id' => 'organization-27']],
+                'meta' => ['current_page' => 2, 'last_page' => 2, 'per_page' => 25, 'total' => 27],
+                'links' => ['first' => null, 'last' => null, 'prev' => null, 'next' => null],
+            ]),
+            'https://api.zigpaw.test/v1/business/organizations/organization-27' => Http::response(['data' => ['id' => 'organization-27']]),
+        ]);
+        $api = app(PlatformApiClient::class);
+        $page = $api->organizations('access-token', 2, 'Synthetic clinic');
+        $this->assertSame(27, $page['meta']['total']);
+        $this->assertSame('organization-27', $api->organization('access-token', 'organization-27')['id']);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/organizations?page=2&search=Synthetic+clinic'
+            && ! $request->hasHeader('X-Zigpaw-Organization-ID'));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

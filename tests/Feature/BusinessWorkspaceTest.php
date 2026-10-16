@@ -347,7 +347,8 @@ class BusinessWorkspaceTest extends TestCase
         Livewire::test(BusinessWorkspace::class)
             ->assertSee('Business profile')
             ->call('showSection', 'profile')
-            ->assertSee('<select wire:model="businessRegisteredCountryCode" autocomplete="country">', false)
+            ->assertSee('name="businessRegisteredCountryCode"', false)
+            ->assertSee('wire:model="businessRegisteredCountryCode" autocomplete="country"', false)
             ->assertSee('<option value="AU">Australia</option>', false)
             ->assertDontSee('placeholder="AU"', false)
             ->set('businessName', 'Laidley Animal Care')
@@ -620,6 +621,9 @@ class BusinessWorkspaceTest extends TestCase
                 ]]);
             }
 
+            if (str_ends_with($request->url(), '/booking-profile')) {
+                return Http::response(['data' => $profile[0]]);
+            }
             if (str_contains($request->url(), '/booking-profiles')) {
                 return $request->method() === 'PUT'
                     ? Http::response(['data' => $profile[0]])
@@ -661,6 +665,115 @@ class BusinessWorkspaceTest extends TestCase
             && $request['availability_rules'][1]['starts_at'] === '13:00'
             && $request['availability_exceptions'][0]['date'] === '2026-12-25'
             && $request['availability_exceptions'][0]['reason'] === 'Public holiday');
+    }
+
+    public function test_booking_manager_can_clear_optional_contact_and_instruction_fields(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'manager-access-token',
+            'refresh_token' => 'manager-refresh-token',
+            'expires_in' => 900,
+        ]);
+        $profile = [
+            'id' => 'profile-1',
+            'service_provider_id' => 'provider-1',
+            'place_id' => 'place-1',
+            'status' => 'enabled',
+            'timezone' => 'Australia/Brisbane',
+            'notification_email' => 'bookings@example.test',
+            'notification_phone' => '+61412345678',
+            'customer_instructions' => 'Use the side entrance.',
+            'minimum_notice_hours' => 12,
+            'maximum_advance_days' => 30,
+            'response_window_hours' => 24,
+            'availability_rules' => [[
+                'day_of_week' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '12:00',
+                'is_active' => true,
+            ]],
+            'availability_exceptions' => [],
+        ];
+        $submittedPayload = [];
+        $rejectUpdate = false;
+
+        Http::fake(function (Request $request) use (&$profile, &$submittedPayload, &$rejectUpdate) {
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/organizations') {
+                return Http::response(['data' => [['id' => 'organization-1', 'name' => 'Synthetic clinic']]]);
+            }
+            if ($request->url() === 'https://api.zigpaw.test/v1/business/me') {
+                return Http::response(['data' => [
+                    'organization' => ['id' => 'organization-1', 'name' => 'Synthetic clinic'],
+                    'membership' => ['id' => 'membership-1', 'capabilities' => ['portal.view', 'providers.manage', 'bookings.manage']],
+                    'features' => ['provider_claims' => false, 'booking_requests' => true],
+                ]]);
+            }
+            if (str_ends_with($request->url(), '/booking-profile')) {
+                return Http::response(['data' => $profile]);
+            }
+            if (str_contains($request->url(), '/booking-profiles')) {
+                if ($request->method() === 'PUT') {
+                    if ($rejectUpdate) {
+                        return Http::response(['message' => 'Please check these booking settings.'], 422);
+                    }
+
+                    $submittedPayload = $request->data();
+                    $profile = array_replace($profile, $submittedPayload);
+
+                    return Http::response(['data' => $profile]);
+                }
+
+                return Http::response(self::page([$profile]));
+            }
+            if (str_contains($request->url(), '/providers')) {
+                return Http::response(self::page([[
+                    'id' => 'link-1',
+                    'provider' => ['id' => 'provider-1', 'name' => 'Synthetic clinic'],
+                    'place' => ['id' => 'place-1', 'name' => 'Synthetic clinic', 'timezone' => 'Australia/Brisbane'],
+                ]]));
+            }
+
+            return Http::response(self::page([]));
+        });
+
+        $workspace = Livewire::test(BusinessWorkspace::class)
+            ->call('showSection', 'booking-setup')
+            ->assertSet('bookingNotificationEmail', 'bookings@example.test')
+            ->assertSet('bookingNotificationPhone', '+61412345678')
+            ->assertSet('bookingCustomerInstructions', 'Use the side entrance.')
+            ->set('bookingNotificationEmail', '')
+            ->set('bookingNotificationPhone', '')
+            ->set('bookingCustomerInstructions', '')
+            ->set('bookingMinimumNoticeHours', 0)
+            ->set('bookingMaximumAdvanceDays', null)
+            ->set('bookingResponseWindowHours', null)
+            ->set('bookingAvailabilityRules.0.is_active', false)
+            ->call('saveBookingConfiguration')
+            ->assertHasNoErrors()
+            ->assertSet('bookingNotificationEmail', '')
+            ->assertSet('bookingNotificationPhone', '')
+            ->assertSet('bookingCustomerInstructions', '')
+            ->assertSet('bookingMinimumNoticeHours', 0)
+            ->assertSet('bookingMaximumAdvanceDays', 30)
+            ->assertSet('bookingResponseWindowHours', 24)
+            ->assertSet('bookingAvailabilityRules.0.is_active', false);
+
+        foreach (['notification_email', 'notification_phone', 'customer_instructions'] as $field) {
+            $this->assertArrayHasKey($field, $submittedPayload);
+            $this->assertNull($submittedPayload[$field]);
+        }
+        $this->assertSame(0, $submittedPayload['minimum_notice_hours']);
+        $this->assertFalse($submittedPayload['availability_rules'][0]['is_active']);
+        $this->assertArrayNotHasKey('maximum_advance_days', $submittedPayload);
+        $this->assertArrayNotHasKey('response_window_hours', $submittedPayload);
+
+        $rejectUpdate = true;
+        $workspace->set('bookingCustomerInstructions', 'Use the main entrance.')
+            ->call('saveBookingConfiguration')
+            ->assertSee('Please check these booking settings.')
+            ->assertSet('bookingCustomerInstructions', 'Use the main entrance.');
+        $this->assertNull($profile['customer_instructions']);
+        $this->assertNull(session('portal.pending_mutations'));
     }
 
     /** @param list<array<string, mixed>> $data @return array<string, mixed> */

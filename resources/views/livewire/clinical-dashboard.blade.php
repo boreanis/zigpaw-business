@@ -6,7 +6,7 @@
                 <h1>Clinical overview</h1>
                 <p>Only family-approved patient grants and records appear here.</p>
             </div>
-            @if (count($organizations) > 1)
+            @if (data_get($pagination, 'organizations.total', 0) > 1)
                 <x-clinical.button wire:click="changeOrganization" wire:loading.attr="disabled" wire:target="changeOrganization">Change organisation</x-clinical.button>
             @endif
         </header>
@@ -59,11 +59,8 @@
                 <p class="eyebrow">Clinical organisation</p>
                 <h1>Choose your workspace</h1>
                 <p>Each patient grant and submission stays within the clinical organisation selected here.</p>
-                <div class="organization-list">
-                    @foreach ($organizations as $organization)
-                        <x-clinical.button variant="organization" wire:click="selectOrganization({{ Illuminate\Support\Js::from($organization['id']) }})" wire:loading.attr="disabled" wire:target="selectOrganization"><span>{{ $organization['name'] }}</span><small>{{ str($organization['role'])->headline() }}</small></x-clinical.button>
-                    @endforeach
-                </div>
+                <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" :list="true" />
+                @if ($message)<p role="alert">{{ $message }}</p>@endif
             @elseif ($state === 'forbidden')
                 <p class="eyebrow">Organisation access</p><h1>Clinical access is not available</h1>
                 <p>{{ $message ?: 'This account does not belong to an active, verified veterinary organisation.' }}</p>

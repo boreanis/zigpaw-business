@@ -12,6 +12,25 @@ use Tests\TestCase;
 
 class ClinicalPlatformApiClientTest extends TestCase
 {
+    public function test_clinical_organization_search_pages_and_exact_recovery_keep_clinical_credentials(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/organizations?*' => Http::response([
+                'data' => [['id' => 'organization-27']],
+                'meta' => ['current_page' => 2, 'last_page' => 2, 'per_page' => 25, 'total' => 27],
+                'links' => ['first' => null, 'last' => null, 'prev' => null, 'next' => null],
+            ]),
+            'https://api.zigpaw.test/v1/business/clinical/organizations/organization-27' => Http::response(['data' => ['id' => 'organization-27']]),
+        ]);
+        $api = $this->api();
+        $tokens = $this->tokens();
+        $this->assertSame(27, $api->clinicalOrganizations($tokens, 2, 'Synthetic clinic')['meta']['total']);
+        $this->assertSame('organization-27', $api->clinicalOrganization($tokens, 'organization-27')['id']);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/clinical/organizations?page=2&search=Synthetic+clinic'
+            && $request->hasHeader('Authorization', 'Bearer clinical-access-token')
+            && ! $request->hasHeader('X-Zigpaw-Organization-ID'));
+    }
+
     private const GRANT_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b1';
 
     private const MEDIA_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b2';
@@ -96,7 +115,7 @@ class ClinicalPlatformApiClientTest extends TestCase
         $api = $this->api();
         $tokens = $this->tokens();
 
-        $this->assertSame('org-1', $api->clinicalOrganizations($tokens)[0]['id']);
+        $this->assertSame('org-1', $api->clinicalOrganizations($tokens)['data'][0]['id']);
         $this->assertSame(1, $api->clinicalDashboard($tokens, 'org-1')['grants']['active']);
         $this->assertSame(
             self::GRANT_ID,

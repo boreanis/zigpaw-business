@@ -52,7 +52,7 @@ class PortalAccessTokenStore
         }
 
         try {
-            return Cache::lock($cacheKey.':refresh', 10)->block(5, function (): ?string {
+            return Cache::lock($cacheKey.':refresh', 15)->block(5, function () use ($cacheKey): ?string {
                 $tokens = $this->tokens();
 
                 if (! $tokens) {
@@ -61,6 +61,22 @@ class PortalAccessTokenStore
 
                 if ($tokens['expires_at'] > now()->getTimestamp()) {
                     return $tokens['access_token'];
+                }
+
+                $tokens = Cache::lock($cacheKey.':mutate', 5)->block(5, function () use ($cacheKey): ?array {
+                    $current = $this->tokens(discardMalformed: false);
+                    if ($current === null) {
+                        return null;
+                    }
+                    if (! isset($current['refresh_operation'])) {
+                        $current['refresh_operation'] = (string) Str::uuid();
+                        $this->persist($cacheKey, $current);
+                    }
+
+                    return $current;
+                });
+                if ($tokens === null) {
+                    return null;
                 }
 
                 $response = Http::asForm()
@@ -75,6 +91,8 @@ class PortalAccessTokenStore
                             'client_id' => config($this->configKey('oauth_client_id')),
                             'client_secret' => config($this->configKey('oauth_client_secret')),
                             'refresh_token' => $tokens['refresh_token'],
+                            'refresh_operation' => $tokens['refresh_operation'],
+                            'session_binding' => hash('sha256', $cacheKey),
                             'scope' => implode(' ', config($this->configKey('oauth_scopes'))),
                         ],
                     );
@@ -99,7 +117,20 @@ class PortalAccessTokenStore
                         throw new \InvalidArgumentException('The authorization server returned an invalid token response.');
                     }
 
-                    $this->put($payload);
+                    $replacement = $this->envelope($payload);
+                    $saved = Cache::lock($cacheKey.':mutate', 5)->block(5, function () use ($cacheKey, $tokens, $replacement): bool {
+                        $current = $this->tokens(discardMalformed: false);
+                        if ($current === null || $current['refresh_token'] !== $tokens['refresh_token']
+                            || ($current['refresh_operation'] ?? null) !== $tokens['refresh_operation']) {
+                            return false;
+                        }
+                        $this->persist($cacheKey, $replacement);
+
+                        return true;
+                    });
+                    if (! $saved) {
+                        return null;
+                    }
                 } catch (\InvalidArgumentException|\JsonException $exception) {
                     Log::error('Portal OAuth token refresh returned an invalid response.', [
                         'context' => $this->context,
@@ -128,6 +159,20 @@ class PortalAccessTokenStore
      */
     public function put(array $payload): void
     {
+        $tokens = $this->envelope($payload);
+        $cacheKey = $this->cacheKey();
+        if ($cacheKey === null) {
+            throw new \LogicException('The portal token handle could not be created.');
+        }
+
+        Cache::lock($cacheKey.':mutate', 5)->block(5, fn () => $this->persist($cacheKey, $tokens));
+    }
+
+    /** @param array<string, mixed> $payload
+     * @return array{access_token: string, refresh_token: string, expires_at: int}
+     */
+    private function envelope(array $payload): array
+    {
         $accessToken = $payload['access_token'] ?? null;
         $expiresIn = $payload['expires_in'] ?? null;
 
@@ -137,27 +182,32 @@ class PortalAccessTokenStore
             throw new \InvalidArgumentException('The authorization server returned an invalid token response.');
         }
 
-        $cacheKey = $this->cacheKey();
-        if ($cacheKey === null) {
-            throw new \LogicException('The portal token handle could not be created.');
-        }
-
-        Cache::put($cacheKey, Crypt::encryptString(json_encode([
+        return [
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
             'expires_at' => now()->addSeconds(max(0, $expiresIn - 30))->getTimestamp(),
-        ], JSON_THROW_ON_ERROR)), now()->addDays(31));
+        ];
+    }
+
+    /** @param array{access_token: string, refresh_token: string, expires_at: int, refresh_operation?: string} $tokens */
+    private function persist(string $cacheKey, array $tokens): void
+    {
+        if (! Cache::put($cacheKey, Crypt::encryptString(json_encode($tokens, JSON_THROW_ON_ERROR)), now()->addDays(31))) {
+            throw new \RuntimeException('The secure session service is unavailable.');
+        }
     }
 
     public function forget(): void
     {
         $cacheKey = $this->cacheKey(create: false);
 
-        if ($cacheKey !== null) {
-            Cache::forget($cacheKey);
+        try {
+            if ($cacheKey !== null) {
+                Cache::lock($cacheKey.':mutate', 5)->block(5, fn () => Cache::forget($cacheKey));
+            }
+        } finally {
+            $this->session->forget($this->sessionHandleKey());
         }
-
-        $this->session->forget($this->sessionHandleKey());
     }
 
     public function apiUrl(): ?string
@@ -210,8 +260,8 @@ class PortalAccessTokenStore
         }
     }
 
-    /** @return array{access_token: string, refresh_token: string, expires_at: int}|null */
-    private function tokens(): ?array
+    /** @return array{access_token: string, refresh_token: string, expires_at: int, refresh_operation?: string}|null */
+    private function tokens(bool $discardMalformed = true): ?array
     {
         $cacheKey = $this->cacheKey(create: false);
         $encrypted = $cacheKey === null ? null : Cache::get($cacheKey);
@@ -222,7 +272,9 @@ class PortalAccessTokenStore
         try {
             $tokens = json_decode(Crypt::decryptString($encrypted), true, flags: JSON_THROW_ON_ERROR);
         } catch (DecryptException|\JsonException) {
-            $this->forget();
+            if ($discardMalformed) {
+                $this->forget();
+            }
 
             return null;
         }
@@ -235,16 +287,23 @@ class PortalAccessTokenStore
             || $tokens['refresh_token'] === ''
             || ! is_int($tokens['expires_at'] ?? null)
         ) {
-            $this->forget();
+            if ($discardMalformed) {
+                $this->forget();
+            }
 
             return null;
         }
 
-        return [
+        $result = [
             'access_token' => $tokens['access_token'],
             'refresh_token' => $tokens['refresh_token'],
             'expires_at' => $tokens['expires_at'],
         ];
+        if (is_string($tokens['refresh_operation'] ?? null) && Str::isUuid($tokens['refresh_operation'])) {
+            $result['refresh_operation'] = $tokens['refresh_operation'];
+        }
+
+        return $result;
     }
 
     private function cacheKey(bool $create = true): ?string

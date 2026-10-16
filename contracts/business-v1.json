@@ -1318,14 +1318,7 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "timezone": {
-                                                            "anyOf": [
-                                                                {
-                                                                    "type": "string"
-                                                                },
-                                                                {
-                                                                    "type": "null"
-                                                                }
-                                                            ]
+                                                            "type": "string"
                                                         },
                                                         "date_format": {
                                                             "type": "string",
@@ -1695,14 +1688,7 @@
                                                     "type": "object",
                                                     "properties": {
                                                         "timezone": {
-                                                            "anyOf": [
-                                                                {
-                                                                    "type": "string"
-                                                                },
-                                                                {
-                                                                    "type": "null"
-                                                                }
-                                                            ]
+                                                            "type": "string"
                                                         },
                                                         "date_format": {
                                                             "type": "string",
@@ -2318,9 +2304,40 @@
                 "tags": [
                     "Business"
                 ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 80
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Paginated set of `BusinessOrganizationResource`",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2329,36 +2346,183 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "string"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "role": {
-                                                        "type": "string"
-                                                    },
-                                                    "business_profile_status": {
-                                                        "type": "string"
-                                                    },
-                                                    "is_verified": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "managed_provider_count": {
-                                                        "type": "integer"
+                                                "$ref": "#/components/schemas/BusinessOrganizationResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
                                                     }
                                                 },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "role",
-                                                    "business_profile_status",
-                                                    "is_verified",
-                                                    "managed_provider_count"
-                                                ]
-                                            }
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "business:read"
+                        ]
+                    }
+                ],
+                "x-zigpaw-release": "phase2"
+            }
+        },
+        "/business/organizations/{organization}": {
+            "get": {
+                "operationId": "v1.business.organizations.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "organization",
+                        "in": "path",
+                        "required": true,
+                        "description": "The organization ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`BusinessOrganizationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BusinessOrganizationResource"
                                         }
                                     },
                                     "required": [
@@ -2367,6 +2531,9 @@
                                 }
                             }
                         }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -3092,11 +3259,39 @@
                 ],
                 "parameters": [
                     {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                        }
+                    },
+                    {
                         "name": "per_page",
                         "in": "query",
                         "schema": {
                             "type": "integer",
-                            "default": 25
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 80
+                        }
+                    },
+                    {
+                        "name": "active_only",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
                         }
                     }
                 ],
@@ -3242,6 +3437,12 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
                     }
                 },
                 "security": [
@@ -3255,6 +3456,58 @@
             }
         },
         "/business/providers/{providerLink}": {
+            "get": {
+                "operationId": "v1.business.providers.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "providerLink",
+                        "in": "path",
+                        "required": true,
+                        "description": "The provider link ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`BusinessProviderLinkResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BusinessProviderLinkResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "business:providers:read"
+                        ]
+                    }
+                ],
+                "x-zigpaw-release": "phase2"
+            },
             "patch": {
                 "operationId": "v1.business.providers.update",
                 "tags": [
@@ -3529,6 +3782,67 @@
                     {
                         "zigpawOAuth": [
                             "business:providers:write"
+                        ]
+                    }
+                ],
+                "x-zigpaw-release": "phase2"
+            }
+        },
+        "/business/providers/{providerLink}/booking-profile": {
+            "get": {
+                "operationId": "v1.business.providers.booking-profile.show",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "providerLink",
+                        "in": "path",
+                        "required": true,
+                        "description": "The provider link ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "anyOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/BusinessBookingProfileResource"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "business:bookings:read"
                         ]
                     }
                 ],
@@ -4711,8 +5025,7 @@
                                     }
                                 ],
                                 "minItems": 3,
-                                "maxItems": 3,
-                                "items": false
+                                "maxItems": 3
                             },
                             {
                                 "type": "array",
@@ -4723,8 +5036,7 @@
                                     }
                                 ],
                                 "minItems": 1,
-                                "maxItems": 1,
-                                "items": false
+                                "maxItems": 1
                             },
                             {
                                 "type": "array",
@@ -5433,6 +5745,38 @@
                     }
                 },
                 "title": "UpdateBusinessOfferingRequest"
+            },
+            "BusinessOrganizationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "business_profile_status": {
+                        "type": "string"
+                    },
+                    "is_verified": {
+                        "type": "boolean"
+                    },
+                    "managed_provider_count": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "role",
+                    "business_profile_status",
+                    "is_verified",
+                    "managed_provider_count"
+                ],
+                "title": "BusinessOrganizationResource"
             },
             "BusinessProgramResource": {
                 "type": "object",

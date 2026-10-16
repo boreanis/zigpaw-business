@@ -6,6 +6,7 @@ use App\Exceptions\PlatformApiException;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
 use Illuminate\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class ClinicalDashboard extends Component
@@ -18,7 +19,13 @@ class ClinicalDashboard extends Component
     public ?string $message = null;
 
     /** @var list<array<string, mixed>> */
+    #[Locked]
     public array $organizations = [];
+
+    /** @var array<string, array{current_page: int, last_page: int, per_page: int, total: int}> */
+    public array $pagination = [];
+
+    public string $organizationSearch = '';
 
     /** @var array<string, mixed> */
     public array $overview = [];
@@ -47,6 +54,25 @@ class ClinicalDashboard extends Component
         $this->redirectRoute('clinical.dashboard', navigate: true);
     }
 
+    public function searchOrganizations(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
+    {
+        $this->validate(['organizationSearch' => ['nullable', 'string', 'max:80']]);
+        $this->changePage('organizations', 1, $api, $tokens);
+    }
+
+    public function changePage(string $resource, int $page, PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
+    {
+        abort_unless($resource === 'organizations', 404);
+        try {
+            $response = $api->clinicalOrganizations($tokens, max(1, $page), $this->organizationSearch);
+            $this->organizations = $response['data'];
+            $this->pagination['organizations'] = $response['meta'];
+            $this->message = null;
+        } catch (PlatformApiException $exception) {
+            $this->message = $exception->getMessage();
+        }
+    }
+
     public function render(): View
     {
         return view('livewire.clinical-dashboard')->layout('components.layouts.clinical');
@@ -66,15 +92,27 @@ class ClinicalDashboard extends Component
         }
 
         try {
-            $this->organizations = $api->clinicalOrganizations($tokens);
+            $response = $api->clinicalOrganizations($tokens);
+            $this->organizations = $response['data'];
+            $this->pagination['organizations'] = $response['meta'];
             $organizationId = session('portal.organization_id');
 
-            if (! collect($this->organizations)->contains('id', $organizationId)) {
-                $organizationId = null;
-                session()->forget(['portal.organization_id', 'portal.organization_name']);
+            if (is_string($organizationId) && $organizationId !== '' && ! collect($this->organizations)->contains('id', $organizationId)) {
+                try {
+                    $selected = $api->clinicalOrganization($tokens, $organizationId);
+                    if (($selected['id'] ?? null) !== $organizationId) {
+                        throw new PlatformApiException(502, 'The selected organisation could not be loaded. Please choose it again.');
+                    }
+                } catch (PlatformApiException $exception) {
+                    if (! in_array($exception->status, [403, 404], true)) {
+                        throw $exception;
+                    }
+                    $organizationId = null;
+                    session()->forget(['portal.organization_id', 'portal.organization_name']);
+                }
             }
 
-            if (count($this->organizations) === 1) {
+            if ($response['meta']['total'] === 1) {
                 $organizationId = (string) $this->organizations[0]['id'];
                 session()->put('portal.organization_id', $organizationId);
             }

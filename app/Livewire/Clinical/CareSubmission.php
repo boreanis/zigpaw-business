@@ -6,6 +6,7 @@ use App\Exceptions\PlatformApiException;
 use App\Livewire\Concerns\UsesPortalWorkspace;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalSubmissionRetry;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -20,7 +21,10 @@ class CareSubmission extends Component
     public string $grantId;
 
     #[Locked]
-    public string $idempotencyKey;
+    public ?string $submissionContext = null;
+
+    #[Locked]
+    public bool $hasPendingSubmission = false;
 
     /** @var array<string, mixed> */
     public array $grant = [];
@@ -90,7 +94,6 @@ class CareSubmission extends Component
     public function mount(string $grantId, PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
     {
         $this->grantId = $grantId;
-        $this->idempotencyKey = (string) Str::uuid();
         $this->visitDate = now()->toDateString();
         $this->loadFormContext($api, $tokens);
     }
@@ -170,21 +173,37 @@ class CareSubmission extends Component
             return;
         }
 
+        $this->resetErrorBag();
         $validated = $this->validate($this->rules(), [], $this->validationAttributes());
         [, $organizationId] = $credentials;
+        $retry = app(ClinicalSubmissionRetry::class);
+        $idempotencyKey = null;
 
         try {
+            $context = $this->currentSubmissionContext($api, $tokens, $organizationId);
+            $payload = $this->payload($validated);
+            $idempotencyKey = $retry->key($context, $payload);
+            $this->hasPendingSubmission = true;
             $submission = $api->createClinicalCareSubmission(
                 $tokens,
                 $organizationId,
                 $this->grantId,
-                $this->payload($validated),
-                $this->idempotencyKey,
+                $payload,
+                $idempotencyKey,
             );
+            if (! is_string($submission['id'] ?? null) || ! Str::isUuid($submission['id'])) {
+                throw new PlatformApiException(502, 'The submission could not be confirmed. Retry the same records or check submission history.');
+            }
 
+            $retry->forget($context, $idempotencyKey);
+            $this->hasPendingSubmission = false;
             session()->flash('success', 'Care records were sent securely for the family to review.');
             $this->redirectRoute('clinical.submissions.show', ['submissionId' => $submission['id']], navigate: true);
         } catch (PlatformApiException $exception) {
+            if ($exception->status === 422 && $idempotencyKey !== null && $this->submissionContext !== null) {
+                $retry->forget($this->submissionContext, $idempotencyKey);
+            }
+            $this->hasPendingSubmission = $this->submissionContext !== null && $retry->hasPending($this->submissionContext);
             $this->clearPortalSessionIfUnauthorized($exception->status, $tokens);
 
             foreach ($exception->errors as $field => $messages) {
@@ -195,13 +214,42 @@ class CareSubmission extends Component
 
             if ($exception->errors === []) {
                 $this->addError('submission', match ($exception->status) {
-                    403 => 'The family’s sharing grant no longer allows this submission.',
+                    403 => 'Clinical access has changed. Reopen this patient to check your current access before submitting records.',
                     404 => 'The patient grant is no longer available.',
-                    409 => 'These records were already submitted. Open submission history to check their status.',
+                    409 => 'This submission has not been confirmed. Retry the same records, or check submission history before starting another submission.',
                     default => $exception->getMessage(),
                 });
             }
         }
+    }
+
+    public function startNewSubmission(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
+    {
+        $credentials = $this->portalCredentials($tokens);
+        if ($credentials === null) {
+            return;
+        }
+
+        try {
+            $context = $this->currentSubmissionContext($api, $tokens, $credentials[1]);
+            app(ClinicalSubmissionRetry::class)->forget($context);
+            $this->hasPendingSubmission = false;
+            $this->resetErrorBag();
+        } catch (PlatformApiException $exception) {
+            $this->clearPortalSessionIfUnauthorized($exception->status, $tokens);
+            $this->addError('submission', $exception->getMessage());
+        }
+    }
+
+    private function currentSubmissionContext(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens, string $organizationId): string
+    {
+        $identity = $api->clinicalIdentity($tokens, $organizationId);
+        $context = app(ClinicalSubmissionRetry::class)->context($organizationId, $this->grantId, $identity);
+        if ($this->submissionContext === null || ! hash_equals($this->submissionContext, $context)) {
+            throw new PlatformApiException(403, 'Your clinical workspace has changed. Reopen this patient before submitting records.');
+        }
+
+        return $context;
     }
 
     public function render(): View
@@ -358,6 +406,9 @@ class CareSubmission extends Component
         try {
             $this->grant = $api->clinicalProviderGrant($tokens, $organizationId, $this->grantId);
             $identity = $api->clinicalIdentity($tokens, $organizationId);
+            $retry = app(ClinicalSubmissionRetry::class);
+            $this->submissionContext = $retry->context($organizationId, $this->grantId, $identity);
+            $this->hasPendingSubmission = $retry->hasPending($this->submissionContext);
             $dashboard = $api->clinicalDashboard($tokens, $organizationId);
             $this->organizationName = (string) data_get($identity, 'organization.name', $this->organizationName);
             session()->put('portal.organization_name', $this->organizationName);

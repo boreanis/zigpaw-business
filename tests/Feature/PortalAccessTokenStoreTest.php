@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Cache\ArrayStore;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -69,6 +70,66 @@ class PortalAccessTokenStoreTest extends TestCase
         $this->assertNull($store->accessToken());
         $this->assertFalse(Cache::has($cacheKey));
         $this->assertNull(session('platform.oauth.token_handle'));
+    }
+
+    public function test_a_failed_rotation_store_recovers_the_exact_persisted_operation_on_retry(): void
+    {
+        $backing = new class extends ArrayStore
+        {
+            public bool $failNextPut = false;
+
+            public function put($key, $value, $seconds): bool
+            {
+                if ($this->failNextPut) {
+                    $this->failNextPut = false;
+
+                    return false;
+                }
+
+                return parent::put($key, $value, $seconds);
+            }
+        };
+        Cache::extend('fault-injected', fn () => Cache::repository($backing));
+        config()->set('cache.stores.fault-injected', ['driver' => 'fault-injected']);
+        Cache::setDefaultDriver('fault-injected');
+        $store = app(PortalAccessTokenStore::class);
+        $store->put(['access_token' => 'expired', 'refresh_token' => 'old-refresh', 'expires_in' => 1]);
+        $operations = [];
+        Http::fake(function (Request $request) use (&$operations, $backing) {
+            $operations[] = $request->data();
+            if (count($operations) === 1) {
+                $backing->failNextPut = true;
+            }
+
+            return Http::response(['access_token' => 'fresh', 'refresh_token' => 'new-refresh', 'expires_in' => 900, 'token_type' => 'Bearer']);
+        });
+
+        try {
+            $store->accessToken();
+            self::fail('A failed token write must not report refresh success.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('The secure session service is unavailable.', $exception->getMessage());
+        }
+        self::assertSame('fresh', $store->accessToken());
+        self::assertCount(2, $operations);
+        self::assertSame($operations[0]['refresh_operation'], $operations[1]['refresh_operation']);
+        self::assertSame($operations[0]['session_binding'], $operations[1]['session_binding']);
+        self::assertSame('old-refresh', $operations[1]['refresh_token']);
+    }
+
+    public function test_logout_during_rotation_cannot_restore_a_deleted_token_handle(): void
+    {
+        $store = app(PortalAccessTokenStore::class);
+        $store->put(['access_token' => 'expired', 'refresh_token' => 'old-refresh', 'expires_in' => 1]);
+        Http::fake(function () use ($store) {
+            $store->forget();
+
+            return Http::response(['access_token' => 'fresh', 'refresh_token' => 'new-refresh', 'expires_in' => 900, 'token_type' => 'Bearer']);
+        });
+
+        self::assertNull($store->accessToken());
+        self::assertNull($store->accessToken());
+        self::assertNull(session('platform.oauth.token_handle'));
     }
 
     public function test_it_revokes_the_canonical_oauth_session_before_forgetting_local_tokens(): void

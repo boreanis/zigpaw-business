@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\OAuth;
 
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalSubmissionRetry;
 use App\Support\PlatformConfiguration;
 use App\Support\RequestCorrelation;
 use Illuminate\Http\Client\ConnectionException;
@@ -125,15 +126,21 @@ class ClinicalPortalOAuthController
 
         try {
             $logoutUrl = $tokens->revoke();
-        } catch (\RuntimeException $exception) {
+        } catch (\Throwable $exception) {
             Log::warning('Clinical portal token revocation failed during local sign-out.', ['exception' => $exception::class]);
         } finally {
-            $tokens->forget();
-            $request->session()->forget([
-                'portal.organization_id',
-                'portal.organization_name',
-            ]);
-            $request->session()->regenerateToken();
+            try {
+                $tokens->forget();
+            } catch (\Throwable $exception) {
+                Log::warning('Clinical portal token cleanup failed during local sign-out.', ['exception' => $exception::class]);
+            } finally {
+                $request->session()->forget([
+                    'portal.organization_id',
+                    'portal.organization_name',
+                    ClinicalSubmissionRetry::SESSION_KEY,
+                ]);
+                $request->session()->regenerateToken();
+            }
         }
 
         if ($logoutUrl === null) {

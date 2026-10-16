@@ -12,8 +12,8 @@ final class BusinessApiOperations
 {
     /** @var array<string, string> */
     public const CONTRACT_SHA256 = [
-        'business-v1' => '6855d2aa202cdd43492a3c978c909253d6392578a2339c272773fb2ef7178aed',
-        'clinical-v1' => 'a2885e59a11c860feb2c12b4b52b841c43b64a80684d743bb33e38559f0193d6',
+        'business-v1' => 'ba45c843f73503651cfc5bb22e215be27d710adceedffce1571f155e748dd8e6',
+        'clinical-v1' => 'dbed291193cb593b021d1d40dd63a7e6c2a42cb2b7dc29e221e0960e83aaaa38',
     ];
 
     /** @var list<array{contract: string, operation_id: string, method: string, path: string}> */
@@ -77,6 +77,12 @@ final class BusinessApiOperations
             'operation_id' => 'v1.business.clinical.organizations.index',
             'method' => 'GET',
             'path' => '/v1/business/clinical/organizations',
+        ],
+        [
+            'contract' => 'clinical-v1',
+            'operation_id' => 'v1.business.clinical.organizations.show',
+            'method' => 'GET',
+            'path' => '/v1/business/clinical/organizations/{organization}',
         ],
         [
             'contract' => 'clinical-v1',
@@ -194,6 +200,12 @@ final class BusinessApiOperations
         ],
         [
             'contract' => 'business-v1',
+            'operation_id' => 'v1.business.organizations.show',
+            'method' => 'GET',
+            'path' => '/v1/business/organizations/{organization}',
+        ],
+        [
+            'contract' => 'business-v1',
             'operation_id' => 'v1.business.programs.index',
             'method' => 'GET',
             'path' => '/v1/business/programs',
@@ -230,9 +242,21 @@ final class BusinessApiOperations
         ],
         [
             'contract' => 'business-v1',
+            'operation_id' => 'v1.business.providers.show',
+            'method' => 'GET',
+            'path' => '/v1/business/providers/{providerLink}',
+        ],
+        [
+            'contract' => 'business-v1',
             'operation_id' => 'v1.business.providers.update',
             'method' => 'PATCH',
             'path' => '/v1/business/providers/{providerLink}',
+        ],
+        [
+            'contract' => 'business-v1',
+            'operation_id' => 'v1.business.providers.booking-profile.show',
+            'method' => 'GET',
+            'path' => '/v1/business/providers/{providerLink}/booking-profile',
         ],
         [
             'contract' => 'business-v1',

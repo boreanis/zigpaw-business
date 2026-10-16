@@ -4,16 +4,56 @@ namespace Tests\Feature;
 
 use App\Livewire\Clinical\CareSubmission;
 use App\Livewire\Clinical\PatientIndex;
+use App\Livewire\ClinicalDashboard;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
 use App\Support\PortalAccessTokenStore;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ClinicalWorkspaceTest extends TestCase
 {
+    public function test_clinical_organization_selector_reaches_later_pages_and_recovers_the_selected_record(): void
+    {
+        $this->signIn();
+        session()->forget(['portal.organization_id', 'portal.organization_name']);
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($path === '/v1/business/clinical/organizations') {
+                $id = (int) ($request['page'] ?? 1) === 2 ? 'organization-27' : 'organization-1';
+
+                return Http::response([
+                    'data' => [['id' => $id, 'name' => 'Synthetic clinic '.$id, 'role' => 'owner']],
+                    'meta' => ['current_page' => (int) ($request['page'] ?? 1), 'last_page' => 2, 'per_page' => 25, 'total' => 27],
+                    'links' => $this->pageLinks(),
+                ]);
+            }
+            if ($path === '/v1/business/clinical/organizations/organization-27') {
+                return Http::response(['data' => ['id' => 'organization-27', 'name' => 'Synthetic selected clinic', 'role' => 'owner']]);
+            }
+            if ($path === '/v1/business/clinical/me') {
+                return Http::response(['data' => ['organization' => ['id' => 'organization-27', 'name' => 'Synthetic selected clinic']]]);
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        Livewire::test(ClinicalDashboard::class)
+            ->assertSet('state', 'choose_organization')
+            ->call('changePage', 'organizations', 2)
+            ->assertSee('Synthetic clinic organization-27')
+            ->call('selectOrganization', 'organization-27')
+            ->assertSet('state', 'ready')
+            ->assertSet('identity.organization.id', 'organization-27')
+            ->assertSee('Synthetic selected clinic');
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/organizations/organization-27')
+            && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
+        $this->assertNull(app(PortalAccessTokenStore::class)->accessToken());
+    }
+
     private const GRANT_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b1';
 
     private const MEDIA_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b2';
@@ -73,7 +113,7 @@ class ClinicalWorkspaceTest extends TestCase
             app(ClinicalPortalAccessTokenStore::class),
         );
 
-        $this->assertSame('organization-1', $organizations[0]['id']);
+        $this->assertSame('organization-1', $organizations['data'][0]['id']);
         $this->assertNull(app(PortalAccessTokenStore::class)->accessToken());
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.zigpaw.test/v1/business/clinical/organizations'
             && $request->hasHeader('Authorization', 'Bearer clinical-access-token')
@@ -104,10 +144,69 @@ class ClinicalWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('Patchy')
             ->assertSee('Dog · Cattle Dog')
-            ->assertSee('Riverbank Clinic');
+            ->assertSee('Riverbank Clinic')
+            ->assertSee('Access expires 2026-09-01')
+            ->assertDontSee('Ends 2026-09-01');
 
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1')
             && $request['status'] === 'active');
+    }
+
+    /** @param array<string, bool> $capabilities */
+    #[DataProvider('profilePreviewCapabilities')]
+    public function test_missing_patient_taxonomy_does_not_imply_profile_permission_denial(array $capabilities, bool $profileAllowed): void
+    {
+        $this->signIn();
+        $grant = [
+            'id' => self::GRANT_ID,
+            'purpose' => 'vet_visit',
+            'status' => 'active',
+            'capabilities' => $capabilities,
+            'pet' => ['id' => 'pet-1', 'name' => 'Patchy', 'species' => null, 'breed' => null],
+            'expires_at' => null,
+        ];
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response(['data' => $grant]),
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants*' => Http::response([
+                'data' => [$grant],
+                'links' => $this->pageLinks(),
+                'meta' => $this->pageMeta(),
+            ]),
+        ]);
+
+        $this->get('/clinical/patients')
+            ->assertOk()
+            ->assertSee('Patchy')
+            ->assertSee('No species or breed details available.')
+            ->assertSee('Access has no set expiry')
+            ->assertDontSee('No set end date')
+            ->assertDontSee('Profile details are not included in this grant.');
+
+        $response = $this->get('/clinical/patients/'.self::GRANT_ID)
+            ->assertOk()
+            ->assertSee('No species or breed details available.')
+            ->assertDontSee('Profile details are not included in this grant.')
+            ->assertSee('Care history is not included')
+            ->assertSee('Media access is not included in this grant')
+            ->assertDontSee('Submit care records');
+
+        if ($profileAllowed) {
+            $response->assertSee('<i>Profile</i>', false);
+        } else {
+            $response->assertDontSee('<i>Profile</i>', false);
+        }
+
+        Http::assertSentCount(2);
+    }
+
+    /** @return array<string, array{array<string, bool>, bool}> */
+    public static function profilePreviewCapabilities(): array
+    {
+        return [
+            'profile allowed with missing taxonomy' => [['read_profile' => true], true],
+            'profile explicitly denied' => [['read_profile' => false], false],
+            'profile capability absent' => [[], false],
+        ];
     }
 
     public function test_patient_filters_normalize_hostile_url_values_before_the_platform_request(): void
@@ -262,6 +361,7 @@ class ClinicalWorkspaceTest extends TestCase
                 'id' => 'clinician-1',
                 'name' => 'Dr Rivera',
                 'email' => 'rivera@example.test',
+                'membership' => ['id' => 'membership-1'],
                 'organization' => ['id' => 'organization-1', 'name' => 'Riverbank Clinic'],
             ]]),
             'https://api.zigpaw.test/v1/business/clinical/dashboard' => Http::response(['data' => [

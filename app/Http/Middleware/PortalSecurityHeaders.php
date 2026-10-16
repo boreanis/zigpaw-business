@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\PlatformConfiguration;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Vite;
@@ -22,12 +23,18 @@ class PortalSecurityHeaders
             $connectSources .= ' ws://localhost:5173 wss://localhost:5173 ws://127.0.0.1:5173 wss://127.0.0.1:5173';
         }
 
+        // Browsers apply form-action to the signed identity redirect after a
+        // same-origin logout POST. Only the fixed, validated issuer may receive it.
+        $identityFormSource = PlatformConfiguration::isSafe()
+            ? ' https://'.strtolower((string) parse_url((string) config('platform.auth_url'), PHP_URL_HOST))
+            : '';
+
         $directives = [
             "default-src 'self'",
             "base-uri 'self'",
             "object-src 'none'",
             "frame-ancestors 'none'",
-            "form-action 'self'",
+            "form-action 'self'{$identityFormSource}",
             "img-src 'self' data:",
             "font-src 'self' data:",
             "style-src 'self' 'unsafe-inline'{$developmentSources}",

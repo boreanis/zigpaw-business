@@ -5,6 +5,7 @@
     'organizationId' => null,
     'identity' => [],
     'message' => null,
+    'pagination' => [],
 ])
 
 <div class="business-shell">
@@ -46,14 +47,9 @@
                 <p class="eyebrow">{{ str($section)->headline() }}</p>
                 <h1>{{ data_get($identity, 'organization.name', 'Your business') }}</h1>
             </div>
-            <label class="organization-switcher">
-                <span>Working in</span>
-                <select wire:change="selectOrganization($event.target.value)" aria-label="Working organization">
-                    @foreach ($organizations as $organization)
-                        <option value="{{ $organization['id'] }}" @selected($organization['id'] === $organizationId)>{{ $organization['name'] }}</option>
-                    @endforeach
-                </select>
-            </label>
+            <div class="organization-switcher">
+                <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" :selected-id="$organizationId" :selected-label="data_get($identity, 'organization.name')" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" />
+            </div>
         </header>
         <button type="button" class="sidebar-backdrop" data-sidebar-close aria-label="Close navigation" hidden></button>
         <div class="mobile-sections" role="navigation" aria-label="Business sections">
@@ -70,6 +66,7 @@
                 </x-slot:actions>
             </x-business.error-state>
         @endif
+        <x-business.validation-summary />
         <div class="workspace-loading" wire:loading.delay wire:target="showSection,selectOrganization,changePage,searchClaimableProviders,saveBusinessProfile,saveProvider,saveOffering,saveBookingConfiguration,acceptBooking,declineBooking,completeBooking,submitProviderClaim,inviteTeamMember,saveTeamMemberRole,revokeTeamMember">
             <x-business.loading-state label="Updating workspace" />
         </div>

@@ -3,16 +3,20 @@
 namespace App\Livewire;
 
 use App\Exceptions\PlatformApiException;
+use App\Livewire\Concerns\HandlesWorkspaceValidation;
 use App\Services\PlatformApiClient;
 use App\Support\PortalAccessTokenStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class BusinessWorkspace extends Component
 {
+    use HandlesWorkspaceValidation;
+
     #[Url]
     public string $section = 'overview';
 
@@ -22,12 +26,37 @@ class BusinessWorkspace extends Component
 
     public ?string $notice = null;
 
+    #[Locked]
     public ?string $organizationId = null;
 
     /** @var list<array<string, mixed>> */
+    #[Locked]
     public array $organizations = [];
 
+    public string $organizationSearch = '';
+
+    public string $providerSearch = '';
+
+    /** @var list<array<string, mixed>> */
+    #[Locked]
+    public array $providerOptions = [];
+
+    /** @var array<string, mixed>|null */
+    #[Locked]
+    public ?array $selectedOfferingProvider = null;
+
+    /** @var array<string, mixed>|null */
+    #[Locked]
+    public ?array $selectedBookingProvider = null;
+
+    #[Locked]
+    public ?string $loadedBookingProviderLinkId = null;
+
+    #[Locked]
+    public string $bookingConfigurationState = 'unavailable';
+
     /** @var array<string, mixed> */
+    #[Locked]
     public array $identity = [];
 
     public string $displayTimezone = 'UTC';
@@ -78,9 +107,6 @@ class BusinessWorkspace extends Component
 
     /** @var array<string, array<string, mixed>> */
     public array $bookingPetContexts = [];
-
-    /** @var list<array<string, mixed>> */
-    public array $bookingProfiles = [];
 
     /** @var array<string, mixed> */
     public array $financials = [];
@@ -227,7 +253,6 @@ class BusinessWorkspace extends Component
         'claimableProviders' => 'listings',
         'offerings' => 'services',
         'bookings' => 'bookings',
-        'bookingProfiles' => 'booking-setup',
         'programs' => 'programs',
         'commissions' => 'revenue',
         'agreements' => 'revenue',
@@ -254,15 +279,25 @@ class BusinessWorkspace extends Component
         }
 
         try {
-            $this->organizations = $api->organizations($accessToken);
+            $this->assignPage('organizations', $api->organizations($accessToken));
             $organizationId = session('portal.organization_id');
 
-            if (! collect($this->organizations)->contains('id', $organizationId)) {
-                session()->forget('portal.organization_id');
-                $organizationId = null;
+            if (is_string($organizationId) && $organizationId !== '' && ! collect($this->organizations)->contains('id', $organizationId)) {
+                try {
+                    $selected = $api->organization($accessToken, $organizationId);
+                    if (($selected['id'] ?? null) !== $organizationId) {
+                        throw new PlatformApiException(502, 'The selected organisation could not be loaded. Please choose it again.');
+                    }
+                } catch (PlatformApiException $exception) {
+                    if (! in_array($exception->status, [403, 404], true)) {
+                        throw $exception;
+                    }
+                    session()->forget('portal.organization_id');
+                    $organizationId = null;
+                }
             }
 
-            if (count($this->organizations) === 1) {
+            if (($this->pagination['organizations']['total'] ?? 0) === 1) {
                 $organizationId = (string) $this->organizations[0]['id'];
                 session()->put('portal.organization_id', $organizationId);
             }
@@ -287,9 +322,42 @@ class BusinessWorkspace extends Component
 
     public function selectOrganization(string $organizationId): void
     {
-        abort_unless(collect($this->organizations)->contains('id', $organizationId), 403);
+        abort_unless($organizationId === $this->organizationId || collect($this->organizations)->contains('id', $organizationId), 403);
         session()->put('portal.organization_id', $organizationId);
         $this->redirectRoute('dashboard', ['section' => 'overview'], navigate: true);
+    }
+
+    public function searchOrganizations(): void
+    {
+        $this->validate(['organizationSearch' => ['nullable', 'string', 'max:80']]);
+        $this->pagination['organizations']['current_page'] = 1;
+        $this->withApi(function (PlatformApiClient $api, string $accessToken): void {
+            $this->assignPage('organizations', $api->organizations($accessToken, 1, $this->organizationSearch));
+        });
+    }
+
+    public function searchProviders(): void
+    {
+        abort_unless(in_array($this->section, ['services', 'booking-setup'], true), 404);
+        $this->authorizeCapability('providers.manage');
+        $this->validate(['providerSearch' => ['nullable', 'string', 'max:80']]);
+        $this->pagination['providerOptions']['current_page'] = 1;
+        $this->withApi(fn (PlatformApiClient $api, string $accessToken) => $this->loadProviderOptions($api, $accessToken));
+    }
+
+    public function selectOfferingProvider(string $providerLinkId): void
+    {
+        $this->authorizeCapability('providers.manage');
+        if ($providerLinkId === '') {
+            $this->offeringProviderLinkId = '';
+            $this->selectedOfferingProvider = null;
+
+            return;
+        }
+        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($providerLinkId): void {
+            $this->selectedOfferingProvider = $this->selectedProvider($api, $accessToken, $providerLinkId);
+            $this->offeringProviderLinkId = $providerLinkId;
+        });
     }
 
     public function showSection(string $section): void
@@ -324,6 +392,21 @@ class BusinessWorkspace extends Component
 
     public function changePage(string $resource, int $page): void
     {
+        if ($resource === 'organizations') {
+            $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($page): void {
+                $this->assignPage('organizations', $api->organizations($accessToken, max(1, $page), $this->organizationSearch));
+            });
+
+            return;
+        }
+        if ($resource === 'providerOptions') {
+            abort_unless(in_array($this->section, ['services', 'booking-setup'], true), 404);
+            $this->authorizeCapability('providers.manage');
+            $this->pagination['providerOptions']['current_page'] = max(1, $page);
+            $this->withApi(fn (PlatformApiClient $api, string $accessToken) => $this->loadProviderOptions($api, $accessToken));
+
+            return;
+        }
         abort_unless((self::PAGINATION_SECTIONS[$resource] ?? null) === $this->section, 404);
         $meta = $this->pagination[$resource] ?? null;
         abort_unless(is_array($meta), 404);
@@ -678,7 +761,19 @@ class BusinessWorkspace extends Component
     public function selectBookingProvider(string $providerLinkId): void
     {
         $this->authorizeBookingConfiguration();
-        $this->hydrateBookingConfiguration($providerLinkId);
+        $this->loadedBookingProviderLinkId = null;
+        $this->bookingConfigurationState = 'unavailable';
+        $this->bookingProviderLinkId = $providerLinkId;
+        $this->selectedBookingProvider = null;
+        if ($providerLinkId === '') {
+            return;
+        }
+        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($providerLinkId): void {
+            $link = $this->selectedProvider($api, $accessToken, $providerLinkId);
+            $this->selectedBookingProvider = $link;
+            $profile = $api->bookingProfile($accessToken, $this->requiredOrganizationId(), $providerLinkId);
+            $this->hydrateBookingConfiguration($link, $profile);
+        });
     }
 
     public function addBookingAvailabilityRule(): void
@@ -731,6 +826,11 @@ class BusinessWorkspace extends Component
     public function saveBookingConfiguration(): void
     {
         $this->authorizeBookingConfiguration();
+        if ($this->selectedBookingProvider === null || $this->loadedBookingProviderLinkId === null || $this->loadedBookingProviderLinkId !== $this->bookingProviderLinkId) {
+            $this->addError('bookingProviderLinkId', 'Choose a location and load its current booking settings before saving.');
+
+            return;
+        }
         $this->validate([
             'bookingProviderLinkId' => ['required', 'string'],
             'bookingStatus' => ['required', 'in:disabled,enabled,paused'],
@@ -756,29 +856,26 @@ class BusinessWorkspace extends Component
             'bookingAvailabilityExceptions.*.reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $payload = array_filter([
+        $payload = [
             'provider_link_id' => $this->bookingProviderLinkId,
             'status' => $this->bookingStatus,
             'timezone' => $this->bookingTimezone,
             'notification_email' => $this->nullableField(mb_strtolower(trim($this->bookingNotificationEmail))),
             'notification_phone' => $this->nullableField($this->bookingNotificationPhone),
-            'minimum_notice_hours' => $this->bookingMinimumNoticeHours,
-            'maximum_advance_days' => $this->bookingMaximumAdvanceDays,
-            'response_window_hours' => $this->bookingResponseWindowHours,
+            ...array_filter([
+                'minimum_notice_hours' => $this->bookingMinimumNoticeHours,
+                'maximum_advance_days' => $this->bookingMaximumAdvanceDays,
+                'response_window_hours' => $this->bookingResponseWindowHours,
+            ], static fn (mixed $value): bool => $value !== null),
             'customer_instructions' => $this->nullableField($this->bookingCustomerInstructions),
             'availability_rules' => $this->normalizedBookingAvailabilityRules(),
             'availability_exceptions' => $this->normalizedBookingAvailabilityExceptions(),
-        ], static fn (mixed $value): bool => $value !== null);
+        ];
 
         $this->withMutationApi('booking_profiles.update', "booking-profiles/{$this->bookingProviderLinkId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
-            $api->updateBookingProfile($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $profile = $api->updateBookingProfile($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
             $markMutationSucceeded();
-            $this->assignPage('bookingProfiles', $api->bookingProfiles(
-                $accessToken,
-                $this->requiredOrganizationId(),
-                $this->currentPage('bookingProfiles'),
-            ));
-            $this->hydrateBookingConfiguration($this->bookingProviderLinkId);
+            $this->hydrateBookingConfiguration($this->selectedBookingProvider, $profile);
             $this->notice = $this->bookingStatus === 'enabled'
                 ? 'Booking requests are enabled for this location.'
                 : 'Booking settings saved.';
@@ -825,7 +922,6 @@ class BusinessWorkspace extends Component
             'action' => 'decline',
             'reason' => Str::squish($this->declineReasons[$bookingId]),
         ]);
-        unset($this->declineReasons[$bookingId]);
     }
 
     public function applyForReferralProgram(): void
@@ -984,6 +1080,9 @@ class BusinessWorkspace extends Component
                 $this->requiredOrganizationId(),
                 $this->currentPage('bookings'),
             ));
+            if ($payload['action'] === 'decline') {
+                unset($this->declineReasons[$bookingId]);
+            }
             $this->notice = match ($payload['action']) {
                 'accept' => 'Booking accepted. The customer can now see the confirmed time.',
                 'decline' => 'Booking declined. The customer has been told why.',
@@ -1056,24 +1155,44 @@ class BusinessWorkspace extends Component
 
     private function loadServices(PlatformApiClient $api, string $accessToken, string $organizationId): void
     {
-        $this->assignPage('providers', $api->providers($accessToken, $organizationId, 1, 100));
+        $this->loadProviderOptions($api, $accessToken);
         $this->assignPage('offerings', $api->offerings($accessToken, $organizationId, $this->currentPage('offerings')));
-        $this->offeringProviderLinkId = (string) ($this->offeringProviderLinkId ?: data_get($this->providers, '0.id', ''));
+        $providerLinkId = $this->offeringProviderLinkId ?: (string) data_get($this->providerOptions, '0.id', '');
+        if ($providerLinkId !== '') {
+            $this->selectedOfferingProvider = $this->selectedProvider($api, $accessToken, $providerLinkId);
+            $this->offeringProviderLinkId = $providerLinkId;
+        }
     }
 
     private function loadBookingSetup(PlatformApiClient $api, string $accessToken, string $organizationId): void
     {
-        $this->assignPage('providers', $api->providers($accessToken, $organizationId, 1, 100));
-        $this->assignPage('bookingProfiles', $api->bookingProfiles(
-            $accessToken,
-            $organizationId,
-            $this->currentPage('bookingProfiles'),
-        ));
-
-        $providerLinkId = $this->bookingProviderLinkId ?: (string) data_get($this->providers, '0.id', '');
+        $this->loadedBookingProviderLinkId = null;
+        $this->bookingConfigurationState = 'unavailable';
+        $this->loadProviderOptions($api, $accessToken);
+        $providerLinkId = $this->bookingProviderLinkId ?: (string) data_get($this->providerOptions, '0.id', '');
         if ($providerLinkId !== '') {
-            $this->hydrateBookingConfiguration($providerLinkId);
+            $this->hydrateBookingConfiguration(
+                $this->selectedProvider($api, $accessToken, $providerLinkId),
+                $api->bookingProfile($accessToken, $organizationId, $providerLinkId),
+            );
         }
+    }
+
+    private function loadProviderOptions(PlatformApiClient $api, string $accessToken): void
+    {
+        $this->assignPage('providerOptions', $api->providers($accessToken, $this->requiredOrganizationId(), $this->currentPage('providerOptions'), 25, $this->providerSearch, true));
+    }
+
+    /** @return array<string, mixed> */
+    private function selectedProvider(PlatformApiClient $api, string $accessToken, string $providerLinkId): array
+    {
+        $link = collect($this->providerOptions)->firstWhere('id', $providerLinkId)
+            ?? $api->provider($accessToken, $this->requiredOrganizationId(), $providerLinkId);
+        if (($link['id'] ?? null) !== $providerLinkId) {
+            throw new PlatformApiException(502, 'The selected location could not be loaded. Please choose it again.');
+        }
+
+        return $link;
     }
 
     private function loadRevenue(PlatformApiClient $api, string $accessToken, string $organizationId): void
@@ -1126,19 +1245,19 @@ class BusinessWorkspace extends Component
         $this->businessWebsite = (string) data_get($this->identity, 'business_profile.website', '');
     }
 
-    private function hydrateBookingConfiguration(string $providerLinkId): void
+    private function hydrateBookingConfiguration(array $link, ?array $profile): void
     {
-        $link = collect($this->providers)->firstWhere('id', $providerLinkId);
-        abort_unless(is_array($link), 404);
-
         $serviceProviderId = (string) data_get($link, 'provider.id', '');
         $placeId = data_get($link, 'place.id');
-        $profile = collect($this->bookingProfiles)->first(function (array $profile) use ($serviceProviderId, $placeId): bool {
-            return (string) ($profile['service_provider_id'] ?? '') === $serviceProviderId
-                && (string) ($profile['place_id'] ?? '') === (string) ($placeId ?? '');
-        });
+        if ($profile !== null && ((string) ($profile['service_provider_id'] ?? '') !== $serviceProviderId
+            || (string) ($profile['place_id'] ?? '') !== (string) ($placeId ?? ''))) {
+            throw new PlatformApiException(502, 'The selected location’s booking settings could not be verified. Please try again.');
+        }
 
-        $this->bookingProviderLinkId = $providerLinkId;
+        $this->selectedBookingProvider = $link;
+        $this->bookingProviderLinkId = (string) $link['id'];
+        $this->loadedBookingProviderLinkId = $this->bookingProviderLinkId;
+        $this->bookingConfigurationState = $profile === null ? 'unconfigured' : 'configured';
         $this->bookingStatus = is_array($profile) ? (string) ($profile['status'] ?? '') : '';
         $this->bookingTimezone = is_array($profile)
             ? (string) ($profile['timezone'] ?? '')
@@ -1360,9 +1479,13 @@ class BusinessWorkspace extends Component
             };
 
             try {
+                $this->resetErrorBag();
                 $callback($api, $accessToken, $idempotencyKey, $markMutationSucceeded);
                 $this->forgetPendingMutation($fingerprint);
             } catch (PlatformApiException $exception) {
+                if ($exception->status === 422) {
+                    $this->mapWorkspaceValidationErrors($exception->errors, $this->mutationValidationFields($operation, $resource));
+                }
                 if (! $mutationSucceeded && ! $this->isUncertainMutationFailure($exception)) {
                     $this->forgetPendingMutation($fingerprint);
                 }
@@ -1500,15 +1623,88 @@ class BusinessWorkspace extends Component
         return $exception->status >= 500 || $exception->status === 409;
     }
 
+    /** @return array<string, string> */
+    private function mutationValidationFields(string $operation, string $resource): array
+    {
+        return match ($operation) {
+            'business_profile.update' => [
+                'name' => 'businessName', 'legal_name' => 'businessLegalName',
+                'registration_number' => 'businessRegistrationNumber', 'registration_number_type' => 'businessRegistrationNumberType',
+                'tax_identifier' => 'businessTaxIdentifier', 'tax_identifier_type' => 'businessTaxIdentifierType',
+                'registered_country_code' => 'businessRegisteredCountryCode', 'primary_contact_name' => 'businessPrimaryContactName',
+                'primary_contact_email' => 'businessPrimaryContactEmail', 'primary_contact_phone' => 'businessPrimaryContactPhone',
+                'website' => 'businessWebsite',
+            ],
+            'providers.update' => [
+                'provider.name' => 'providerName', 'provider.description' => 'providerDescription',
+                'provider.phone' => 'providerPhone', 'provider.email' => 'providerEmail', 'provider.website' => 'providerWebsite',
+                'place.name' => 'placeName', 'place.phone' => 'placePhone', 'place.email' => 'placeEmail', 'place.website' => 'placeWebsite',
+                'place.address_line_1' => 'placeAddressLine1', 'place.address_line_2' => 'placeAddressLine2',
+                'place.city' => 'placeCity', 'place.state' => 'placeState', 'place.postal_code' => 'placePostalCode', 'place.timezone' => 'placeTimezone',
+            ],
+            'provider_claims.create' => [
+                'service_provider_id' => 'claimServiceProviderId', 'place_id' => 'claimPlaceId',
+                'requested_authority_type' => 'claimAuthorityType', 'verification_method' => 'claimVerificationMethod',
+                'claimant_email' => 'claimantEmail', 'claimant_phone' => 'claimantPhone',
+            ],
+            'offerings.create' => ['provider_link_id' => 'offeringProviderLinkId', 'name' => 'offeringName', 'default_duration_minutes' => 'offeringDurationMinutes'],
+            'offerings.update' => [
+                'name' => 'editingOfferingName', 'description' => 'editingOfferingDescription',
+                'default_duration_minutes' => 'editingOfferingDurationMinutes', 'status' => 'editingOfferingStatus', 'request_mode' => 'editingOfferingRequestMode',
+            ],
+            'booking_profiles.update' => [
+                'provider_link_id' => 'bookingProviderLinkId', 'status' => 'bookingStatus', 'timezone' => 'bookingTimezone',
+                'notification_email' => 'bookingNotificationEmail', 'notification_phone' => 'bookingNotificationPhone',
+                'minimum_notice_hours' => 'bookingMinimumNoticeHours', 'maximum_advance_days' => 'bookingMaximumAdvanceDays',
+                'response_window_hours' => 'bookingResponseWindowHours', 'customer_instructions' => 'bookingCustomerInstructions',
+                'availability_rules' => 'bookingAvailabilityRules', 'availability_exceptions' => 'bookingAvailabilityExceptions',
+            ],
+            'team.invitations.create' => ['email' => 'teamEmail', 'role' => 'teamRole'],
+            'team.memberships.update' => ['role' => 'editingTeamRole'],
+            'bookings.respond' => ['reason' => 'declineReasons.'.(explode('/', $resource)[1] ?? '')],
+            default => [],
+        };
+    }
+
+    /** @return array<string, string> */
+    protected function validationAttributes(): array
+    {
+        return [
+            'organizationSearch' => 'organisation search', 'providerSearch' => 'location search',
+            'businessName' => 'business name', 'businessLegalName' => 'legal name',
+            'businessRegistrationNumber' => 'registration number', 'businessRegistrationNumberType' => 'registration number type',
+            'businessTaxIdentifier' => 'tax identifier', 'businessTaxIdentifierType' => 'tax identifier type',
+            'businessRegisteredCountryCode' => 'registered country', 'businessPrimaryContactName' => 'contact name',
+            'businessPrimaryContactEmail' => 'contact email', 'businessPrimaryContactPhone' => 'contact phone', 'businessWebsite' => 'website',
+            'providerName' => 'provider name', 'providerDescription' => 'description', 'providerPhone' => 'provider phone',
+            'providerEmail' => 'provider email', 'providerWebsite' => 'provider website',
+            'placeName' => 'location name', 'placePhone' => 'location phone', 'placeEmail' => 'location email', 'placeWebsite' => 'location website',
+            'placeAddressLine1' => 'street address', 'placeAddressLine2' => 'address line 2', 'placeCity' => 'city', 'placeState' => 'state or region',
+            'placePostalCode' => 'postcode', 'placeTimezone' => 'timezone',
+            'claimSearch' => 'directory search', 'claimAuthorityType' => 'authority', 'claimVerificationMethod' => 'verification method',
+            'claimantEmail' => 'verification email', 'claimantPhone' => 'verification phone',
+            'offeringName' => 'service name', 'offeringDurationMinutes' => 'service duration', 'offeringProviderLinkId' => 'managed location',
+            'editingOfferingName' => 'service name', 'editingOfferingDescription' => 'description',
+            'editingOfferingDurationMinutes' => 'service duration', 'editingOfferingStatus' => 'service status', 'editingOfferingRequestMode' => 'request mode',
+            'bookingProviderLinkId' => 'managed location', 'bookingStatus' => 'booking status', 'bookingTimezone' => 'timezone',
+            'bookingNotificationEmail' => 'notification email', 'bookingNotificationPhone' => 'notification phone',
+            'bookingMinimumNoticeHours' => 'minimum notice', 'bookingMaximumAdvanceDays' => 'advance booking window',
+            'bookingResponseWindowHours' => 'response window', 'bookingCustomerInstructions' => 'customer instructions',
+            'bookingAvailabilityRules' => 'weekly availability', 'bookingAvailabilityRules.*.day_of_week' => 'day',
+            'bookingAvailabilityRules.*.starts_at' => 'opening time', 'bookingAvailabilityRules.*.ends_at' => 'closing time',
+            'bookingAvailabilityRules.*.effective_from' => 'start date', 'bookingAvailabilityRules.*.effective_until' => 'end date',
+            'bookingAvailabilityExceptions' => 'date exceptions', 'bookingAvailabilityExceptions.*.date' => 'exception date',
+            'bookingAvailabilityExceptions.*.starts_at' => 'opening time', 'bookingAvailabilityExceptions.*.ends_at' => 'closing time',
+            'bookingAvailabilityExceptions.*.availability' => 'availability', 'bookingAvailabilityExceptions.*.reason' => 'exception reason',
+            'teamEmail' => 'email address', 'teamRole' => 'role', 'editingTeamRole' => 'role', 'declineReasons.*' => 'decline reason',
+        ];
+    }
+
     private function handlePlatformFailure(
         PlatformApiException $exception,
         PortalAccessTokenStore $tokens,
         bool $keepWorkspace = false,
     ): void {
-        if ($exception->status === 422 && isset($exception->errors['registered_country_code'][0])) {
-            $this->addError('businessRegisteredCountryCode', $exception->errors['registered_country_code'][0]);
-        }
-
         if ($exception->status === 401) {
             $tokens->forget();
             $this->state = 'signed_out';

@@ -1,13 +1,14 @@
 # Zigpaw Business
 
-> **Current canonical source; local runtime and acceptance verified.** This independent API-only
+> **Canonical source; dated local acceptance evidence is recorded in the Platform handoff.** This independent API-only
 > Business client has no Platform/domain database and calls the unified
 > Platform API backed by one canonical domain MySQL database. See the Platform
 > [Data Architecture](https://github.com/boreanis/zigpaw-platform/blob/main/docs/14_DATA_ARCHITECTURE.md)
 > and [Single-Database Implementation Plan](https://github.com/boreanis/zigpaw-platform/blob/main/docs/16_SINGLE_DATABASE_IMPLEMENTATION_PLAN.md). The Platform
 > [handover](https://github.com/boreanis/zigpaw-platform/blob/main/docs/00_HANDOVER.md)
-> records the verified local checkpoint. Production deployment and readiness
-> require their own release checks.
+> records dated local checkpoints; the [session handoff](https://github.com/boreanis/zigpaw-platform/blob/main/HANDOFF.md)
+> records the latest source and acceptance limits. Current runtime, affected
+> browser acceptance and production readiness require their own verification.
 
 `zigpaw-business` is one provider workspace for every organization that serves pets. It is a single Laravel/Livewire BFF at `business.zigpaw.app`; the workspace selects a category template instead of deploying separate vet, groomer, kennel, breeder, or shelter applications.
 
@@ -108,6 +109,21 @@ logout invalidation removes it. Changed payloads or memberships cannot reuse an
 unresolved request's key. This BFF behavior does not replace the Platform's durable
 idempotency and provider-operation guarantees.
 
+Clinical submission retries are additionally bound to the clinical token
+handle, principal, membership, organization, grant and normalized payload.
+Only the opaque key and payload fingerprint enter retry session state.
+Unconfirmed responses retain that identity; definitive validation rejection
+releases it for a corrected attempt. Starting another submission requires an
+explicit confirmation after checking care history. Clinical sign-out clears its
+token handle, organization context and pending retry state while preserving the
+management session. Local cleanup still runs if revocation or cache locking
+fails.
+
+Clinical patient cards label the API-provided date as `Access expires`. Missing
+species or breed values show `No species or breed details available.`; they do
+not imply that profile access was denied. Capability controls continue to use
+only the Platform-returned grant capabilities.
+
 ```mermaid
 sequenceDiagram
     actor User as Business user
@@ -205,9 +221,14 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 
 ## Setup
 
+The current lockfiles use PHP 8.4, Laravel 13, Livewire 4, PHPUnit 13,
+Vite 8, Laravel Vite Plugin 3 and Tailwind CSS 4. Use Node 24.11 or newer on
+24.x, or Node 26 or newer, as declared by `package.json`. Install the reviewed
+locks; framework upgrades do not authorize a Business database or migrations.
+
 ```bash
 composer install
-npm install
+npm ci
 cp .env.example .env
 php artisan key:generate
 php artisan business:sync-contracts /absolute/path/to/business-v1.json /absolute/path/to/clinical-v1.json
@@ -230,11 +251,26 @@ deployment trust store and does not use a local Herd CA path.
 
 The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
 
+For isolated local browser QA, `ZIGPAW_STAGED_BROWSER_QA=true` selects the
+fixed `https://qa-business.zigpaw.test`, `https://qa-api.zigpaw.test` and
+`https://qa-auth.zigpaw.test` tuple. Configure dedicated QA management and
+clinical OAuth clients with their exact QA callback paths, fresh client
+application keys and separate encrypted host-local state. Complete normal OAuth;
+the flag adds no authentication, membership or clinical-grant bypass. Keep
+ordinary local hosts and credentials unchanged. Preparation alone is not browser
+acceptance; record the actual run and limits in the Platform handoff.
+
 The former standalone veterinary portal is consolidated here as the
 category-aware clinical template. Management and clinical traffic share this
 Business deployment and encrypted host-only browser session container, while
 retaining separate OAuth clients, callback paths, scope sets, token handles,
-encrypted cache entries, API route allowlists and sign-out endpoints. See
+encrypted cache entries, API route allowlists and sign-out endpoints. Browser
+form navigation permits this host and only the canonical identity origin after
+its configured app/API/auth/callback/session tuple passes the existing safety
+policy. This permits the signed identity-session redirect after a normal CSRF
+protected logout POST; malformed or unapproved configuration keeps the CSP
+self-only. The existing signed logout URL checks, scopes and token isolation
+remain unchanged. See
 [`docs/CLINICAL_CONSOLIDATION.md`](docs/CLINICAL_CONSOLIDATION.md) for the
 historical capability boundary and retirement checklist.
 

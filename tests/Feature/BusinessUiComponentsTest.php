@@ -3,10 +3,48 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\MessageBag;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class BusinessUiComponentsTest extends TestCase
 {
+    public function test_shared_fields_associate_labels_hints_errors_and_summary_links_with_controls(): void
+    {
+        $errors = new ViewErrorBag;
+        $errors->put('default', new MessageBag(['availability.1.starts_at' => ['Choose a non-overlapping time.']]));
+        view()->share('errors', $errors);
+        $html = Blade::render(<<<'BLADE'
+            <x-business.validation-summary />
+            <x-business.field name="availability.1.starts_at" label="Opens" hint="Use local time.">
+                <x-business.control type="time" wire:model="availability.1.starts_at" />
+            </x-business.field>
+        BLADE);
+
+        $this->assertStringContainsString('for="business-field-availability-1-starts_at"', $html);
+        $this->assertStringContainsString('id="business-field-availability-1-starts_at"', $html);
+        $this->assertStringContainsString('aria-invalid="true"', $html);
+        $this->assertStringContainsString('aria-describedby="business-field-availability-1-starts_at-hint business-field-availability-1-starts_at-error"', $html);
+        $this->assertStringContainsString('id="business-field-availability-1-starts_at-error"', $html);
+        $this->assertStringContainsString('href="#business-field-availability-1-starts_at"', $html);
+        $this->assertStringContainsString('Choose a non-overlapping time.', $html);
+    }
+
+    public function test_shared_controls_preserve_native_select_and_textarea_behavior(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-business.field name="role" label="Role"><x-business.control as="select" wire:model="role"><option value="viewer">Viewer</option></x-business.control></x-business.field>
+            <x-business.field name="notes" label="Notes"><x-business.control as="textarea" wire:model="notes" rows="4">Existing notes</x-business.control></x-business.field>
+        BLADE);
+
+        $this->assertStringContainsString('<select id="business-field-role"', $html);
+        $this->assertStringContainsString('wire:model="role"', $html);
+        $this->assertStringContainsString('<option value="viewer">Viewer</option>', $html);
+        $this->assertStringContainsString('<textarea id="business-field-notes"', $html);
+        $this->assertStringContainsString('rows="4">Existing notes</textarea>', $html);
+        $this->assertStringNotContainsString('aria-invalid="true"', $html);
+    }
+
     public function test_modal_is_closed_by_default_and_exposes_the_accessible_overlay_contract(): void
     {
         $html = Blade::render(<<<'BLADE'
