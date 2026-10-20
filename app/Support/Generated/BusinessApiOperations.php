@@ -12,7 +12,7 @@ final class BusinessApiOperations
 {
     /** @var array<string, string> */
     public const CONTRACT_SHA256 = [
-        'business-v1' => 'ba45c843f73503651cfc5bb22e215be27d710adceedffce1571f155e748dd8e6',
+        'business-v1' => 'd06e9289e4483cb0078a0a15e20df06beeafad4593e053791ef3aeead33dc226',
         'clinical-v1' => 'dbed291193cb593b021d1d40dd63a7e6c2a42cb2b7dc29e221e0960e83aaaa38',
     ];
 
@@ -275,6 +275,12 @@ final class BusinessApiOperations
             'operation_id' => 'v1.business.team-invitations.accept',
             'method' => 'POST',
             'path' => '/v1/business/team-invitations/{membership}/accept',
+        ],
+        [
+            'contract' => 'business-v1',
+            'operation_id' => 'v1.business.team-invitations.preview',
+            'method' => 'GET',
+            'path' => '/v1/business/team-invitations/{membership}/preview',
         ],
         [
             'contract' => 'business-v1',

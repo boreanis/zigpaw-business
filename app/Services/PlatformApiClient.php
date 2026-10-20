@@ -60,6 +60,38 @@ class PlatformApiClient
         return $this->mutate('PATCH', '/v1/business/me', $accessToken, $organizationId, $payload, $idempotencyKey);
     }
 
+    /** @return array<string, mixed> */
+    public function previewTeamInvitation(string $accessToken, string $membershipId, #[\SensitiveParameter] string $token): array
+    {
+        $membershipId = $this->uuid($membershipId, 'invitation');
+        $path = "/v1/business/team-invitations/{$membershipId}/preview";
+        $this->assertAllowedRoute('GET', $path);
+        try {
+            $response = $this->request($accessToken, null, $path)
+                ->withHeader('X-Zigpaw-Team-Invitation-Token', $this->headerValue($token, 'invitation token'))->get($path);
+        } catch (ConnectionException) {
+            throw new PlatformApiException(503, 'The invitation could not be loaded right now.');
+        }
+
+        return $this->data($response);
+    }
+
+    /** @return array<string, mixed> */
+    public function acceptTeamInvitation(string $accessToken, string $membershipId, #[\SensitiveParameter] string $token, string $expectedRole, string $key): array
+    {
+        $membershipId = $this->uuid($membershipId, 'invitation');
+        $path = "/v1/business/team-invitations/{$membershipId}/accept";
+        $this->assertAllowedRoute('POST', $path);
+        try {
+            $response = $this->request($accessToken, null, $path)->withHeader('Idempotency-Key', $this->idempotencyKey($key))
+                ->post($path, ['token' => $token, 'expected_role' => $expectedRole]);
+        } catch (ConnectionException) {
+            throw new PlatformApiException(503, 'The invitation acceptance could not be confirmed.');
+        }
+
+        return $this->data($response);
+    }
+
     /** @return PageEnvelope */
     public function providers(string $accessToken, string $organizationId, int $page = 1, int $perPage = 25, string $search = '', bool $activeOnly = false): array
     {

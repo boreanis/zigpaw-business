@@ -62,8 +62,8 @@ class ClinicalOperationalBoundaryTest extends TestCase
             'expires_in' => 900,
         ]);
         session()->put([
-            'portal.organization_id' => 'organization-1',
-            'portal.organization_name' => 'Riverbank Clinic',
+            'clinical_portal.organization_id' => 'organization-1',
+            'clinical_portal.organization_name' => 'Riverbank Clinic',
         ]);
 
         $this->assertClinicalInlineScriptsUseCspNonce($this->get('/clinical')->assertOk());

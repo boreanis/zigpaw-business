@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BusinessTeamInvitationController;
 use App\Http\Controllers\Clinical\ProviderMediaController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\OAuth\ClinicalPortalOAuthController;
@@ -30,6 +31,9 @@ Route::get('/', BusinessWorkspace::class)->name('dashboard');
 Route::get('/auth/login', [PortalOAuthController::class, 'redirect'])->name('auth.login');
 Route::get('/auth/callback', [PortalOAuthController::class, 'callback'])->name('auth.callback');
 Route::post('/auth/logout', [PortalOAuthController::class, 'logout'])->name('auth.logout');
+
+Route::get('/team/invitations/{membership}', [BusinessTeamInvitationController::class, 'show'])->whereUuid('membership')->block()->name('team.invitations.show');
+Route::post('/team/invitations/{membership}', [BusinessTeamInvitationController::class, 'accept'])->whereUuid('membership')->block()->name('team.invitations.accept');
 
 Route::get('/clinical', ClinicalDashboard::class)->name('clinical.dashboard');
 Route::get('/clinical/auth/login', [ClinicalPortalOAuthController::class, 'redirect'])->name('clinical.auth.login');

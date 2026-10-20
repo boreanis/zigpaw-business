@@ -30,6 +30,15 @@ class PortalSecurityHeadersTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_invitation_token_capture_preserves_no_referrer_while_ordinary_response_policy_is_unchanged(): void
+    {
+        $this->get('/health')->assertOk()->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $this->get('/team/invitations/019f5a00-0000-7000-8000-000000000031?token='.str_repeat('Q', 64))
+            ->assertStatus(303)->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('Cache-Control', 'max-age=0, no-store, private');
+        $this->get('/team/invitations/019f5a00-0000-7000-8000-000000000031')
+            ->assertOk()->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
     public static function approvedOrigins(): array
     {
         return [

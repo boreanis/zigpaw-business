@@ -221,6 +221,6 @@ class ClinicalProviderMediaControllerTest extends TestCase
             'refresh_token' => 'clinical-refresh-token',
             'expires_in' => 900,
         ]);
-        session()->put('portal.organization_id', 'organization-1');
+        session()->put('clinical_portal.organization_id', 'organization-1');
     }
 }

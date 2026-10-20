@@ -21,7 +21,7 @@ The browser receives only an opaque, host-only session and never receives platfo
 | Veterinary clinic / hospital | `veterinary` | Organization profile, appointments, grant-scoped patients, clinical submissions | Separate `business_clinical` OAuth client; clinical scopes; live purpose-bound pet grant |
 | Groomer / mobile pet wash | `grooming` / `mobile_service` | Services, availability and booking responses | Business OAuth client; confirmed appointment access |
 | Kennel / boarding / pet sitter | `boarding` / `pet_sitting` | Services, booking windows and care handover context | Business OAuth client; confirmed appointment access |
-| Breeder / shelter / rescue | `breeding` / `shelter` | Organization-owned pet profiles and expiring family claims | Business OAuth client; explicit claim and transfer workflow |
+| Breeder / shelter / rescue | `breeding` / `shelter` | Directory profile and released organization operations; pet-profile creation and family transfers are future targets | Business OAuth client; a template does not release a claim or transfer workflow |
 | Trainer, retailer and future categories | `general` or reviewed template | Directory profile, offerings and bookings where released | Business OAuth client; category capabilities and release flags |
 
 Insurance and other online products remain directory/affiliate resources, not Business provider templates. The category is data-driven by the platform provider taxonomy; one organization can manage multiple reviewed provider places and offerings.
@@ -32,7 +32,7 @@ flowchart LR
     Workspace --> Registry["Provider template registry"]
     Registry --> Vet["Veterinary template"]
     Registry --> Care["Grooming, boarding,<br/>sitting and mobile-care"]
-    Registry --> Transfer["Breeder, shelter and rescue<br/>profile-transfer template"]
+    Registry --> Transfer["Breeder, shelter and rescue<br/>future profile-transfer target"]
     Registry --> General["General, retail and future<br/>reviewed templates"]
     Workspace --> Management["Business OAuth client<br/>management scopes"]
     Vet --> Clinical["Separate clinical OAuth client<br/>clinical scopes only"]
@@ -74,6 +74,15 @@ input cannot select an issuer or API origin.
 Provider identity and commercial participation are intentionally separate. A business can claim and manage a listing without joining a referral program, and a commercial agreement never changes organic directory ranking.
 
 Management and clinical sessions use different OAuth clients, token handles, scopes and cache entries even though both templates run here. Clinical methods in `PlatformApiClient` require `ClinicalPortalAccessTokenStore` explicitly; a management bearer cannot be passed to them accidentally.
+Their selected organizations are separate too: management uses the host-local
+`portal.organization_id` context; clinical uses `clinical_portal.organization_id`
+and its matching display name. Clinical selection, organization changes, sign-out
+and unauthorized-response cleanup preserve the management choice. Multiple
+memberships require an explicit choice in each workspace; only the existing
+authorized single-membership auto-selection remains. Management sign-out retains
+its established whole-device BFF session invalidation and clears both contexts.
+There is no fallback from clinical selection to the management key.
+
 
 ## Deployment And Trust Topology
 
@@ -206,7 +215,7 @@ operation here.
 | Booking setup and requests | Configure booking availability and respond to customer requests when the booking feature is released for the organization. | `booking_requests` release flag, booking capability, state machine, organization ownership, and idempotency. |
 | Partner programs | Browse available programs and apply for optional participation. | Program capability, eligibility, disclosure, and enrollment state. |
 | Revenue | Read agreements, commission entries, and financial summaries. | Read-only financial scope and organization ownership; no payment or payout action exists here. |
-| Team | Invite staff, resend invitations, change roles, and revoke membership within the caller's authority. | `team.manage`, role ceiling, active membership, validation, and audit. |
+| Team | Invite staff, preview the named workspace/role and explicitly accept an emailed invitation after normal sign-in, resend invitations, change roles, and revoke membership within the caller's authority. | `team.manage`, role ceiling, active membership, validation, and audit. |
 
 Navigation is derived from API-provided capabilities and release state. Hiding an item in Livewire is presentation only; the platform must independently reject every unauthorized request.
 
@@ -329,3 +338,11 @@ Canonical platform decisions:
 - [Production delivery](https://github.com/boreanis/zigpaw-platform/blob/main/docs/10_DEPLOYMENT_PRODUCTION.md)
 - [Provider integrations](https://github.com/boreanis/zigpaw-platform/blob/main/docs/11_PROVIDER_INTEGRATIONS.md)
 - [Business strategy](https://github.com/boreanis/zigpaw-platform/blob/main/docs/01_BUSINESS_STRATEGY.md)
+
+### Team invitation recovery boundary
+
+The emailed invitation entry immediately removes its token query before sign-in or rendering. A read-only private API preview, available only to the verified intended recipient under current Business rollout, supplies the workspace name and role. Joining requires an explicit CSRF-protected POST; GET never accepts. The exact displayed role is required and checked under the canonical membership lock.
+
+The BFF keeps at most three invitation continuations for 30 minutes in its encrypted host-local session. Tokens never enter rendered forms, browser storage, flashed input or logs. The bounded named confirmation snapshot and immutable token/expected-role operation identity support explicit same-request recovery after an uncertain response; a retry reaches the existing idempotent acceptance even if membership is already active. Changed sign-in, expired continuation or changed role fails closed and requires review; there is no automatic acceptance after OAuth. Clinical authentication and selection are independent.
+
+Invitation responses preserve `Referrer-Policy: no-referrer`, and persistent application logs scrub invitation secrets. Deployment must separately redact token query values on the initial emailed GET from ingress/access logs; application redaction cannot sanitize an upstream proxy log. These source safeguards do not establish staged-browser, email-delivery or production acceptance.

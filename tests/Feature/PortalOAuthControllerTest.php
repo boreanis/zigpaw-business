@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\TeamInvitationContinuation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -156,5 +157,28 @@ class PortalOAuthControllerTest extends TestCase
         ]))->assertRedirect(route('dashboard'));
 
         $this->assertNull(session('platform.oauth.token_handle'));
+    }
+
+    public function test_only_a_protected_invitation_continuation_can_resume_after_normal_state_and_pkce_exchange(): void
+    {
+        $membership = '019f5a00-0000-7000-8000-000000000031';
+        $token = str_repeat('Q', 64);
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        app(TeamInvitationContinuation::class)->capture($membership, $token);
+        $this->get(route('auth.login', ['invitation' => $membership, 'return_to' => 'https://untrusted.example']))->assertRedirectContains('https://auth.zigpaw.test/oauth/authorize?');
+        $state = session('platform.oauth.state');
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'synthetic-access-token', 'refresh_token' => 'synthetic-refresh-token', 'expires_in' => 900,
+        ])]);
+        $this->get(route('auth.callback', ['state' => $state, 'code' => 'synthetic-code', 'return_to' => 'https://untrusted.example']))
+            ->assertRedirect(route('team.invitations.show', ['membership' => $membership]))->assertHeader('Referrer-Policy', 'no-referrer')->assertDontSee($token);
+        $this->assertNotNull(app(TeamInvitationContinuation::class)->entry($membership));
+    }
+
+    public function test_unknown_browser_selected_invitation_cannot_become_an_oauth_return_destination(): void
+    {
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        $this->get(route('auth.login', ['invitation' => '019f5a00-0000-7000-8000-000000000099']))->assertRedirect();
+        $this->assertNull(session('business.team_invitation_oauth_return'));
     }
 }

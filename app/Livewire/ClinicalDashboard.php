@@ -41,8 +41,8 @@ class ClinicalDashboard extends Component
         abort_unless(is_array($organization), 403);
 
         session()->put([
-            'portal.organization_id' => $organizationId,
-            'portal.organization_name' => (string) ($organization['name'] ?? 'Clinical workspace'),
+            'clinical_portal.organization_id' => $organizationId,
+            'clinical_portal.organization_name' => (string) ($organization['name'] ?? 'Clinical workspace'),
         ]);
 
         $this->load($api, $tokens);
@@ -50,7 +50,7 @@ class ClinicalDashboard extends Component
 
     public function changeOrganization(): void
     {
-        session()->forget(['portal.organization_id', 'portal.organization_name']);
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
         $this->redirectRoute('clinical.dashboard', navigate: true);
     }
 
@@ -95,7 +95,7 @@ class ClinicalDashboard extends Component
             $response = $api->clinicalOrganizations($tokens);
             $this->organizations = $response['data'];
             $this->pagination['organizations'] = $response['meta'];
-            $organizationId = session('portal.organization_id');
+            $organizationId = session('clinical_portal.organization_id');
 
             if (is_string($organizationId) && $organizationId !== '' && ! collect($this->organizations)->contains('id', $organizationId)) {
                 try {
@@ -108,13 +108,13 @@ class ClinicalDashboard extends Component
                         throw $exception;
                     }
                     $organizationId = null;
-                    session()->forget(['portal.organization_id', 'portal.organization_name']);
+                    session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
                 }
             }
 
             if ($response['meta']['total'] === 1) {
                 $organizationId = (string) $this->organizations[0]['id'];
-                session()->put('portal.organization_id', $organizationId);
+                session()->put('clinical_portal.organization_id', $organizationId);
             }
 
             if (! is_string($organizationId) || $organizationId === '') {
@@ -127,13 +127,13 @@ class ClinicalDashboard extends Component
             $this->overview = $api->clinicalDashboard($tokens, $organizationId);
             $organizationName = data_get($this->identity, 'organization.name');
             if (is_string($organizationName) && $organizationName !== '') {
-                session()->put('portal.organization_name', $organizationName);
+                session()->put('clinical_portal.organization_name', $organizationName);
             }
             $this->state = 'ready';
         } catch (PlatformApiException $exception) {
             if ($exception->status === 401) {
                 $tokens->forget();
-                session()->forget(['portal.organization_id', 'portal.organization_name']);
+                session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
                 $this->state = 'signed_out';
 
                 return;

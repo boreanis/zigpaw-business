@@ -35,7 +35,7 @@ class ClinicalSubmissionRetryTest extends TestCase
     {
         parent::setUp();
         app(ClinicalPortalAccessTokenStore::class)->put(['access_token' => 'synthetic-clinical', 'refresh_token' => 'synthetic-refresh', 'expires_in' => 900]);
-        session()->put('portal.organization_id', 'synthetic-organization');
+        session()->put('clinical_portal.organization_id', 'synthetic-organization');
     }
 
     public function test_platform_validation_correction_starts_a_new_operation(): void
@@ -138,7 +138,7 @@ class ClinicalSubmissionRetryTest extends TestCase
         $form = $this->submissionForm()->call('submit');
         $pending = session(ClinicalSubmissionRetry::SESSION_KEY);
         if ($changedField === 'organization') {
-            session()->put('portal.organization_id', 'different-organization');
+            session()->put('clinical_portal.organization_id', 'different-organization');
             $this->identity['organization']['id'] = 'different-organization';
         } elseif ($changedField === 'membership') {
             $this->identity['membership']['id'] = 'different-membership';

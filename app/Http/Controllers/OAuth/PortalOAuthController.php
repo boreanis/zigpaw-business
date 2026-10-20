@@ -5,6 +5,7 @@ namespace App\Http\Controllers\OAuth;
 use App\Support\PlatformConfiguration;
 use App\Support\PortalAccessTokenStore;
 use App\Support\RequestCorrelation;
+use App\Support\TeamInvitationContinuation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,8 @@ class PortalOAuthController
         $state = Str::random(64);
         $verifier = Str::random(96);
         $request->session()->put([self::STATE_KEY => $state, self::VERIFIER_KEY => $verifier]);
+        $invitation = $request->query('invitation');
+        app(TeamInvitationContinuation::class)->beginOAuth(is_string($invitation) ? $invitation : null, $state);
 
         $challenge = strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
         $query = http_build_query([
@@ -65,6 +68,7 @@ class PortalOAuthController
         $state = $request->string('state')->toString();
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $verifier = $request->session()->pull(self::VERIFIER_KEY);
+        $invitationReturn = app(TeamInvitationContinuation::class)->consumeOAuthReturn(is_string($expectedState) ? $expectedState : null);
 
         if (! is_string($expectedState) || ! hash_equals($expectedState, $state) || ! is_string($verifier)) {
             return redirect()->route('dashboard')->with('error', 'That sign-in link is no longer valid. Please try again.');
@@ -105,6 +109,7 @@ class PortalOAuthController
             }
 
             $tokens->put($payload);
+            app(TeamInvitationContinuation::class)->renewAuthenticationContext();
         } catch (\InvalidArgumentException|\JsonException $exception) {
             Log::error('Portal OAuth token exchange returned an invalid response.', ['exception' => $exception::class]);
 
@@ -113,7 +118,9 @@ class PortalOAuthController
 
         $request->session()->regenerate();
 
-        return redirect()->route('dashboard');
+        return $invitationReturn !== null
+            ? redirect()->route('team.invitations.show', ['membership' => $invitationReturn])->header('Referrer-Policy', 'no-referrer')
+            : redirect()->route('dashboard');
     }
 
     public function logout(Request $request, PortalAccessTokenStore $tokens): RedirectResponse

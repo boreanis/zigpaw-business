@@ -19,7 +19,7 @@ class ProviderMediaController extends Controller
         ClinicalPortalAccessTokenStore $tokens,
     ): StreamedResponse|RedirectResponse {
         $accessToken = $tokens->accessToken();
-        $organizationId = session('portal.organization_id');
+        $organizationId = session('clinical_portal.organization_id');
 
         if (! is_string($accessToken) || $accessToken === '' || ! is_string($organizationId) || $organizationId === '') {
             return redirect()->route('clinical.dashboard')->with('error', 'Your secure clinical session has ended. Please sign in again.');
@@ -30,7 +30,7 @@ class ProviderMediaController extends Controller
         } catch (PlatformApiException $exception) {
             if ($exception->status === 401) {
                 $tokens->forget();
-                session()->forget(['portal.organization_id', 'portal.organization_name']);
+                session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
             }
 
             return redirect()->route('clinical.patients.show', ['grantId' => $grantId])->with(

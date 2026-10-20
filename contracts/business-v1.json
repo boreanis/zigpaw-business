@@ -4173,6 +4173,110 @@
                 "x-zigpaw-release": "phase2"
             }
         },
+        "/business/team-invitations/{membership}/preview": {
+            "get": {
+                "operationId": "v1.business.team-invitations.preview",
+                "tags": [
+                    "Business"
+                ],
+                "parameters": [
+                    {
+                        "name": "membership",
+                        "in": "path",
+                        "required": true,
+                        "description": "The membership ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "X-Zigpaw-Team-Invitation-Token",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 64,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z0-9]{64}$",
+                            "writeOnly": true
+                        },
+                        "description": "Server-held invitation capability for the verified intended recipient; never place it in a query."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "id",
+                                                "organization_name",
+                                                "role",
+                                                "status",
+                                                "expires_at"
+                                            ],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "organization_name": {
+                                                    "type": "string"
+                                                },
+                                                "role": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "invited"
+                                                    ]
+                                                },
+                                                "expires_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    }
+                },
+                "security": [
+                    {
+                        "zigpawOAuth": [
+                            "business:team:write"
+                        ]
+                    }
+                ],
+                "x-zigpaw-release": "phase2"
+            }
+        },
         "/business/team/invitations": {
             "post": {
                 "operationId": "v1.business.team.invitations.store",
@@ -6507,10 +6611,21 @@
                         "type": "string",
                         "minLength": 64,
                         "maxLength": 64
+                    },
+                    "expected_role": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "operator",
+                            "finance",
+                            "viewer"
+                        ]
                     }
                 },
                 "required": [
-                    "token"
+                    "token",
+                    "expected_role"
                 ],
                 "title": "AcceptBusinessTeamInvitationRequest"
             },

@@ -12,7 +12,7 @@ trait UsesPortalWorkspace
     protected function portalCredentials(ClinicalPortalAccessTokenStore $tokens): ?array
     {
         $accessToken = $tokens->accessToken();
-        $organizationId = session('portal.organization_id');
+        $organizationId = session('clinical_portal.organization_id');
 
         if (! is_string($accessToken) || $accessToken === '' || ! is_string($organizationId) || $organizationId === '') {
             $this->redirectRoute('clinical.dashboard', navigate: true);
@@ -20,7 +20,7 @@ trait UsesPortalWorkspace
             return null;
         }
 
-        $organizationName = session('portal.organization_name');
+        $organizationName = session('clinical_portal.organization_name');
         $this->organizationName = is_string($organizationName) && $organizationName !== ''
             ? $organizationName
             : 'Clinical workspace';
@@ -32,7 +32,7 @@ trait UsesPortalWorkspace
     {
         if ($status === 401) {
             $tokens->forget();
-            session()->forget(['portal.organization_id', 'portal.organization_name']);
+            session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
             session()->flash('error', 'Your secure session has ended. Please sign in again.');
             $this->redirectRoute('clinical.dashboard', navigate: true);
         }

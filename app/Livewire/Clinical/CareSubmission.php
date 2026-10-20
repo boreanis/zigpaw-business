@@ -411,7 +411,7 @@ class CareSubmission extends Component
             $this->hasPendingSubmission = $retry->hasPending($this->submissionContext);
             $dashboard = $api->clinicalDashboard($tokens, $organizationId);
             $this->organizationName = (string) data_get($identity, 'organization.name', $this->organizationName);
-            session()->put('portal.organization_name', $this->organizationName);
+            session()->put('clinical_portal.organization_name', $this->organizationName);
             $this->vetName = (string) ($identity['name'] ?? '');
             $this->clinicName = $this->organizationName;
             $this->clinicEmail = (string) ($identity['email'] ?? '');

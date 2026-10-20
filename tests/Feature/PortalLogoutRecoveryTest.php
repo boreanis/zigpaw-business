@@ -25,8 +25,10 @@ class PortalLogoutRecoveryTest extends TestCase
         app(PortalAccessTokenStore::class)->put(['access_token' => 'business-token', 'refresh_token' => 'business-refresh', 'expires_in' => 900]);
         app(ClinicalPortalAccessTokenStore::class)->put(['access_token' => 'clinical-token', 'refresh_token' => 'clinical-refresh', 'expires_in' => 900]);
         session()->put([
-            'portal.organization_id' => 'synthetic-organization',
-            'portal.organization_name' => 'Synthetic clinic',
+            'portal.organization_id' => 'synthetic-management-organization',
+            'portal.organization_name' => 'Synthetic management organization',
+            'clinical_portal.organization_id' => 'synthetic-clinical-organization',
+            'clinical_portal.organization_name' => 'Synthetic clinic',
             ClinicalSubmissionRetry::SESSION_KEY => ['synthetic-context' => ['key' => 'synthetic-key']],
         ]);
         session()->regenerateToken();
@@ -53,13 +55,18 @@ class PortalLogoutRecoveryTest extends TestCase
         self::assertNull(session($handleKey));
         self::assertNull($store->accessToken());
         self::assertNotSame($csrfToken, session()->token());
-        self::assertNull(session('portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_name'));
         self::assertNull(session(ClinicalSubmissionRetry::SESSION_KEY));
         if ($clinical) {
             self::assertSame($sessionId, session()->getId());
+            self::assertSame('synthetic-management-organization', session('portal.organization_id'));
+            self::assertSame('Synthetic management organization', session('portal.organization_name'));
             self::assertSame('business-token', app(PortalAccessTokenStore::class)->accessToken());
         } else {
             self::assertNotSame($sessionId, session()->getId());
+            self::assertNull(session('portal.organization_id'));
+            self::assertNull(session('portal.organization_name'));
             self::assertNull(session('platform.oauth.clinical_token_handle'));
         }
         self::assertTrue(Cache::has($cacheKey), 'The failed deletion fixture must leave an inaccessible cache entry.');

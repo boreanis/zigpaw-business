@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\BusinessWorkspace;
 use App\Livewire\Clinical\CareSubmission;
 use App\Livewire\Clinical\PatientIndex;
 use App\Livewire\ClinicalDashboard;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -19,7 +21,7 @@ class ClinicalWorkspaceTest extends TestCase
     public function test_clinical_organization_selector_reaches_later_pages_and_recovers_the_selected_record(): void
     {
         $this->signIn();
-        session()->forget(['portal.organization_id', 'portal.organization_name']);
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
         Http::fake(function (Request $request) {
             $path = parse_url($request->url(), PHP_URL_PATH);
             if ($path === '/v1/business/clinical/organizations') {
@@ -52,6 +54,77 @@ class ClinicalWorkspaceTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/organizations/organization-27')
             && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
         $this->assertNull(app(PortalAccessTokenStore::class)->accessToken());
+    }
+
+    public function test_overlapping_multi_organization_memberships_keep_management_and_clinical_choices_independent(): void
+    {
+        $this->signIn();
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        session()->put(['portal.organization_id' => 'organization-a', 'portal.organization_name' => 'Management choice A']);
+        app(PortalAccessTokenStore::class)->put(['access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900]);
+        $this->fakeOverlappingOrganizations();
+        $clinical = Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization');
+        self::assertSame('organization-a', session('portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_id'));
+        $clinical->call('selectOrganization', 'organization-b')->assertSet('state', 'ready')->assertSet('identity.organization.id', 'organization-b');
+        self::assertSame('organization-a', session('portal.organization_id'));
+        self::assertSame('Management choice A', session('portal.organization_name'));
+        self::assertSame('organization-b', session('clinical_portal.organization_id'));
+        Livewire::test(BusinessWorkspace::class)->assertStatus(200)->assertSet('state', 'ready')->assertSet('organizationId', 'organization-a')
+            ->call('selectOrganization', 'organization-b')->assertRedirect(route('dashboard', ['section' => 'overview']));
+        self::assertSame('organization-b', session('portal.organization_id'));
+        $clinical->call('changeOrganization')->assertRedirect(route('clinical.dashboard'));
+        self::assertNull(session('clinical_portal.organization_id'));
+        self::assertSame('organization-b', session('portal.organization_id'));
+        Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization')
+            ->call('selectOrganization', 'organization-a')->assertSet('state', 'ready');
+        self::assertSame('organization-a', session('clinical_portal.organization_id'));
+        Livewire::test(BusinessWorkspace::class)->assertSet('organizationId', 'organization-b');
+        self::assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        self::assertSame('clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+    }
+
+    public function test_clinical_unauthorized_then_relogin_requires_its_own_choice_without_erasing_management(): void
+    {
+        $this->signIn();
+        app(PortalAccessTokenStore::class)->put(['access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900]);
+        session()->put(['portal.organization_id' => 'organization-b', 'portal.organization_name' => 'Management choice B']);
+        Http::fake(['https://api.zigpaw.test/*' => Http::response([], 401)]);
+        Livewire::test(PatientIndex::class)->assertRedirect(route('clinical.dashboard'));
+        self::assertSame('organization-b', session('portal.organization_id'));
+        self::assertSame('Management choice B', session('portal.organization_name'));
+        self::assertNull(session('clinical_portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_name'));
+        self::assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
+        self::assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        app(ClinicalPortalAccessTokenStore::class)->put(['access_token' => 'new-clinical-token', 'refresh_token' => 'new-clinical-refresh', 'expires_in' => 900]);
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        $this->fakeOverlappingOrganizations();
+        Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization');
+        self::assertSame('organization-b', session('portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_id'));
+    }
+
+    private function fakeOverlappingOrganizations(): void
+    {
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if (str_ends_with($path, '/organizations')) {
+                return Http::response(['data' => [
+                    ['id' => 'organization-a', 'name' => 'Synthetic organization A', 'role' => 'owner'],
+                    ['id' => 'organization-b', 'name' => 'Synthetic organization B', 'role' => 'owner'],
+                ], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 25, 'total' => 2], 'links' => $this->pageLinks()]);
+            }
+            if (str_ends_with($path, '/me')) {
+                $id = $request->header('X-Zigpaw-Organization-ID')[0];
+
+                return Http::response(['data' => ['organization' => ['id' => $id, 'name' => 'Synthetic '.$id, 'organization_type' => 'veterinary'],
+                    'features' => [], 'membership' => ['id' => 'membership-'.$id, 'role' => 'owner', 'capabilities' => ['portal.view']]]]);
+            }
+
+            return Http::response(['data' => []]);
+        });
     }
 
     private const GRANT_ID = '019fe05f-3d0e-7079-86e3-e8ab5aa380b1';
@@ -492,7 +565,7 @@ class ClinicalWorkspaceTest extends TestCase
 
         $this->assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
         $this->assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
-        $this->assertNull(session('portal.organization_id'));
+        $this->assertNull(session('clinical_portal.organization_id'));
     }
 
     private function signIn(): void
@@ -504,8 +577,8 @@ class ClinicalWorkspaceTest extends TestCase
         ]);
 
         session()->put([
-            'portal.organization_id' => 'organization-1',
-            'portal.organization_name' => 'Riverbank Clinic',
+            'clinical_portal.organization_id' => 'organization-1',
+            'clinical_portal.organization_name' => 'Riverbank Clinic',
         ]);
     }
 

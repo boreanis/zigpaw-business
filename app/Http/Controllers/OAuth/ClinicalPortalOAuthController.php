@@ -135,8 +135,8 @@ class ClinicalPortalOAuthController
                 Log::warning('Clinical portal token cleanup failed during local sign-out.', ['exception' => $exception::class]);
             } finally {
                 $request->session()->forget([
-                    'portal.organization_id',
-                    'portal.organization_name',
+                    'clinical_portal.organization_id',
+                    'clinical_portal.organization_name',
                     ClinicalSubmissionRetry::SESSION_KEY,
                 ]);
                 $request->session()->regenerateToken();
