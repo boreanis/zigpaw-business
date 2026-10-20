@@ -12,6 +12,7 @@ use App\Support\PortalAccessTokenStore;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -50,10 +51,162 @@ class ClinicalWorkspaceTest extends TestCase
             ->call('selectOrganization', 'organization-27')
             ->assertSet('state', 'ready')
             ->assertSet('identity.organization.id', 'organization-27')
-            ->assertSee('Synthetic selected clinic');
+            ->assertRedirect(route('clinical.dashboard'));
+        $this->get('/clinical')->assertOk()->assertSee('Synthetic selected clinic');
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/organizations/organization-27')
             && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
         $this->assertNull(app(PortalAccessTokenStore::class)->accessToken());
+    }
+
+    public function test_clinical_dashboard_contains_every_conditional_morph_marker_inside_its_persistent_root(): void
+    {
+        $this->signIn();
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($path === '/v1/business/clinical/organizations') {
+                $items = collect(range(1, 27))->map(fn (int $number): array => [
+                    'id' => 'organization-'.$number, 'name' => 'Synthetic clinic '.str_pad((string) $number, 2, '0', STR_PAD_LEFT), 'role' => 'owner',
+                ])->filter(fn (array $item): bool => str_contains(strtolower($item['name']), strtolower((string) ($request['search'] ?? ''))))->values();
+                $page = max(1, (int) ($request['page'] ?? 1));
+
+                return Http::response(['data' => $items->slice(($page - 1) * 25, 25)->values()->all(),
+                    'meta' => ['current_page' => $page, 'last_page' => max(1, (int) ceil($items->count() / 25)), 'per_page' => 25, 'total' => $items->count()],
+                    'links' => $this->pageLinks()]);
+            }
+            if ($path === '/v1/business/clinical/organizations/organization-27') {
+                return Http::response(['data' => ['id' => 'organization-27', 'name' => 'Synthetic clinic 27', 'role' => 'owner']]);
+            }
+            if ($path === '/v1/business/clinical/me') {
+                return Http::response(['data' => ['organization' => ['id' => 'organization-27', 'name' => 'Synthetic clinic 27']]]);
+            }
+
+            return Http::response(['data' => []]);
+        });
+        $component = Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization')
+            ->assertSee('Page 1 of 2')->assertSet('pagination.organizations.total', 27);
+        $id = $component->id();
+        $this->assertClinicalMorphRoot($component, $id, initial: true);
+        $component->call('changePage', 'organizations', 2)->assertSet('pagination.organizations.current_page', 2)
+            ->assertSee('Synthetic clinic 26')->assertSee('Synthetic clinic 27')->assertDontSee('Synthetic clinic 01');
+        $this->assertClinicalMorphRoot($component, $id);
+        $component->set('organizationSearch', 'No matching QA organisation')->call('searchOrganizations')
+            ->assertSet('organizations', [])->assertSet('pagination.organizations.current_page', 1)
+            ->assertSee('No matching organisations.');
+        $this->assertClinicalMorphRoot($component, $id);
+        $component->set('organizationSearch', 'Synthetic clinic 27')->call('searchOrganizations')
+            ->assertSet('pagination.organizations.total', 1)->assertSee('Synthetic clinic 27')->assertDontSee('Synthetic clinic 01');
+        $this->assertClinicalMorphRoot($component, $id);
+        $component->call('selectOrganization', 'organization-27')->assertSet('state', 'ready')
+            ->assertSet('identity.organization.id', 'organization-27')->assertRedirect(route('clinical.dashboard'));
+        $effects = $component->__get('effects');
+        self::assertIsArray($effects);
+        self::assertArrayNotHasKey('html', $effects, 'A full redirect rebuilds the layout instead of morphing the chooser.');
+        $this->get('/clinical')->assertOk()->assertSee('Clinical overview')->assertSee('class="clinical-nav"', false);
+        self::assertSame('organization-27', session('clinical_portal.organization_id'));
+        self::assertNull(app(PortalAccessTokenStore::class)->accessToken());
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/organizations/organization-27')
+            && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'search=No+matching+QA+organisation'));
+    }
+
+    public function test_clinical_selection_redirects_to_a_fresh_authorized_layout_without_changing_management_context(): void
+    {
+        $this->signIn();
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        session()->put(['portal.organization_id' => 'management-a', 'portal.organization_name' => 'Management choice A']);
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900,
+        ]);
+        $this->fakeOverlappingOrganizations();
+        $this->get('/clinical')->assertOk()->assertSee('Choose your workspace')
+            ->assertDontSee('class="clinical-nav"', false)->assertDontSee('class="organization-chip"', false);
+        $component = Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization');
+        $component->call('selectOrganization', 'organization-b')
+            ->assertSet('state', 'ready')->assertRedirect(route('clinical.dashboard'));
+        self::assertFalse($component->effects['redirectUsingNavigate'] ?? false, 'A normal full request must rebuild the outer clinical layout.');
+        $this->get('/clinical')->assertOk()->assertSee('Clinical overview')
+            ->assertSee('class="clinical-nav"', false)->assertSee('class="organization-chip"', false)
+            ->assertSee('Synthetic organization-b')->assertDontSee('Management choice A');
+        self::assertSame('organization-b', session('clinical_portal.organization_id'));
+        self::assertSame('management-a', session('portal.organization_id'));
+        self::assertSame('Management choice A', session('portal.organization_name'));
+        self::assertSame('clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+        self::assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/v1/business/clinical/me')
+            && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-b')
+            && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
+    }
+
+    /** @return iterable<string, array{int, string}> */
+    public static function unavailableClinicalSelections(): iterable
+    {
+        yield 'expired clinical authority' => [401, 'signed_out'];
+        yield 'forbidden clinical authority' => [403, 'forbidden'];
+        yield 'unavailable clinical API' => [503, 'unavailable'];
+    }
+
+    #[DataProvider('unavailableClinicalSelections')]
+    public function test_unavailable_clinical_selection_does_not_redirect_as_a_ready_workspace(int $status, string $state): void
+    {
+        $this->signIn();
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        session()->put(['portal.organization_id' => 'management-a', 'portal.organization_name' => 'Management choice A']);
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900,
+        ]);
+        Http::fake(function (Request $request) use ($status) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($path === '/v1/business/clinical/organizations') {
+                return Http::response(['data' => [
+                    ['id' => 'organization-a', 'name' => 'Synthetic organization A', 'role' => 'owner'],
+                    ['id' => 'organization-b', 'name' => 'Synthetic organization B', 'role' => 'owner'],
+                ], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 25, 'total' => 2], 'links' => $this->pageLinks()]);
+            }
+            if ($path === '/v1/business/clinical/me') {
+                return Http::response(['message' => 'Synthetic clinical authority unavailable.'], $status);
+            }
+
+            return Http::response(['data' => []]);
+        });
+        Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization')
+            ->call('selectOrganization', 'organization-b')->assertSet('state', $state)->assertNoRedirect();
+        self::assertSame('management-a', session('portal.organization_id'));
+        self::assertSame('Management choice A', session('portal.organization_name'));
+        self::assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        self::assertSame($status === 401 ? null : 'clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+        if ($status === 401) {
+            self::assertNull(session('clinical_portal.organization_id'));
+        }
+        Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/v1/business/clinical/dashboard'));
+    }
+
+    private function assertClinicalMorphRoot(Testable $component, string $expectedId, bool $initial = false): void
+    {
+        $html = $initial ? $component->html() : ($component->effects['html'] ?? null);
+        self::assertIsString($html, 'A real rendered Livewire HTML effect is required.');
+        $document = new \DOMDocument;
+        @$document->loadHTML('<div id="clinical-morph-fragment">'.$html.'</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        $fragment = $document->getElementById('clinical-morph-fragment');
+        self::assertInstanceOf(\DOMElement::class, $fragment);
+        $roots = (new \DOMXPath($document))->query('.//*[@*[name()="wire:id"]]', $fragment);
+        self::assertNotFalse($roots);
+        self::assertSame(1, $roots->length, 'The rendered fragment must contain exactly one component root.');
+        $root = $roots->item(0);
+        self::assertInstanceOf(\DOMElement::class, $root);
+        self::assertSame($expectedId, $root->getAttribute('wire:id'));
+        $rootParent = $root->parentNode;
+        self::assertInstanceOf(\DOMElement::class, $rootParent);
+        $markersOutsideRoot = 0;
+        foreach ($rootParent->childNodes as $node) {
+            if ($node instanceof \DOMComment && preg_match('/BLOCK|FRAGMENT/i', $node->textContent) === 1) {
+                $markersOutsideRoot++;
+            }
+        }
+        self::assertSame(0, $markersOutsideRoot, 'Conditional morph markers must stay inside the persistent component root.');
+        $snapshot = $component->__get('snapshot');
+        self::assertIsArray($snapshot);
+        self::assertSame($expectedId, data_get($snapshot, 'memo.id'));
     }
 
     public function test_overlapping_multi_organization_memberships_keep_management_and_clinical_choices_independent(): void

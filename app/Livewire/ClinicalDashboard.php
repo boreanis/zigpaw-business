@@ -46,6 +46,10 @@ class ClinicalDashboard extends Component
         ]);
 
         $this->load($api, $tokens);
+
+        if ($this->state === 'ready') {
+            $this->redirectRoute('clinical.dashboard');
+        }
     }
 
     public function changeOrganization(): void
