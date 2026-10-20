@@ -15,7 +15,7 @@
 <body>
     @php
         $hasClinicalWorkspace = session()->has('platform.oauth.clinical_token_handle')
-            && session()->has('portal.organization_id');
+            && session()->has('clinical_portal.organization_id');
     @endphp
     <a class="skip-link" href="#main-content">Skip to clinical workspace</a>
     <div class="clinical-app-frame">
@@ -39,7 +39,7 @@
                     <span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span>
                 </x-clinical.button>
                 @if ($hasClinicalWorkspace)
-                    <span class="organization-chip">{{ session('portal.organization_name', 'Clinical workspace') }}</span>
+                    <span class="organization-chip">{{ session('clinical_portal.organization_name', 'Clinical workspace') }}</span>
                 @endif
                 @if (session()->has('platform.oauth.clinical_token_handle'))
                     <form method="POST" action="{{ route('clinical.auth.logout') }}">

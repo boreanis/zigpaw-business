@@ -168,6 +168,68 @@ class ClinicalWorkspaceTest extends TestCase
         $this->assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
     }
 
+    /** @return iterable<string, array{bool, bool}> */
+    public static function independentClinicalLayoutContexts(): iterable
+    {
+        yield 'management selected, clinical chooser' => [true, false];
+        yield 'clinical selected without management' => [false, true];
+        yield 'different management and clinical choices' => [true, true];
+    }
+
+    #[DataProvider('independentClinicalLayoutContexts')]
+    public function test_clinical_layout_uses_only_its_current_audience_selection(bool $managementSelected, bool $clinicalSelected): void
+    {
+        $this->signIn();
+        session()->forget(['portal.organization_id', 'portal.organization_name', 'clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        if ($managementSelected) {
+            session()->put(['portal.organization_id' => 'management-organization', 'portal.organization_name' => 'Synthetic Management Choice']);
+            app(PortalAccessTokenStore::class)->put([
+                'access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900,
+            ]);
+        }
+        if ($clinicalSelected) {
+            session()->put(['clinical_portal.organization_id' => 'organization-1', 'clinical_portal.organization_name' => 'Synthetic Clinical Choice']);
+        }
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($path === '/v1/business/clinical/organizations') {
+                return Http::response(['data' => [
+                    ['id' => 'organization-1', 'name' => 'Synthetic Clinical Choice', 'role' => 'owner'],
+                    ['id' => 'organization-2', 'name' => 'Synthetic Other Clinic', 'role' => 'owner'],
+                ], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 25, 'total' => 2], 'links' => $this->pageLinks()]);
+            }
+            if ($path === '/v1/business/clinical/me') {
+                return Http::response(['data' => ['organization' => ['id' => 'organization-1', 'name' => 'Synthetic Clinical Choice']]]);
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        $response = $this->get('/clinical')->assertOk()->assertDontSee('Synthetic Management Choice');
+        if ($clinicalSelected) {
+            $response->assertSee('Clinical overview')->assertSee('class="clinical-nav"', false)->assertSee('class="organization-chip"', false);
+            $document = new \DOMDocument;
+            $content = $response->getContent();
+            self::assertIsString($content);
+            @$document->loadHTML($content);
+            $chips = (new \DOMXPath($document))->query('//span[contains(concat(" ", normalize-space(@class), " "), " organization-chip ")]');
+            self::assertNotFalse($chips);
+            self::assertSame(1, $chips->length);
+            $chip = $chips->item(0);
+            self::assertInstanceOf(\DOMElement::class, $chip);
+            self::assertSame('Synthetic Clinical Choice', trim($chip->textContent));
+        } else {
+            $response->assertSee('Choose your workspace')->assertDontSee('class="clinical-nav"', false)->assertDontSee('class="organization-chip"', false);
+        }
+        self::assertSame($managementSelected ? 'management-organization' : null, session('portal.organization_id'));
+        self::assertSame($clinicalSelected ? 'organization-1' : null, session('clinical_portal.organization_id'));
+        self::assertSame('clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+        self::assertSame($managementSelected ? 'business-access-token' : null, app(PortalAccessTokenStore::class)->accessToken());
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/v1/business/clinical/organizations')
+            && $request->hasHeader('Authorization', 'Bearer clinical-access-token'));
+        Http::assertNotSent(fn (Request $request): bool => ! str_contains($request->url(), '/v1/business/clinical/'));
+    }
+
     public function test_clinical_api_calls_use_the_canonical_audience_and_separate_credentials(): void
     {
         app(ClinicalPortalAccessTokenStore::class)->put([
