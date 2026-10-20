@@ -797,7 +797,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Array of `ProviderMediaResource`",
+                        "description": "Available shared pet media.",
                         "content": {
                             "application/json": {
                                 "schema": {

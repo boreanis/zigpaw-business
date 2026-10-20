@@ -13,7 +13,7 @@ final class BusinessApiOperations
     /** @var array<string, string> */
     public const CONTRACT_SHA256 = [
         'business-v1' => 'd06e9289e4483cb0078a0a15e20df06beeafad4593e053791ef3aeead33dc226',
-        'clinical-v1' => 'dbed291193cb593b021d1d40dd63a7e6c2a42cb2b7dc29e221e0960e83aaaa38',
+        'clinical-v1' => '75aa4488394e41af9002a3f9729a40d3710f1387d0d279b848b4554d2b507201',
     ];
 
     /** @var list<array{contract: string, operation_id: string, method: string, path: string}> */
