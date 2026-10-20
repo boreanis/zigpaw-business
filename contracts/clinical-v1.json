@@ -871,17 +871,6 @@
                                     "format": "binary"
                                 }
                             }
-                        },
-                        "headers": {
-                            "Transfer-Encoding": {
-                                "required": true,
-                                "schema": {
-                                    "type": "string",
-                                    "enum": [
-                                        "chunked"
-                                    ]
-                                }
-                            }
                         }
                     },
                     "404": {
