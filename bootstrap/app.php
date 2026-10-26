@@ -2,13 +2,14 @@
 
 use App\Http\Middleware\AssignRequestCorrelation;
 use App\Http\Middleware\PortalSecurityHeaders;
+use App\Support\PrivateLogManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
@@ -32,3 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             return $response;
         });
     })->create();
+
+$app->singleton('log', static fn (Application $app): PrivateLogManager => new PrivateLogManager($app));
+
+return $app;

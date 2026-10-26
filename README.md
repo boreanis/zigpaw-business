@@ -1,5 +1,7 @@
 # Zigpaw Business
 
+The [coordinated October 25 change summary](../zigpaw-platform/docs/2026-10-25_PUSH_PREPARATION.md) records the four-repository preparation, current verification and remaining journey limits. Publication is authorized. Use Git history, remote refs and the latest publication receipt for the outcome.
+
 > **Canonical source; dated local acceptance evidence is recorded in the Platform handoff.** This independent API-only
 > Business client has no Platform/domain database and calls the unified
 > Platform API backed by one canonical domain MySQL database. See the Platform
@@ -230,9 +232,9 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 
 ## Setup
 
-The current lockfiles use PHP 8.4, Laravel 13, Livewire 4, PHPUnit 13,
-Vite 8, Laravel Vite Plugin 3 and Tailwind CSS 4. Use Node 24.11 or newer on
-24.x, or Node 26 or newer, as declared by `package.json`. Install the reviewed
+The current lockfiles use PHP 8.5, Laravel 13, Livewire 4, PHPUnit 13,
+Vite 8, Laravel Vite Plugin 3 and Tailwind CSS 4. Use Node 24.22.1 LTS or newer on
+24.x, or Node 26.12.1 or newer, as declared by `package.json`. Install the reviewed
 locks; framework upgrades do not authorize a Business database or migrations.
 
 ```bash

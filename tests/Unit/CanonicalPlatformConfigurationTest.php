@@ -46,18 +46,50 @@ class CanonicalPlatformConfigurationTest extends TestCase
 
     public function test_cache_and_cookie_namespaces_are_stable_without_placement_suffixes(): void
     {
-        putenv('CACHE_PREFIX=custom-cache');
-        putenv('SESSION_COOKIE=__Host-custom-session');
+        $values = [
+            'CACHE_PREFIX' => 'custom-cache',
+            'SESSION_COOKIE' => '__Host-custom-session',
+        ];
+        $previous = [];
+
+        foreach (array_keys($values) as $key) {
+            $previous[$key] = [
+                'process' => getenv($key),
+                'env_present' => array_key_exists($key, $_ENV),
+                'env' => $_ENV[$key] ?? null,
+                'server_present' => array_key_exists($key, $_SERVER),
+                'server' => $_SERVER[$key] ?? null,
+            ];
+        }
 
         try {
+            foreach ($values as $key => $value) {
+                putenv("{$key}={$value}");
+                $_ENV[$key] = $value;
+                $_SERVER[$key] = $value;
+            }
+
             $cache = require config_path('cache.php');
             $session = require config_path('session.php');
 
             $this->assertSame('custom-cache-', $cache['prefix']);
             $this->assertSame('__Host-custom-session', $session['cookie']);
         } finally {
-            putenv('CACHE_PREFIX');
-            putenv('SESSION_COOKIE');
+            foreach ($previous as $key => $value) {
+                putenv($value['process'] === false ? $key : "{$key}={$value['process']}");
+
+                if ($value['env_present']) {
+                    $_ENV[$key] = $value['env'];
+                } else {
+                    unset($_ENV[$key]);
+                }
+
+                if ($value['server_present']) {
+                    $_SERVER[$key] = $value['server'];
+                } else {
+                    unset($_SERVER[$key]);
+                }
+            }
         }
     }
 
