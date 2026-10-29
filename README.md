@@ -1,5 +1,36 @@
 # Zigpaw Business
 
+## Security/CI checkpoint — October 29 — installed; normal runtime accepted
+
+This top checkpoint supersedes the dated historical sections below, including
+their older “Current” headings.
+
+The coordinated security/CI repair has zero Composer advisories in Platform/Admin/Business
+and zero JavaScript advisories across all four repositories. Consumer's pinned
+resolver patch removes only unused deepmerge; Root-accepted combined verification passes
+4,508 cases / 172 files and the 416-file build, with all original case IDs retained.
+Admin 717 / 70,420 plus UI32 and Business 310 / 2,157 pass their native checks.
+
+G16 is Root-accepted: 5,633 tests / 1,400,968 assertions, with independent strict
+restoration of 271 tables / 2,909 raw rows / six queues. Twelve source operations,
+all three PHP vendor trees and Consumer's complete 416-file output are installed.
+Native Node and closed filesystem installation are Root-accepted. The same
+Consumer definition resumed as PID 21448; all four normal trusted TLS/hostname
+readiness checks return 200. Bounded phone/desktop sign-in, PWA Refresh, order/care
+reads and Cancel/focus checks pass with zero console findings and no new payment
+or data edit.
+
+Publication authorized; Git history, remote refs and workflow results establish its outcome.
+The prior G15/width and publication records below remain dated evidence.
+The Canada-only eight-hour test Admin renewal is approved but unapplied; paid
+order `ZWO20261029ZAVV` still awaits packing, simulated dispatch and activation.
+
+Business changes only its affected locked PHP dependencies in this repair;
+its released API boundary and application behavior remain intact.
+
+[Repair record and pending gates](../zigpaw-platform/docs/2026-10-29_SECURITY_CI_REPAIR.md).
+
+
 ## Current October 29 — coordinated audit publication
 
 The founder authorized publication of the reviewed changes to the four existing
