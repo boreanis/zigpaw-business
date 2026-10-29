@@ -1,6 +1,40 @@
 # Zigpaw Business
 
-The [coordinated October 25 change summary](../zigpaw-platform/docs/2026-10-25_PUSH_PREPARATION.md) records the four-repository preparation, current verification and remaining journey limits. Publication is authorized. Use Git history, remote refs and the latest publication receipt for the outcome.
+## Current October 29 — coordinated audit publication
+
+The founder authorized publication of the reviewed changes to the four existing
+`boreanis/zigpaw-*` repositories. The normal Herd apps use the installed checkout
+and address repairs. Platform passes 5,633 tests / 1,400,974 assertions; Consumer
+passes 4,508 tests across 172 files, checks and the production build. The Sage
+test purchase completed once at CAD 26.19; physical packing, simulated dispatch
+and activation remain under audit. The same Canada-only test Admin has a fresh
+eight-hour renewal approval; applying it does not change roles or security checks.
+
+This release changes Business documentation only. Business code matches its
+accepted 310-test / 2,157-assertion checkpoint; no fresh runtime gate is claimed
+for this documentation-only update.
+
+[Platform handoff](../zigpaw-platform/HANDOFF.md) owns the current evidence and
+remaining checks. Git history and the publication receipt record push outcomes;
+this local release does not establish production readiness.
+
+
+## Historical October27 — coordinated audit checkpoint
+
+Business application code and released contracts remain unchanged. This
+continuation reverified **310 tests/2,157 assertions**, contract checks and the
+nine-file production build; the normal Herd HTTPS readiness check passes with
+certificate/hostname validation. This does not establish new provider/clinical
+browser or external-delivery acceptance.
+
+Platform's coordinated full gate passes5,329/779,330 and Consumer's installed
+cold-entry followup passes4,323/168/build408. The separate saved-address and hosted
+two-payment flow is private Platform/Consumer work in progress; no new Business
+authority, database or provider credential is introduced. [The current handoff](../zigpaw-platform/HANDOFF.md)
+owns exact source/runtime/native evidence and remaining work. **No commits or pushes.**
+
+The prior prepared Business checkpoint was published as `6176aecb`; that historical
+publication does not authorize another push.
 
 > **Canonical source; dated local acceptance evidence is recorded in the Platform handoff.** This independent API-only
 > Business client has no Platform/domain database and calls the unified
