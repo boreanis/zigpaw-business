@@ -1,5 +1,12 @@
 # Zigpaw Business
 
+## Current audit and fulfilment status
+
+For current audit/fulfilment status use [Platform HANDOFF](../zigpaw-platform/HANDOFF.md).
+The security/CI checkpoint below describes that earlier revision, including its
+dated operational status notes.
+
+
 ## Security/CI checkpoint — October 29 — installed; normal runtime accepted
 
 This top checkpoint supersedes the dated historical sections below, including
