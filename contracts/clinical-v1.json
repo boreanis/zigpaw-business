@@ -444,7 +444,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paginated set of `ProviderPetAccessGrantResource`",
+                        "description": "Paginated set of `ClinicalProviderPetAccessGrantResource`",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -453,7 +453,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/ProviderPetAccessGrantResource"
+                                                "$ref": "#/components/schemas/ClinicalProviderPetAccessGrantResource"
                                             }
                                         },
                                         "links": {
@@ -621,14 +621,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`ProviderPetAccessGrantResource`",
+                        "description": "`ClinicalProviderPetAccessGrantResource`",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/components/schemas/ProviderPetAccessGrantResource"
+                                            "$ref": "#/components/schemas/ClinicalProviderPetAccessGrantResource"
                                         }
                                     },
                                     "required": [
@@ -1191,13 +1191,97 @@
                 "type": "object",
                 "properties": {
                     "grants": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                            "total": {
+                                "type": "integer"
+                            },
+                            "active": {
+                                "type": "integer"
+                            },
+                            "expiring_soon": {
+                                "type": "integer"
+                            },
+                            "expired": {
+                                "type": "integer"
+                            },
+                            "revoked": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "total",
+                            "active",
+                            "expiring_soon",
+                            "expired",
+                            "revoked"
+                        ]
                     },
                     "submissions": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                            "total": {
+                                "type": "integer"
+                            },
+                            "pending": {
+                                "type": "integer"
+                            },
+                            "approved": {
+                                "type": "integer"
+                            },
+                            "partially_approved": {
+                                "type": "integer"
+                            },
+                            "rejected": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "total",
+                            "pending",
+                            "approved",
+                            "partially_approved",
+                            "rejected"
+                        ]
                     },
                     "locations": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "city": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "state": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "country_code": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "city",
+                                "state",
+                                "country_code"
+                            ]
+                        }
                     }
                 },
                 "required": [
@@ -1227,7 +1311,7 @@
                 ],
                 "title": "ClinicalOrganizationResource"
             },
-            "ProviderPetAccessGrantResource": {
+            "ClinicalProviderPetAccessGrantResource": {
                 "type": "object",
                 "properties": {
                     "id": {
@@ -1259,16 +1343,16 @@
                         "type": "object",
                         "properties": {
                             "read_profile": {
-                                "type": "string"
+                                "type": "boolean"
                             },
                             "read_care": {
-                                "type": "string"
+                                "type": "boolean"
                             },
                             "submit_care": {
-                                "type": "string"
+                                "type": "boolean"
                             },
                             "read_media": {
-                                "type": "string"
+                                "type": "boolean"
                             }
                         },
                         "required": [
@@ -1360,29 +1444,378 @@
                     "expires_at",
                     "revoked_at"
                 ],
-                "title": "ProviderPetAccessGrantResource"
+                "title": "ClinicalProviderPetAccessGrantResource"
             },
             "ClinicalCareContextResource": {
                 "type": "object",
                 "properties": {
                     "pet": {
-                        "type": "array",
-                        "items": {}
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "species": {
+                                "type": "string"
+                            },
+                            "breed": {
+                                "type": "string"
+                            },
+                            "birthday": {
+                                "type": "string"
+                            },
+                            "gender": {
+                                "type": "string"
+                            },
+                            "color": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name"
+                        ]
                     },
                     "weights": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "recorded_date": {
+                                    "type": "string"
+                                },
+                                "weight": {
+                                    "type": "number"
+                                },
+                                "unit": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "recorded_date",
+                                "weight",
+                                "unit"
+                            ]
+                        }
                     },
                     "vaccinations": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "administered_date": {
+                                    "type": "string"
+                                },
+                                "expiry_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "next_due_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "manufacturer": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "batch_number": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "administered_by": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "clinic_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "administered_date",
+                                "expiry_date",
+                                "next_due_date",
+                                "manufacturer",
+                                "batch_number",
+                                "administered_by",
+                                "clinic_name",
+                                "status"
+                            ]
+                        }
                     },
                     "visits": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "visit_date": {
+                                    "type": "string"
+                                },
+                                "visit_type": {
+                                    "type": "string"
+                                },
+                                "visit_reason": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "diagnosis": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "treatment": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "home_care_instructions": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "prognosis": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "next_visit_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "clinic_name": {
+                                    "type": "string"
+                                },
+                                "vet_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "measurements": {
+                                    "type": "object",
+                                    "properties": {
+                                        "body_condition_score": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "temperature": {
+                                            "type": [
+                                                "number",
+                                                "null"
+                                            ]
+                                        },
+                                        "temperature_unit": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "heart_rate": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "respiratory_rate": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "body_condition_score",
+                                        "temperature",
+                                        "temperature_unit",
+                                        "heart_rate",
+                                        "respiratory_rate"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "visit_date",
+                                "visit_type",
+                                "visit_reason",
+                                "diagnosis",
+                                "treatment",
+                                "home_care_instructions",
+                                "prognosis",
+                                "next_visit_date",
+                                "clinic_name",
+                                "vet_name",
+                                "measurements"
+                            ]
+                        }
                     },
                     "medications": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "dosage": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "frequency": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "route": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "instructions": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "start_date": {
+                                    "type": "string"
+                                },
+                                "end_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "dosage",
+                                "frequency",
+                                "route",
+                                "instructions",
+                                "start_date",
+                                "end_date",
+                                "status"
+                            ]
+                        }
                     },
                     "conditions": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "type": "string"
+                                },
+                                "severity": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "symptoms": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "treatment_plan": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "diagnosed_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "resolved_date": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "type",
+                                "severity",
+                                "description",
+                                "symptoms",
+                                "treatment_plan",
+                                "diagnosed_date",
+                                "resolved_date",
+                                "status"
+                            ]
+                        }
                     }
                 },
                 "required": [
@@ -1900,19 +2333,30 @@
                         "type": "string"
                     },
                     "kind": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "profile_photo",
+                            "pet_photo",
+                            "vaccination_certificate"
+                        ]
                     },
                     "label": {
                         "type": "string"
                     },
                     "record_id": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "mime_type": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "size_bytes": {
-                        "type": "string"
+                        "type": "integer"
                     },
                     "uploaded_at": {
                         "type": [

@@ -1,5 +1,27 @@
 # Zigpaw Business
 
+## November 2 — coordinated contract publication
+
+This release updates the released `business-v1` and `clinical-v1` schema
+projections and their generated checksum bindings, and removes an unused Vite
+example setting. The current contract files match their generated hashes and
+the reviewed Platform release. The Business client remains API-only with
+separate Business and clinical authority; it gains no domain database or
+provider credentials and does not own the revised Platform rules.
+
+Fresh November 2 verification passes **310 PHP tests / 2,157 assertions**,
+**three JavaScript cases**, both contract-sync checks, Pint, configured static
+analysis and the production build. Locked PHP and JavaScript security audits
+are clear. The reviewed contracts,
+locked inputs and installed dependency metadata matched that stage on November
+2. These are the fresh local gates; publication outcome and any new browser results
+belong to [Platform HANDOFF](../zigpaw-platform/HANDOFF.md). Provider/clinical
+journey, external-delivery and production acceptance remain separate and open.
+
+This checkpoint supersedes operational statements in older dated sections;
+their original source, publication and verification scopes remain historical.
+
+
 ## Current audit and fulfilment status
 
 For current audit/fulfilment status use [Platform HANDOFF](../zigpaw-platform/HANDOFF.md).

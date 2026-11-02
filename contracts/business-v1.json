@@ -629,7 +629,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/RespondToBookingRequest"
+                                "$ref": "#/components/schemas/BusinessRespondToBookingRequest"
                             }
                         }
                     }
@@ -3592,45 +3592,21 @@
                                                             "items": {}
                                                         },
                                                         "template": {
-                                                            "anyOf": [
-                                                                {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "key": {
-                                                                            "type": "string",
-                                                                            "const": "general"
-                                                                        },
-                                                                        "label": {
-                                                                            "type": "string",
-                                                                            "const": "Service provider"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "key",
-                                                                        "label"
-                                                                    ]
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "key": {
+                                                                    "type": "string"
                                                                 },
-                                                                {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "key": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "label": {
-                                                                            "type": "string"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "key",
-                                                                        "label"
-                                                                    ]
-                                                                },
-                                                                {
-                                                                    "type": "null"
+                                                                "label": {
+                                                                    "type": "string"
                                                                 }
+                                                            },
+                                                            "required": [
+                                                                "key",
+                                                                "label"
                                                             ]
                                                         }
                                                     },
@@ -4869,10 +4845,67 @@
                         "type": "string"
                     },
                     "pet": {
-                        "type": "string"
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "species": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "species"
+                        ]
                     },
                     "provider": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                            "service_provider_id": {
+                                "type": "string"
+                            },
+                            "place_id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "location_name": {
+                                "type": "string"
+                            },
+                            "service_name": {
+                                "type": "string"
+                            },
+                            "address": {
+                                "type": "string"
+                            },
+                            "city": {
+                                "type": "string"
+                            },
+                            "state": {
+                                "type": "string"
+                            },
+                            "postal_code": {
+                                "type": "string"
+                            },
+                            "country_code": {
+                                "type": "string"
+                            },
+                            "market_code": {
+                                "type": "string"
+                            }
+                        }
                     },
                     "confirmed_starts_at": {
                         "type": [
@@ -5299,7 +5332,7 @@
                 ],
                 "title": "BusinessBookingPetContextResource"
             },
-            "RespondToBookingRequest": {
+            "BusinessRespondToBookingRequest": {
                 "type": "object",
                 "properties": {
                     "action": {
@@ -5360,7 +5393,7 @@
                 "required": [
                     "action"
                 ],
-                "title": "RespondToBookingRequest"
+                "title": "BusinessRespondToBookingRequest"
             },
             "BusinessCommercialAgreementResource": {
                 "type": "object",
@@ -6235,42 +6268,18 @@
                                 "items": {}
                             },
                             "template": {
-                                "anyOf": [
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "key": {
-                                                "type": "string",
-                                                "const": "general"
-                                            },
-                                            "label": {
-                                                "type": "string",
-                                                "const": "Service provider"
-                                            }
-                                        },
-                                        "required": [
-                                            "key",
-                                            "label"
-                                        ]
+                                "type": "object",
+                                "properties": {
+                                    "key": {
+                                        "type": "string"
                                     },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "key": {
-                                                "type": [
-                                                    "string",
-                                                    "null"
-                                                ]
-                                            },
-                                            "label": {
-                                                "type": "string"
-                                            }
-                                        },
-                                        "required": [
-                                            "key",
-                                            "label"
-                                        ]
+                                    "label": {
+                                        "type": "string"
                                     }
+                                },
+                                "required": [
+                                    "key",
+                                    "label"
                                 ]
                             }
                         },
