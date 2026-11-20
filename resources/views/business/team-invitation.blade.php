@@ -1,7 +1,7 @@
-<x-layouts.portal title="Review team invitation · Zigpaw Business">
+<x-layouts.portal title="Review team invitation · Zigpaw Partners">
     <main id="main-content" class="access-shell">
         <section class="access-card">
-            <p class="eyebrow">Business access</p>
+            <p class="eyebrow">Workspace access</p>
             <h1>Review team invitation</h1>
             @if($errors->has('invitation'))<p class="inline-alert" role="alert">{{ $errors->first('invitation') }}</p>@endif
             @if($message)<p class="inline-alert" role="alert">{{ $message }}</p>@endif
@@ -24,7 +24,7 @@
                 @elseif($state === 'expired')
                     <p class="section-note" role="status">This invitation session expired or is unavailable. Reopen the latest invitation email.</p>
                 @endif
-                <x-business.button :href="route('dashboard')">Back to Business workspace</x-business.button>
+                <x-business.button :href="route('dashboard')">Back to Partners workspace</x-business.button>
             </div>
         </section>
     </main>

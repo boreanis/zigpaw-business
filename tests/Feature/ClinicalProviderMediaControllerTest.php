@@ -19,10 +19,10 @@ class ClinicalProviderMediaControllerTest extends TestCase
         parent::setUp();
 
         config()->set([
-            'app.url' => 'https://business.zigpaw.test',
+            'app.url' => 'https://partners.zigpaw.test',
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
             'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
-            'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test/clinical/auth/callback',
+            'platform_clinical.oauth_redirect_uri' => 'https://partners.zigpaw.test/clinical/auth/callback',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
         ]);
     }

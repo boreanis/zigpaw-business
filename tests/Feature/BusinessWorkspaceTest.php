@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class BusinessWorkspaceTest extends TestCase
@@ -130,6 +131,100 @@ class BusinessWorkspaceTest extends TestCase
         Livewire::test(BusinessWorkspace::class)
             ->assertSet('state', 'signed_out')
             ->assertSee('That sign-in link is no longer valid. Please try again.');
+    }
+
+    public function test_forbidden_workspace_changes_accounts_through_the_csrf_protected_sign_out_form(): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'synthetic-workspace-token',
+            'refresh_token' => 'synthetic-workspace-refresh',
+            'expires_in' => 900,
+        ]);
+        session()->regenerateToken();
+        $logoutUrl = 'https://auth.zigpaw.test/session/end/019f5a00-0000-7000-8000-000000000099?nonce=synthetic&expires=1786400000&signature=synthetic';
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/organizations' => Http::response(self::page([])),
+            'https://api.zigpaw.test/v1/business/session' => Http::response(['data' => ['logout_url' => $logoutUrl]]),
+        ]);
+
+        $workspace = Livewire::test(BusinessWorkspace::class)
+            ->assertSet('state', 'forbidden');
+        $document = new \DOMDocument;
+        $this->assertTrue($document->loadHTML($workspace->html(), LIBXML_NOERROR | LIBXML_NOWARNING));
+        $xpath = new \DOMXPath($document);
+        $forms = $xpath->query('//form[@method="POST"][@action="'.route('auth.logout').'"]');
+        $this->assertNotFalse($forms);
+        $this->assertCount(1, $forms);
+        $form = $forms->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $form);
+        $fields = $xpath->query('.//input[@type="hidden"][@name="_token"]', $form);
+        $this->assertNotFalse($fields);
+        $this->assertCount(1, $fields);
+        $field = $fields->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $field);
+        $csrfToken = $field->getAttribute('value');
+        $this->assertNotSame('', $csrfToken);
+        $this->assertSame(session()->token(), $csrfToken);
+        $buttons = $xpath->query('.//button[@type="submit"][normalize-space(.)="Use another account"]', $form);
+        $this->assertNotFalse($buttons);
+        $this->assertCount(1, $buttons);
+        $links = $xpath->query('//a[normalize-space(.)="Use another account"]');
+        $this->assertNotFalse($links);
+        $this->assertCount(0, $links);
+
+        $workspace->assertSee('Ask the organization owner to invite you, or sign in with another account.');
+
+        $this->post($form->getAttribute('action'), ['_token' => $csrfToken])
+            ->assertRedirect($logoutUrl)
+            ->assertSessionMissing('platform.oauth.token_handle');
+        $this->assertNull(app(PortalAccessTokenStore::class)->accessToken());
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://api.zigpaw.test/v1/business/session'
+            && $request->hasHeader('Authorization', 'Bearer synthetic-workspace-token'));
+    }
+
+    #[DataProvider('initialWorkspaceFailures')]
+    public function test_initial_workspace_failure_preserves_explicit_access_refusal_and_outage_states(int $status, array $payload, string $state): void
+    {
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'synthetic-workspace-token',
+            'refresh_token' => 'synthetic-workspace-refresh',
+            'expires_in' => 900,
+        ]);
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/organizations' => Http::response($payload, $status),
+        ]);
+
+        $workspace = Livewire::test(BusinessWorkspace::class)
+            ->assertSet('state', $state);
+
+        if ($state === 'forbidden') {
+            $workspace->assertSee('No active Partners workspace.')
+                ->assertDontSee('The Partners workspace is taking a pause.');
+        } else {
+            $workspace->assertSee('The Partners workspace is taking a pause.')
+                ->assertDontSee('No active Partners workspace.');
+        }
+
+        $this->assertSame('synthetic-workspace-token', app(PortalAccessTokenStore::class)->accessToken());
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && $request->url() === 'https://api.zigpaw.test/v1/business/organizations');
+    }
+
+    /** @return array<string, array{int, array<string, mixed>, string}> */
+    public static function initialWorkspaceFailures(): array
+    {
+        return [
+            'feature disabled with top-level code' => [404, ['message' => 'This workspace is not available.', 'code' => 'feature_unavailable'], 'forbidden'],
+            'feature disabled with nested code' => [404, ['message' => 'This workspace is not available.', 'error' => ['code' => 'feature_unavailable']], 'forbidden'],
+            'ordinary missing resource' => [404, ['message' => 'This resource could not be found.'], 'unavailable'],
+            'other explicit missing-resource code' => [404, ['code' => 'resource_not_found'], 'unavailable'],
+            'upstream outage' => [503, ['message' => 'Unavailable.'], 'unavailable'],
+            'outage status still takes precedence' => [503, ['code' => 'feature_unavailable'], 'unavailable'],
+            'ordinary access denial' => [403, ['message' => 'Access denied.'], 'forbidden'],
+        ];
     }
 
     public function test_authenticated_business_sees_an_isolated_operational_overview(): void

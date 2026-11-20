@@ -9,15 +9,15 @@
 ])
 
 <div class="business-shell">
-    <aside id="business-sidebar" class="business-sidebar" aria-label="Business workspace" aria-hidden="false" data-sidebar>
+    <aside id="business-sidebar" class="business-sidebar" aria-label="Partners workspace" aria-hidden="false" data-sidebar>
         <button type="button" class="sidebar-close" data-sidebar-close aria-label="Close navigation">
             <span aria-hidden="true">×</span>
         </button>
         <a href="{{ route('dashboard') }}" class="brand-link" wire:navigate>
             <span class="brand-art"><img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw"><img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw"></span>
-            <span>Business</span>
+            <span>Partners</span>
         </a>
-        <nav class="business-nav" aria-label="Business sections">
+        <nav class="business-nav" aria-label="Partners sections">
             @foreach ($navigationSections as $key => $navigation)
                 <button type="button" class="business-nav-item {{ $section === $key ? 'is-active' : '' }}" wire:click="showSection('{{ $key }}')" @if ($section === $key) aria-current="page" @endif>
                     <x-business-icon :name="$navigation['icon']" />
@@ -29,7 +29,7 @@
             <span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span>
         </button>
         <div class="sidebar-account">
-            <p>{{ data_get($identity, 'organization.name', 'Business workspace') }}</p>
+            <p>{{ data_get($identity, 'organization.name', 'Partners workspace') }}</p>
             <span>{{ str(data_get($identity, 'membership.role', 'member'))->headline() }}</span>
             <form method="POST" action="{{ route('auth.logout') }}">
                 @csrf
@@ -52,7 +52,7 @@
             </div>
         </header>
         <button type="button" class="sidebar-backdrop" data-sidebar-close aria-label="Close navigation" hidden></button>
-        <div class="mobile-sections" role="navigation" aria-label="Business sections">
+        <div class="mobile-sections" role="navigation" aria-label="Partners sections">
             <select wire:change="showSection($event.target.value)" aria-label="Current section">
                 @foreach ($navigationSections as $key => $navigation)
                     <option value="{{ $key }}" @selected($section === $key)>{{ $navigation['label'] }}</option>

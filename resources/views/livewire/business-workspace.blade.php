@@ -583,20 +583,24 @@
     @else
         <main id="main-content" class="access-shell">
             <header class="access-header">
-                <div class="access-brand"><span class="brand-art"><img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw"><img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw"></span><span>Business</span></div>
+                <div class="access-brand"><span class="brand-art"><img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw"><img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw"></span><span>Partners</span></div>
                 <x-business.button variant="theme" data-theme-toggle aria-label="Change appearance"><span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span></x-business.button>
             </header>
             <section class="access-card">
                 @if ($state === 'choose_organization')
-                    <p class="eyebrow">Business workspace</p><h1>Choose where you’re working.</h1><p>Each workspace keeps locations, bookings, staff and financial information isolated.</p>
+                    <p class="eyebrow">Partners workspace</p><h1>Choose where you’re working.</h1><p>Each workspace keeps locations, bookings, staff and financial information isolated.</p>
                     <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" :list="true" />
                     @if ($message)<p role="alert">{{ $message }}</p>@endif
                 @elseif ($state === 'forbidden')
-                    <p class="eyebrow">Business access</p><h1>No active business workspace.</h1><p>{{ $message ?: 'Ask the business owner to invite you, or sign in with another account.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Use another account</x-business.button>
+                    <p class="eyebrow">Workspace access</p><h1>No active Partners workspace.</h1><p>{{ $message ?: 'Ask the organization owner to invite you, or sign in with another account.' }}</p>
+                    <form method="POST" action="{{ route('auth.logout') }}">
+                        @csrf
+                        <x-business.button variant="primary" type="submit">Use another account</x-business.button>
+                    </form>
                 @elseif ($state === 'unavailable')
-                    <p class="eyebrow">Connection check</p><h1>The business workspace is taking a pause.</h1><p>{{ $message ?: 'Your information is safe. Try again shortly.' }}</p><x-business.button variant="primary" :href="route('dashboard')">Try again</x-business.button>
+                    <p class="eyebrow">Connection check</p><h1>The Partners workspace is taking a pause.</h1><p>{{ $message ?: 'Your information is safe. Try again shortly.' }}</p><x-business.button variant="primary" :href="route('dashboard')">Try again</x-business.button>
                 @else
-                    <p class="eyebrow">Zigpaw business</p><h1>Manage the work around every pet.</h1><p>{{ $message ?: 'Keep verified locations, customer booking requests, services, team access and optional partner programs together.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Sign in</x-business.button>
+                    <p class="eyebrow">Zigpaw Partners</p><h1>Manage the work around every pet.</h1><p>{{ $message ?: 'A workspace for vet clinics, groomers, sitters and other pet services. Manage listings, booking requests, services, team access and optional partner programs together.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Sign in</x-business.button>
                 @endif
             </section>
         </main>

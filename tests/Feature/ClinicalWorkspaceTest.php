@@ -290,7 +290,7 @@ class ClinicalWorkspaceTest extends TestCase
     {
         $this->get('/clinical')
             ->assertOk()
-            ->assertSee('Zigpaw Business clinical workspace')
+            ->assertSee('Zigpaw Partners clinical workspace')
             ->assertSee('Sign in securely');
 
         $this->get('/clinical/patients')

@@ -1,6 +1,6 @@
-# Business UI rebuild
+# Partners workspace UI
 
-The business browser uses one reusable operational design system for the general partner workspace and the clinical workspace. The UI is intentionally quiet and information-dense: regular or light type, clear status colour, restrained borders, and interaction feedback that remains usable at laptop and mobile widths.
+Zigpaw Partners uses one reusable operational design system for its management and clinical workspaces. The repository, component paths, Livewire classes and released Business/clinical contract identifiers remain unchanged. The UI is intentionally quiet and information-dense: regular or light type, clear status colour, restrained borders, and interaction feedback that remains usable at laptop and mobile widths.
 
 ## Route and action parity
 

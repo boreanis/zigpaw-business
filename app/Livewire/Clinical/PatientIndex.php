@@ -82,7 +82,7 @@ class PatientIndex extends Component
     public function render(): View
     {
         return view('livewire.clinical.patient-index')
-            ->layout('components.layouts.clinical', ['title' => 'Patients · Zigpaw clinical']);
+            ->layout('components.layouts.clinical', ['title' => 'Patients · Zigpaw Partners clinical']);
     }
 
     private function loadPatients(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void

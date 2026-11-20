@@ -3,7 +3,7 @@
         <div class="page-stack">
             <header class="page-heading">
                 <div>
-                    <p class="eyebrow">{{ $identity['organization']['name'] ?? 'Business clinical workspace' }}</p>
+                    <p class="eyebrow">{{ $identity['organization']['name'] ?? 'Partners clinical workspace' }}</p>
                     <h1>Clinical overview</h1>
                     <p>Only family-approved patient grants and records appear here.</p>
                 </div>
@@ -12,7 +12,7 @@
                 @endif
             </header>
 
-            <section class="metric-strip" aria-label="Business clinical workspace totals">
+            <section class="metric-strip" aria-label="Partners clinical workspace totals">
                 <a href="{{ route('clinical.patients.index') }}" wire:navigate><span>Active patients</span><strong>{{ data_get($overview, 'grants.active', 0) }}</strong></a>
                 <div><span>Expiring soon</span><strong>{{ data_get($overview, 'grants.expiring_soon', 0) }}</strong></div>
                 <a href="{{ route('clinical.submissions.index', ['status' => 'pending']) }}" wire:navigate><span>Pending review</span><strong>{{ data_get($overview, 'submissions.pending', 0) }}</strong></a>
@@ -70,11 +70,11 @@
                         <x-clinical.button variant="primary" type="submit">Use another account</x-clinical.button>
                     </form>
                 @elseif ($state === 'unavailable')
-                    <p class="eyebrow">Connection check</p><h1>Zigpaw Business clinical is temporarily unavailable</h1>
+                    <p class="eyebrow">Connection check</p><h1>Zigpaw Partners clinical is temporarily unavailable</h1>
                     <p>{{ $message ?: 'Your account is safe. Please try again shortly.' }}</p>
                     <x-clinical.button :href="route('clinical.dashboard')">Try again</x-clinical.button>
                 @else
-                    <p class="eyebrow">Zigpaw Business clinical</p><h1>Care records, with families in control</h1>
+                    <p class="eyebrow">Zigpaw Partners clinical</p><h1>Care records, with families in control</h1>
                     <p>Sign in through Zigpaw identity to open only the patient information a family has explicitly shared with your clinical organisation.</p>
                     <x-clinical.button variant="primary" :href="route('clinical.auth.login')">Sign in securely</x-clinical.button>
                     <div class="trust-note"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Your clinical session is protected, and patient access stays limited to family-approved grants.</span></div>

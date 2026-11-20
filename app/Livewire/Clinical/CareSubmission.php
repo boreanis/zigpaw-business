@@ -256,8 +256,8 @@ class CareSubmission extends Component
     {
         $petName = data_get($this->grant, 'pet.name');
         $title = is_string($petName) && $petName !== ''
-            ? 'Submit care for '.$petName.' · Zigpaw clinical'
-            : 'Submit care · Zigpaw clinical';
+            ? 'Submit care for '.$petName.' · Zigpaw Partners clinical'
+            : 'Submit care · Zigpaw Partners clinical';
 
         return view('livewire.clinical.care-submission')
             ->layout('components.layouts.clinical', ['title' => $title]);

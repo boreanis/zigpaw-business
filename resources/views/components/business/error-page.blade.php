@@ -17,7 +17,7 @@
         ],
         '419' => [
             'title' => 'That form has expired',
-            'description' => 'For your security, this form can no longer be submitted. Start again from the Business sign-in page.',
+            'description' => 'For your security, this form can no longer be submitted. Start again from the Partners sign-in page.',
             'primary' => 'Start again',
             'retry' => false,
         ],
@@ -35,19 +35,19 @@
         ],
         '502' => [
             'title' => 'The workspace is briefly out of reach',
-            'description' => 'Business services could not reach a required service. Try again in a moment.',
+            'description' => 'Workspace services could not reach a required service. Try again in a moment.',
             'primary' => 'Try again',
             'retry' => true,
         ],
         '503' => [
             'title' => 'The workspace is taking a short break',
-            'description' => 'Business services are temporarily unavailable. Please try again shortly.',
+            'description' => 'Workspace services are temporarily unavailable. Please try again shortly.',
             'primary' => 'Try again',
             'retry' => true,
         ],
         '504' => [
             'title' => 'The workspace took too long to respond',
-            'description' => 'Business services are temporarily slow. Try again in a moment.',
+            'description' => 'Workspace services are temporarily slow. Try again in a moment.',
             'primary' => 'Try again',
             'retry' => true,
         ],
@@ -55,7 +55,7 @@
     $state = $states[$status] ?? $states['500'];
     $signedIn = session()->has('platform.oauth.token_handle');
     $home = $signedIn ? route('dashboard') : route('auth.login');
-    $homeLabel = $signedIn ? 'Workspace home' : 'Business sign in';
+    $homeLabel = $signedIn ? 'Workspace home' : 'Partners sign in';
     $canRetryGet = request()->isMethod('get');
     $primaryHref = $state['retry'] && $canRetryGet ? url()->current() : ($status === '419' ? route('auth.login') : $home);
     $primaryLabel = $state['retry'] && ! $canRetryGet
@@ -65,15 +65,15 @@
 
 <main id="main-content" class="business-error-shell" tabindex="-1">
     <section class="business-error-page" aria-labelledby="business-error-title">
-        <a class="business-error-brand" href="{{ $home }}" aria-label="Zigpaw Business home">
+        <a class="business-error-brand" href="{{ $home }}" aria-label="Zigpaw Partners home">
             <span class="brand-art">
                 <img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw">
                 <img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="">
             </span>
-            <span>Business</span>
+            <span>Partners</span>
         </a>
         <div class="business-error-mark" aria-hidden="true">{{ $status }}</div>
-        <p class="business-error-eyebrow">Zigpaw Business</p>
+        <p class="business-error-eyebrow">Zigpaw Partners</p>
         <h1 id="business-error-title">{{ $state['title'] }}</h1>
         <p class="business-error-description">{{ $state['description'] }}</p>
         <div class="business-error-actions">

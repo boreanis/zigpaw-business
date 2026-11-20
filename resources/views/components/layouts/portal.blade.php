@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
-    <title>{{ $title ?? 'Zigpaw business' }}</title>
+    <title>{{ $title ?? 'Zigpaw Partners' }}</title>
     @vite(['resources/css/business.css', 'resources/js/business.js'])
     @livewireStyles
 </head>
 <body>
-    <a class="skip-link" href="#main-content">Skip to business workspace</a>
+    <a class="skip-link" href="#main-content">Skip to Partners workspace</a>
     {{ $slot }}
     @livewireScripts
 </body>

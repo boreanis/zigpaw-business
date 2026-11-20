@@ -171,6 +171,46 @@ class CanonicalPlatformConfigurationTest extends TestCase
         }
     }
 
+    public function test_partners_origins_and_exact_callbacks_are_required_for_both_audiences(): void
+    {
+        $originalEnvironment = app()->environment();
+
+        try {
+            foreach (['local' => 'zigpaw.test', 'testing' => 'zigpaw.test', 'staging' => 'staging.zigpaw.app', 'production' => 'zigpaw.app'] as $environment => $suffix) {
+                app()->detectEnvironment(fn (): string => $environment);
+                config()->set(['app.url' => "https://partners.{$suffix}", 'platform.staged_browser_qa' => false]);
+
+                foreach ([PlatformConfiguration::BUSINESS => ['platform', '/auth/callback'], PlatformConfiguration::CLINICAL => ['platform_clinical', '/clinical/auth/callback']] as $context => [$prefix, $callback]) {
+                    config()->set([
+                        "{$prefix}.api_url" => "https://api.{$suffix}",
+                        "{$prefix}.auth_url" => "https://auth.{$suffix}",
+                        "{$prefix}.oauth_redirect_uri" => "https://partners.{$suffix}{$callback}",
+                    ]);
+                    $this->assertTrue(PlatformConfiguration::isSafe($context), $environment.': '.$context);
+
+                    foreach ([
+                        "https://business.{$suffix}{$callback}",
+                        "https://partners.{$suffix}.attacker.example{$callback}",
+                        "https://partners.{$suffix}{$callback}/extra",
+                        "https://partners.{$suffix}{$callback}?next=/",
+                    ] as $redirectUri) {
+                        config()->set("{$prefix}.oauth_redirect_uri", $redirectUri);
+                        $this->assertFalse(PlatformConfiguration::isSafe($context), $redirectUri);
+                    }
+
+                    config()->set([
+                        'app.url' => "https://business.{$suffix}",
+                        "{$prefix}.oauth_redirect_uri" => "https://business.{$suffix}{$callback}",
+                    ]);
+                    $this->assertFalse(PlatformConfiguration::isSafe($context), 'Retired origin: '.$environment.': '.$context);
+                    config()->set('app.url', "https://partners.{$suffix}");
+                }
+            }
+        } finally {
+            app()->detectEnvironment(fn (): string => $originalEnvironment);
+        }
+    }
+
     private function withProductionConfiguration(callable $assertions): void
     {
         $originalEnvironment = app()->environment();
@@ -178,10 +218,10 @@ class CanonicalPlatformConfigurationTest extends TestCase
 
         try {
             config()->set([
-                'app.url' => 'https://business.zigpaw.app',
+                'app.url' => 'https://partners.zigpaw.app',
                 'platform.api_url' => 'https://api.zigpaw.app',
                 'platform.auth_url' => 'https://auth.zigpaw.app',
-                'platform.oauth_redirect_uri' => 'https://business.zigpaw.app/auth/callback',
+                'platform.oauth_redirect_uri' => 'https://partners.zigpaw.app/auth/callback',
             ]);
             $assertions();
         } finally {

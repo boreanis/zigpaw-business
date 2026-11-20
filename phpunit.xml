@@ -24,7 +24,7 @@
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" force="true"/>
-        <env name="APP_URL" value="https://business.zigpaw.test" force="true"/>
+        <env name="APP_URL" value="https://partners.zigpaw.test" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
@@ -34,8 +34,8 @@
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="PLATFORM_API_URL" value="https://api.zigpaw.test" force="true"/>
         <env name="PLATFORM_AUTH_URL" value="https://auth.zigpaw.test" force="true"/>
-        <env name="PLATFORM_OAUTH_REDIRECT_URI" value="https://business.zigpaw.test/auth/callback" force="true"/>
-        <env name="PLATFORM_CLINICAL_OAUTH_REDIRECT_URI" value="https://business.zigpaw.test/clinical/auth/callback" force="true"/>
+        <env name="PLATFORM_OAUTH_REDIRECT_URI" value="https://partners.zigpaw.test/auth/callback" force="true"/>
+        <env name="PLATFORM_CLINICAL_OAUTH_REDIRECT_URI" value="https://partners.zigpaw.test/clinical/auth/callback" force="true"/>
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>

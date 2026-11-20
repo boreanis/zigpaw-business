@@ -13,7 +13,7 @@ class PortalOperationalBoundaryTest extends TestCase
     public function test_liveness_is_uncached_and_propagates_a_valid_request_id(): void
     {
         $response = $this->withHeader('X-Request-ID', 'portal-test-request-1234')
-            ->get('http://business.zigpaw.test/health')
+            ->get('http://partners.zigpaw.test/health')
             ->assertOk()
             ->assertHeader('X-Request-ID', 'portal-test-request-1234')
             ->assertExactJson(['status' => 'ok']);
@@ -29,7 +29,7 @@ class PortalOperationalBoundaryTest extends TestCase
 
     public function test_secure_requests_keep_the_subresource_upgrade_policy(): void
     {
-        $policy = (string) $this->get('https://business.zigpaw.test/health')
+        $policy = (string) $this->get('https://partners.zigpaw.test/health')
             ->assertOk()
             ->headers->get('Content-Security-Policy');
 
@@ -132,7 +132,7 @@ class PortalOperationalBoundaryTest extends TestCase
                 'platform.oauth_client_secret' => hash('sha256', 'zigpaw-local-business-bff-secret'),
                 'platform.oauth_scopes' => ['business:read'],
                 'app.debug' => false,
-                'app.url' => 'https://business.staging.zigpaw.app',
+                'app.url' => 'https://partners.staging.zigpaw.app',
                 'platform.api_url' => 'https://api.staging.zigpaw.app',
                 'platform.auth_url' => 'https://auth.staging.zigpaw.app',
                 'cache.default' => 'redis',
@@ -159,16 +159,16 @@ class PortalOperationalBoundaryTest extends TestCase
             app()->detectEnvironment(fn (): string => 'staging');
             config()->set([
                 'app.debug' => false,
-                'app.url' => 'https://business.staging.zigpaw.app',
+                'app.url' => 'https://partners.staging.zigpaw.app',
                 'platform.api_url' => 'https://api.staging.zigpaw.app',
                 'platform.auth_url' => 'https://auth.staging.zigpaw.app',
-                'platform.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/auth/callback',
+                'platform.oauth_redirect_uri' => 'https://partners.staging.zigpaw.app/auth/callback',
                 'platform.oauth_client_id' => 'staging-business-client',
                 'platform.oauth_client_secret' => str_repeat('b', 40),
                 'platform.oauth_scopes' => ['business:read'],
                 'platform_clinical.api_url' => 'https://api.staging.zigpaw.app',
                 'platform_clinical.auth_url' => 'https://auth.staging.zigpaw.app',
-                'platform_clinical.oauth_redirect_uri' => 'https://business.staging.zigpaw.app/clinical/auth/callback',
+                'platform_clinical.oauth_redirect_uri' => 'https://partners.staging.zigpaw.app/clinical/auth/callback',
                 'platform_clinical.oauth_client_id' => 'staging-clinical-client',
                 'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
                 'platform_clinical.oauth_scopes' => ['clinical:read', 'clinical:submit'],

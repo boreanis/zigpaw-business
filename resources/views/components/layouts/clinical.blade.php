@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
-    <title>{{ $title ?? 'Zigpaw Business clinical workspace' }}</title>
+    <title>{{ $title ?? 'Zigpaw Partners clinical workspace' }}</title>
     <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
         (() => { const value = localStorage.getItem('zigpaw-business-theme'); if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value; })();
     </script>
@@ -20,10 +20,10 @@
     <a class="skip-link" href="#main-content">Skip to clinical workspace</a>
     <div class="clinical-app-frame">
         <header class="clinical-app-header">
-            <a class="clinical-brand" href="{{ route('clinical.dashboard') }}" wire:navigate aria-label="Zigpaw Business clinical workspace home">
+            <a class="clinical-brand" href="{{ route('clinical.dashboard') }}" wire:navigate aria-label="Zigpaw Partners clinical workspace home">
                 <img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw">
                 <img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw">
-                <span>Business · Clinical</span>
+                <span>Partners · Clinical</span>
             </a>
 
             @if ($hasClinicalWorkspace)

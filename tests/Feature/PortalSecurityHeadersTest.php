@@ -86,7 +86,7 @@ class PortalSecurityHeadersTest extends TestCase
             $cases[] = [['platform.auth_url' => $url], 'local'];
         }
         $cases['unapproved API'] = [['platform.api_url' => 'https://untrusted.example'], 'local'];
-        $cases['unapproved callback'] = [['platform.oauth_redirect_uri' => 'https://business.zigpaw.test/arbitrary'], 'local'];
+        $cases['unapproved callback'] = [['platform.oauth_redirect_uri' => 'https://partners.zigpaw.test/arbitrary'], 'local'];
         $cases['unapproved endpoint'] = [['platform.session_endpoint' => '/v1/untrusted'], 'local'];
         $cases['request host cannot configure issuer'] = [['app.url' => 'https://untrusted.example'], 'local'];
         $qa = [
@@ -96,7 +96,7 @@ class PortalSecurityHeadersTest extends TestCase
             'platform.oauth_redirect_uri' => 'https://qa-business.zigpaw.test/auth/callback',
         ];
         $cases['QA flag absent'] = [$qa, 'local'];
-        $cases['QA wrong app host'] = [[...$qa, 'app.url' => 'https://business.zigpaw.test', 'platform.staged_browser_qa' => true], 'local'];
+        $cases['QA wrong app host'] = [[...$qa, 'app.url' => 'https://partners.zigpaw.test', 'platform.staged_browser_qa' => true], 'local'];
         $cases['QA forbidden in production'] = [[...$qa, 'platform.staged_browser_qa' => true], 'production'];
 
         return $cases;
@@ -152,7 +152,7 @@ class PortalSecurityHeadersTest extends TestCase
     private function configureOrigins(string $environment, string $suffix, bool $qa): void
     {
         $this->app->instance('env', $environment);
-        $portal = 'https://'.($qa ? 'qa-business' : 'business').'.'.$suffix;
+        $portal = 'https://'.($qa ? 'qa-business' : 'partners').'.'.$suffix;
         config()->set([
             'app.url' => $portal,
             'platform.staged_browser_qa' => $qa,

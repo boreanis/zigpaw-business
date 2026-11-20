@@ -14,20 +14,20 @@ class ClinicalPortalOAuthControllerTest extends TestCase
         parent::setUp();
 
         config()->set([
-            'app.url' => 'https://business.zigpaw.test',
+            'app.url' => 'https://partners.zigpaw.test',
             'platform_clinical.api_url' => 'https://api.zigpaw.test',
             'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
             'platform_clinical.session_endpoint' => '/v1/business/clinical/session',
             'platform_clinical.oauth_client_id' => 'clinical-portal-client',
             'platform_clinical.oauth_client_secret' => str_repeat('c', 40),
             'platform_clinical.oauth_scopes' => ['clinical:read', 'clinical:submit'],
-            'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test/clinical/auth/callback',
+            'platform_clinical.oauth_redirect_uri' => 'https://partners.zigpaw.test/clinical/auth/callback',
         ]);
     }
 
     public function test_it_starts_clinical_pkce_sign_in_at_the_central_auth_host(): void
     {
-        $response = $this->get('https://business.zigpaw.test/clinical/auth/login')
+        $response = $this->get('https://partners.zigpaw.test/clinical/auth/login')
             ->assertRedirectContains('https://auth.zigpaw.test/oauth/authorize?')
             ->assertSessionHas('platform.oauth.clinical.state')
             ->assertSessionHas('platform.oauth.clinical.verifier')
@@ -37,7 +37,7 @@ class ClinicalPortalOAuthControllerTest extends TestCase
         parse_str((string) parse_url((string) $response->headers->get('Location'), PHP_URL_QUERY), $query);
 
         $this->assertSame('clinical-portal-client', $query['client_id'] ?? null);
-        $this->assertSame('https://business.zigpaw.test/clinical/auth/callback', $query['redirect_uri'] ?? null);
+        $this->assertSame('https://partners.zigpaw.test/clinical/auth/callback', $query['redirect_uri'] ?? null);
         $this->assertSame('code', $query['response_type'] ?? null);
         $this->assertSame('clinical:read clinical:submit', $query['scope'] ?? null);
         $this->assertSame('S256', $query['code_challenge_method'] ?? null);
@@ -49,7 +49,7 @@ class ClinicalPortalOAuthControllerTest extends TestCase
     {
         $this->get('https://vets.zigpaw.test/clinical/auth/login')
             ->assertStatus(308)
-            ->assertRedirect('https://business.zigpaw.test/clinical/auth/login')
+            ->assertRedirect('https://partners.zigpaw.test/clinical/auth/login')
             ->assertSessionMissing('platform.oauth.clinical.state')
             ->assertSessionMissing('platform.oauth.clinical.verifier');
     }
@@ -97,7 +97,8 @@ class ClinicalPortalOAuthControllerTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://auth.zigpaw.test/oauth/token'
             && $request['code'] === 'code'
-            && $request['code_verifier'] === 'verifier');
+            && $request['code_verifier'] === 'verifier'
+            && $request['redirect_uri'] === 'https://partners.zigpaw.test/clinical/auth/callback');
         $this->assertNotNull(session('platform.oauth.clinical_token_handle'));
     }
 
@@ -142,7 +143,7 @@ class ClinicalPortalOAuthControllerTest extends TestCase
 
         config()->set([
             'platform_clinical.auth_url' => 'https://auth.zigpaw.test',
-            'platform_clinical.oauth_redirect_uri' => 'https://business.zigpaw.test.attacker.example/clinical/auth/callback',
+            'platform_clinical.oauth_redirect_uri' => 'https://partners.zigpaw.test.attacker.example/clinical/auth/callback',
         ]);
         $this->withSession([
             'platform.oauth.clinical.state' => 'expected',

@@ -38,7 +38,7 @@ class SubmissionShow extends Component
     public function render(): View
     {
         return view('livewire.clinical.submission-show')
-            ->layout('components.layouts.clinical', ['title' => 'Submission status · Zigpaw clinical']);
+            ->layout('components.layouts.clinical', ['title' => 'Submission status · Zigpaw Partners clinical']);
     }
 
     private function loadSubmission(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void

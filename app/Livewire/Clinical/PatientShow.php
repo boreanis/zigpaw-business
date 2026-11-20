@@ -44,7 +44,7 @@ class PatientShow extends Component
     public function render(): View
     {
         $petName = data_get($this->grant, 'pet.name');
-        $title = is_string($petName) && $petName !== '' ? $petName.' · Zigpaw clinical' : 'Patient · Zigpaw clinical';
+        $title = is_string($petName) && $petName !== '' ? $petName.' · Zigpaw Partners clinical' : 'Patient · Zigpaw Partners clinical';
 
         return view('livewire.clinical.patient-show')
             ->layout('components.layouts.clinical', ['title' => $title]);

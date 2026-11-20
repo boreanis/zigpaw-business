@@ -88,11 +88,11 @@ final class CiWorkflowContractTest extends TestCase
             }
         }
 
-        self::assertSame('https://business.zigpaw.test', $values['APP_URL'] ?? null);
+        self::assertSame('https://partners.zigpaw.test', $values['APP_URL'] ?? null);
         self::assertSame('https://api.zigpaw.test', $values['PLATFORM_API_URL'] ?? null);
         self::assertSame('https://auth.zigpaw.test', $values['PLATFORM_AUTH_URL'] ?? null);
-        self::assertSame('https://business.zigpaw.test/auth/callback', $values['PLATFORM_OAUTH_REDIRECT_URI'] ?? null);
-        self::assertSame('https://business.zigpaw.test/clinical/auth/callback', $values['PLATFORM_CLINICAL_OAUTH_REDIRECT_URI'] ?? null);
+        self::assertSame('https://partners.zigpaw.test/auth/callback', $values['PLATFORM_OAUTH_REDIRECT_URI'] ?? null);
+        self::assertSame('https://partners.zigpaw.test/clinical/auth/callback', $values['PLATFORM_CLINICAL_OAUTH_REDIRECT_URI'] ?? null);
     }
 
     public function test_ci_builds_assets_before_portal_tests_need_the_vite_manifest(): void

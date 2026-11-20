@@ -144,8 +144,8 @@ final class BusinessTeamInvitationController
     private function failureMessage(PlatformApiException $exception, bool $acceptance = false): string
     {
         return match ($exception->status) {
-            401 => 'Your Business sign-in ended. Sign in again to review this invitation.',
-            403 => 'This account cannot use this invitation or Business access is not available. Check the intended account and current access.',
+            401 => 'Your Partners sign-in ended. Sign in again to review this invitation.',
+            403 => 'This account cannot use this invitation or workspace access is not available. Check the intended account and current access.',
             404, 422 => 'This invitation is unavailable or its role changed. Check the intended account and review the latest invitation before accepting.',
             default => $acceptance
                 ? 'The acceptance outcome could not be confirmed. Retry only the same reviewed request or check your workspace access before starting another one.'

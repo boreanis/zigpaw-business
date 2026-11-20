@@ -1,4 +1,36 @@
-# Zigpaw Business
+# Zigpaw Partners
+
+## November 19 — Consumers, Partners and normal Herd hosts
+
+The Partners hostname and both existing management/clinical OAuth callbacks are
+renamed on normal Herd. Fresh verification passes **319 PHP tests / 2,271
+assertions**, **three JavaScript cases**, both contract checks, Pint, configured
+static analysis and the production build. PHPStan reports zero analysis errors;
+its launcher still reports Herd's duplicate-module startup warning.
+
+Native sign-in returns to the Partners host. A disabled-feature 404 now shows
+workspace access feedback; unrelated 404/outage behavior is preserved. “Use
+another account” now submits the existing CSRF-protected sign-out instead of
+looping through sign-in. The synthetic session is signed out. Signed-out and
+denied-access phone checks fit 390px, desktop fits 1280px, captured consoles are
+clear and the viewport override is reset. No rollout/access permissions changed.
+
+[Platform HANDOFF](../zigpaw-platform/HANDOFF.md) owns the source/environment
+custody, exact normal-host checks and remaining journey/production limits.
+No commit or push occurred in this continuation.
+
+Partners is the workspace for vet clinics, groomers, boarding services, sitters,
+shelters and other organizations serving pets. Consumers and Partners are the
+two audience names. The repository remains `zigpaw-business`; released
+`business-v1` and `clinical-v1` contracts, API paths, scopes, OAuth client IDs,
+cookie names and storage namespaces keep their existing identifiers. The
+Partners audience name does not imply enrollment in an optional commercial
+partner program or grant listing, clinical or pet-data authority.
+
+The ordinary local hostname is `partners.zigpaw.test`; the planned production
+hostname is `partners.zigpaw.app`. This naming change does not establish a
+production deployment or new provider capabilities. Dated checkpoints below
+retain their original evidence and internal Business contract terminology.
 
 ## November 2 — coordinated contract publication
 
@@ -106,7 +138,7 @@ publication does not authorize another push.
 > records the latest source and acceptance limits. Current runtime, affected
 > browser acceptance and production readiness require their own verification.
 
-`zigpaw-business` is one provider workspace for every organization that serves pets. It is a single Laravel/Livewire BFF at `business.zigpaw.app`; the workspace selects a category template instead of deploying separate vet, groomer, kennel, breeder, or shelter applications.
+`zigpaw-business` is the Partners workspace for every organization that serves pets. It is a single Laravel/Livewire BFF with the planned production origin `partners.zigpaw.app`; the workspace selects a category template instead of deploying separate vet, groomer, kennel, breeder, or shelter applications.
 
 The browser receives only an opaque, host-only session and never receives platform access or refresh tokens.
 
@@ -124,7 +156,7 @@ Insurance and other online products remain directory/affiliate resources, not Bu
 
 ```mermaid
 flowchart LR
-    User["Provider staff"] --> Workspace["business.zigpaw.app<br/>one Business workspace"]
+    User["Provider staff"] --> Workspace["partners.zigpaw.app<br/>one Partners workspace"]
     Workspace --> Registry["Provider template registry"]
     Registry --> Vet["Veterinary template"]
     Registry --> Care["Grooming, boarding,<br/>sitting and mobile-care"]
@@ -150,8 +182,8 @@ flowchart TD
 
 ## Boundary
 
-- Production: `business.zigpaw.app`.
-- Local: `business.zigpaw.test`.
+- Planned production: `partners.zigpaw.app`.
+- Local: `partners.zigpaw.test`.
 - Identity: `auth.zigpaw.app` using Authorization Code, PKCE and confidential clients.
 - Canonical API: `https://api.zigpaw.app`. Management and clinical requests
   use this fixed server-configured origin with separate OAuth clients, scopes,
@@ -184,9 +216,9 @@ There is no fallback from clinical selection to the management key.
 
 ```mermaid
 flowchart LR
-    Browser["Business user's browser"]
+    Browser["Partner staff browser"]
 
-    subgraph BusinessOrigin["business.zigpaw.app — independent deployment"]
+    subgraph BusinessOrigin["partners.zigpaw.app — independent deployment"]
         UI["Laravel + Livewire BFF<br/>HTML, Livewire requests and CSRF"]
         LocalState["Portal-only Redis state<br/>encrypted sessions, OAuth tokens, cache and jobs"]
         UI -->|"opaque session handle"| LocalState
@@ -231,8 +263,8 @@ only the Platform-returned grant capabilities.
 
 ```mermaid
 sequenceDiagram
-    actor User as Business user
-    participant BFF as business.zigpaw.app BFF
+    actor User as Partner staff
+    participant BFF as partners.zigpaw.app BFF
     participant Identity as auth.zigpaw.app
     participant API as api.zigpaw.app/v1
 
@@ -266,7 +298,7 @@ The portal presents:
 
 ### UI ownership and responsive maintenance
 
-Business owns the presentation layer and keeps repeated UI contracts in shared
+This repository owns the presentation layer and keeps repeated UI contracts in shared
 components. Clinical titled panel headings use
 `resources/views/components/clinical/section-heading.blade.php`; its trailing
 `meta` or `actions` slot renders directly beside the heading so existing layout
@@ -292,7 +324,7 @@ refunds, tax calculations, inventory reservations, fulfilment movements, or
 payment-provider credentials. Product availability and any customer-facing
 commerce totals are platform-owned API resources, not Business calculations.
 
-The Business workspace may only display platform-recorded partner-program
+The Partners workspace may only display platform-recorded partner-program
 enrolments, referral commissions, and disclosed agreements through the
 released Business contract. A referral application is a partner-program
 workflow; it is not a payment, discount, tax, or stock operation. If a
@@ -354,20 +386,34 @@ certificate. Keep certificate verification enabled; never replace this with
 `verify => false` or another verification bypass. Production uses its
 deployment trust store and does not use a local Herd CA path.
 
-The canonical production callbacks are `https://business.zigpaw.app/auth/callback` and `https://business.zigpaw.app/clinical/auth/callback`; local development uses the matching `business.zigpaw.test` paths. Never derive either callback or a post-login destination from an untrusted request host. Keep `SESSION_DOMAIN` empty so the `__Host-zigpaw-business-session` cookie cannot escape this host.
+The planned canonical production callbacks are
+`https://partners.zigpaw.app/auth/callback` and
+`https://partners.zigpaw.app/clinical/auth/callback`; local development uses the
+matching `partners.zigpaw.test` paths. Staging expects
+`partners.staging.zigpaw.app` with the same two callback paths. Replace the
+previous callback origins on the existing matching Platform clients before
+runtime acceptance; do not add old-host aliases or rotate client IDs/secrets
+for this rename. Never derive either callback or a post-login destination from
+an untrusted request host. Keep `SESSION_DOMAIN` empty so the
+`__Host-zigpaw-business-session` cookie cannot escape this host.
 
-For isolated local browser QA, `ZIGPAW_STAGED_BROWSER_QA=true` selects the
-fixed `https://qa-business.zigpaw.test`, `https://qa-api.zigpaw.test` and
-`https://qa-auth.zigpaw.test` tuple. Configure dedicated QA management and
-clinical OAuth clients with their exact QA callback paths, fresh client
-application keys and separate encrypted host-local state. Complete normal OAuth;
-the flag adds no authentication, membership or clinical-grant bypass. Keep
-ordinary local hosts and credentials unchanged. Preparation alone is not browser
-acceptance; record the actual run and limits in the Platform handoff.
+Framework references checked November 19, 2026 against the installed Laravel
+13.38.0 boundary: [configuration and cache lifecycle](https://laravel.com/docs/13.x/configuration),
+[request host handling](https://laravel.com/docs/13.x/requests#configuring-trusted-hosts),
+and [Passport callback matching](https://laravel.com/docs/13.x/passport#requesting-tokens).
+The fixed origin/callback allowlist remains enforced by this BFF; deployment
+configuration and the matching issuer registrations must agree.
+
+Use the ordinary secured `partners.zigpaw.test` host for production-shaped
+local browser acceptance. Retired `qa-*` hosts are not acceptance destinations.
+Existing explicit staged-mode fixtures retain their isolated test meaning; they
+do not provision or authorize a live alias. Complete normal management and
+clinical OAuth, then record the actual responsive/browser run and its limits in
+the Platform handoff.
 
 The former standalone veterinary portal is consolidated here as the
 category-aware clinical template. Management and clinical traffic share this
-Business deployment and encrypted host-only browser session container, while
+Partners deployment and encrypted host-only browser session container, while
 retaining separate OAuth clients, callback paths, scope sets, token handles,
 encrypted cache entries, API route allowlists and sign-out endpoints. Browser
 form navigation permits this host and only the canonical identity origin after

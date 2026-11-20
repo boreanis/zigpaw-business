@@ -929,7 +929,7 @@ class BusinessWorkspace extends Component
         $this->authorizeCapability('programs.manage');
         $payload = [
             'program_key' => 'referral',
-            'application_notes' => 'Submitted from the Zigpaw business workspace.',
+            'application_notes' => 'Submitted from the Zigpaw Partners workspace.',
         ];
 
         $this->withMutationApi('programs.apply', 'programs', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
@@ -1062,7 +1062,7 @@ class BusinessWorkspace extends Component
     public function render(): View
     {
         return view('livewire.business-workspace')->layout('components.layouts.portal', [
-            'title' => 'Zigpaw business',
+            'title' => 'Zigpaw Partners',
         ]);
     }
 
@@ -1713,7 +1713,10 @@ class BusinessWorkspace extends Component
         }
 
         if (! $keepWorkspace) {
-            $this->state = $exception->status === 403 ? 'forbidden' : 'unavailable';
+            $this->state = $exception->status === 403
+                || ($exception->status === 404 && $exception->errorCode === 'feature_unavailable')
+                ? 'forbidden'
+                : 'unavailable';
         }
         $this->message = $exception->getMessage();
     }

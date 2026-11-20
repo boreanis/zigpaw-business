@@ -1,3 +1,3 @@
-<x-layouts.portal title="Access restricted · Zigpaw Business">
+<x-layouts.portal title="Access restricted · Zigpaw Partners">
     <x-business.error-page status="403" />
 </x-layouts.portal>

@@ -66,7 +66,7 @@ class SubmissionIndex extends Component
     public function render(): View
     {
         return view('livewire.clinical.submission-index')
-            ->layout('components.layouts.clinical', ['title' => 'Care submissions · Zigpaw clinical']);
+            ->layout('components.layouts.clinical', ['title' => 'Care submissions · Zigpaw Partners clinical']);
     }
 
     private function loadSubmissions(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void

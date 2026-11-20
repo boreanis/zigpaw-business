@@ -68,7 +68,7 @@ class PlatformConfiguration
         }
 
         return [
-            'portal' => "https://business.{$suffix}",
+            'portal' => "https://partners.{$suffix}",
             'api' => "https://api.{$suffix}",
             'auth' => "https://auth.{$suffix}",
         ];

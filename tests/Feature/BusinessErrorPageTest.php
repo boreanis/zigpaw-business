@@ -48,7 +48,7 @@ final class BusinessErrorPageTest extends TestCase
 
         $response->assertNotFound();
         $response->assertSee('That page is not here');
-        $response->assertSee('Business sign in');
+        $response->assertSee('Partners sign in');
         $response->assertDontSee('Whoops');
         $response->assertDontSee('stack trace');
     }
