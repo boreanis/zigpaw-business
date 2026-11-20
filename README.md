@@ -1,5 +1,13 @@
 # Zigpaw Partners
 
+## November 19 — dependency audit follow-up
+
+The published rename is on GitHub. Its workflow failed at dependency audit.
+Local updates move Laravel to **13.43.0** and the affected Symfony components
+to **8.1.11**. Composer and npm audits report zero advisories after the updates.
+The updated PHP suite passes **319 tests / 2,271 assertions**. This security
+follow-up remains local. [Platform HANDOFF](../zigpaw-platform/HANDOFF.md)
+
 ## November 19 — Consumers, Partners and normal Herd hosts
 
 The Partners hostname and both existing management/clinical OAuth callbacks are
