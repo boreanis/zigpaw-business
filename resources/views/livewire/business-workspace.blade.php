@@ -1,9 +1,17 @@
 <div class="business-workspace-root">
 @if ($state === 'ready')
-    <x-business.shell :section="$section" :navigation-sections="$navigationSections" :organizations="$organizations" :organization-id="$organizationId" :identity="$identity" :message="$message" :pagination="$pagination">
+    @php
+        $overlayOpen = match ($section) {
+            'listings' => $editingProviderLinkId !== '' || $claimServiceProviderId !== '',
+            'services' => $editingOfferingId !== '',
+            'team' => $editingTeamMemberId !== '',
+            default => false,
+        };
+    @endphp
+    <x-business.shell :section="$section" :navigation-sections="$navigationSections" :organizations="$organizations" :organization-id="$organizationId" :organization-search="$organizationSearch" :identity="$identity" :message="$message" :pagination="$pagination" :overlay-open="$overlayOpen">
         @if ($section === 'overview')
                 <section class="workspace-section">
-                    <x-business.section-heading eyebrow="Today" title="Your business at a glance" />
+                    <x-business.section-heading title="Activity summary" />
                     <div class="metric-grid {{ count($navigationSections) <= 2 ? 'metric-grid-compact' : '' }}">
                         @if ($this->hasCapability('providers.manage'))
                             <article class="metric-card">
@@ -36,7 +44,7 @@
                     </div>
 
                     @if ($this->hasCapability('bookings.manage') && $this->featureIsAvailable('booking_requests'))
-                        <x-business.section-heading class="section-heading-spaced" eyebrow="Needs attention" title="Keep work moving" />
+                        <x-business.section-heading class="section-heading-spaced" title="Bookings to review" />
                         <div class="action-list">
                             @forelse (collect($bookings)->where('status', 'requested')->take(5) as $booking)
                                 <x-business.button variant="action" wire:click="showSection('bookings')">
@@ -53,11 +61,9 @@
                     @endif
                 </section>
             @elseif ($section === 'profile')
-                <section class="workspace-section narrow-section">
+                <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Business profile"
-                        title="Details your team relies on"
-                        description="Keep the legal identity and operational contact current. Sensitive fields are only returned to people who can manage the organization."
+                        title="Registration details"
                     >
                         <x-slot:actions><x-business.status :tone="data_get($identity, 'business_profile.verified_at') ? 'good' : 'warn'">{{ data_get($identity, 'business_profile.verified_at') ? 'Verified' : 'Verification pending' }}</x-business.status></x-slot:actions>
                     </x-business.section-heading>
@@ -94,9 +100,7 @@
             @elseif ($section === 'listings')
                 <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Managed locations · {{ data_get($pagination, 'providers.total', count($providers)) }}"
-                        title="Business listings"
-                        description="Verified authority lets your team correct public details without changing organic ranking."
+                        title="Managed locations"
                     />
                     <div class="listing-grid">
                         @forelse ($providers as $link)
@@ -109,7 +113,7 @@
                                 <p>{{ data_get($link, 'place.address', 'All verified locations') }}</p>
                                 <div class="listing-card-footer">
                                     <small>{{ data_get($link, 'provider.template.label') ?: collect(data_get($link, 'provider.categories', []))->implode(' · ') }}</small>
-                                    <x-business.button variant="text" wire:click="startProviderEdit({{ Illuminate\Support\Js::from($link['id']) }})">Edit details</x-business.button>
+                                    <x-business.button variant="text" aria-label="Edit details for {{ data_get($link, 'place.name') ?: data_get($link, 'provider.name') }}" wire:click="startProviderEdit({{ Illuminate\Support\Js::from($link['id']) }})">Edit details</x-business.button>
                                 </div>
                             </article>
                         @empty
@@ -118,9 +122,10 @@
                     </div>
 
                     @php($editingProvider = collect($providers)->firstWhere('id', $editingProviderLinkId))
-                    <x-business.drawer
+                    <x-business.overlay kind="drawer"
                         id="provider-edit-drawer"
                         :open="$editingProviderLinkId !== ''"
+                        :message="$message"
                         :title="data_get($editingProvider, 'place.name') ?: data_get($editingProvider, 'provider.name', 'Edit location')"
                         eyebrow="Location details"
                         close-action="cancelProviderEdit"
@@ -156,7 +161,7 @@
                             <x-business.button wire:click="cancelProviderEdit">Cancel</x-business.button>
                             <x-business.button variant="primary" type="submit" form="provider-edit-form">Save details</x-business.button>
                         </x-slot:actions>
-                    </x-business.drawer>
+                    </x-business.overlay>
                     <x-business-pagination resource="providers" label="locations" :pagination="$pagination" />
 
                     @if ($this->featureIsAvailable('provider_claims'))
@@ -186,9 +191,10 @@
                             <p class="section-note">No claimable listings matched that search. Try the business name, suburb or postcode.</p>
                         @endif
 
-                        <x-business.modal
+                        <x-business.overlay
                             id="listing-claim-modal"
                             :open="$claimServiceProviderId !== ''"
+                            :message="$message"
                             title="Confirm listing claim"
                             eyebrow="Managed locations"
                             close-action="cancelProviderClaim"
@@ -215,19 +221,18 @@
                                 <x-business.button wire:click="cancelProviderClaim">Cancel</x-business.button>
                                 <x-business.button variant="primary" type="submit" form="listing-claim-form">Submit claim</x-business.button>
                             </x-slot:actions>
-                        </x-business.modal>
+                        </x-business.overlay>
                     @endif
 
                     @if ($this->featureIsAvailable('provider_claims') && $providerClaims !== [])
                         <x-business.section-heading class="section-heading-spaced" eyebrow="Claims" title="Verification progress" />
-                        <x-business.data-table label="Listing claim status" class="data-list">
+                        <x-business.data-list label="Listing claim status">
                             @foreach ($providerClaims as $claim)
-                                <div class="data-row">
-                                    <div><strong>{{ data_get($claim, 'place.name') ?: data_get($claim, 'provider.name') }}</strong><small>{{ data_get($claim, 'place.address') }}</small></div>
+                                <x-business.data-row :title="data_get($claim, 'place.name') ?: data_get($claim, 'provider.name')" :description="data_get($claim, 'place.address')">
                                     <x-business.status>{{ str($claim['status'])->headline() }}</x-business.status>
-                                </div>
+                                </x-business.data-row>
                             @endforeach
-                        </x-business.data-table>
+                        </x-business.data-list>
                         <x-business-pagination resource="providerClaims" label="claims" :pagination="$pagination" />
                     @elseif (! $this->featureIsAvailable('provider_claims'))
                         <p class="section-note">Listing claims are not available for this workspace yet. Existing approved locations remain available above.</p>
@@ -236,9 +241,8 @@
             @elseif ($section === 'bookings')
                 <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Booking requests · {{ data_get($pagination, 'bookings.total', count($bookings)) }}"
-                        title="Requests from pet families"
-                        description="Zigpaw carries the request and conversation. Payment remains between the business and customer."
+                        title="Booking requests"
+                        description="Customers pay your business directly."
                     />
                     <div class="booking-list">
                         @forelse ($bookings as $booking)
@@ -285,9 +289,10 @@
                                         <x-business.button variant="primary" wire:click="completeBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Mark this appointment complete? This will end appointment-based pet access.">Mark complete</x-business.button>
                                     @endif
                                     @if (in_array('decline', $booking['available_actions'] ?? [], true))
-                                        <x-business.control type="text" wire:model="declineReasons.{{ $booking['id'] }}" placeholder="Reason for declining" aria-label="Reason for declining {{ $booking['request_number'] }}" />
+                                        <x-business.field label="Reason for declining" name="declineReasons.{{ $booking['id'] }}">
+                                            <x-business.control type="text" wire:model="declineReasons.{{ $booking['id'] }}" aria-label="Reason for declining {{ $booking['request_number'] }}" />
+                                        </x-business.field>
                                         <x-business.button variant="danger" wire:click="declineBooking({{ Illuminate\Support\Js::from($booking['id']) }})" wire:confirm="Decline this booking request? The customer will be notified.">Decline</x-business.button>
-                                        @error('declineReasons.'.$booking['id']) <p class="field-error booking-field-error" id="business-field-declineReasons-{{ $booking['id'] }}-error" role="alert">{{ $message }}</p> @enderror
                                     @endif
                                 </div>
                             </article>
@@ -298,11 +303,10 @@
                     <x-business-pagination resource="bookings" label="booking requests" :pagination="$pagination" />
                 </section>
             @elseif ($section === 'booking-setup')
-                <section class="workspace-section narrow-section">
+                <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Booking setup"
-                        title="Choose how requests reach your team"
-                        description="Configure one managed location at a time. The portal itself is a delivery path, so a duplicate email or phone is optional."
+                        title="Location settings"
+                        description="Choose where to accept requests. Your team can see them here even without email or phone notifications."
                     />
 
                     <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$bookingProviderLinkId" :selected-label="data_get($selectedBookingProvider, 'place.name') ?: data_get($selectedBookingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectBookingProvider" field-name="bookingProviderLinkId" :pagination="$pagination" />
@@ -413,32 +417,37 @@
             @elseif ($section === 'services')
                 <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Services · {{ data_get($pagination, 'offerings.total', count($offerings)) }}"
-                        title="What customers can request"
-                        description="Offerings describe the service. Availability controls when requests can be made."
+                        title="Manage services"
+                        description="Add services customers can request from your listings."
                     />
                     <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$offeringProviderLinkId" :selected-label="data_get($selectedOfferingProvider, 'place.name') ?: data_get($selectedOfferingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectOfferingProvider" field-name="offeringProviderLinkId" :pagination="$pagination" />
                     @if ($providerOptions !== [] || $selectedOfferingProvider !== null)
                         <form class="inline-form" wire:submit="createOffering">
                             <x-business.field class="form-grow" label="Service name" name="offeringName"><x-business.control type="text" wire:model="offeringName" placeholder="Wellness consultation" /></x-business.field>
-                            <x-business.field label="Minutes" name="offeringDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="offeringDurationMinutes" placeholder="30" /></x-business.field>
+                            <x-business.field label="Duration (minutes)" name="offeringDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="offeringDurationMinutes" placeholder="30" /></x-business.field>
                             <x-business.button variant="primary" type="submit">Add service</x-business.button>
                         </form>
                     @endif
-                    <x-business.data-table label="Published services" class="data-list">
+                    <x-business.data-list label="Services">
                         @forelse ($offerings as $offering)
-                            <div class="data-row">
-                                <div><strong>{{ $offering['name'] }}</strong><small>{{ data_get($offering, 'place.name', 'All locations') }}{{ $offering['default_duration_minutes'] ? ' · '.$offering['default_duration_minutes'].' minutes' : '' }}</small></div>
-                                <div class="row-actions"><x-business.status :tone="$offering['status'] === 'active' ? 'good' : 'neutral'">{{ str($offering['status'])->headline() }}</x-business.status><x-business.button variant="text" wire:click="startOfferingEdit({{ Illuminate\Support\Js::from($offering['id']) }})">Edit</x-business.button></div>
-                            </div>
+                            <x-business.data-row
+                                :title="$offering['name']"
+                                :description="data_get($offering, 'place.name', 'All locations').($offering['default_duration_minutes'] ? ' · '.$offering['default_duration_minutes'].' minutes' : '')"
+                            >
+                                <x-slot:actions>
+                                    <x-business.status :tone="$offering['status'] === 'active' ? 'good' : 'neutral'">{{ $offering['status'] === 'active' ? 'Available' : str($offering['status'])->headline() }}</x-business.status>
+                                    <x-business.button aria-label="Edit {{ $offering['name'] }}" variant="text" wire:click="startOfferingEdit({{ Illuminate\Support\Js::from($offering['id']) }})">Edit</x-business.button>
+                                </x-slot:actions>
+                            </x-business.data-row>
                         @empty
-                            <div class="empty-row">No services have been published.</div>
+                            <li class="empty-row">No services have been added.</li>
                         @endforelse
-                    </x-business.data-table>
+                    </x-business.data-list>
 
-                    <x-business.drawer
+                    <x-business.overlay kind="drawer"
                         id="offering-edit-drawer"
                         :open="$editingOfferingId !== ''"
+                        :message="$message"
                         :title="$editingOfferingName ?: 'Edit service'"
                         eyebrow="Service"
                         close-action="cancelOfferingEdit"
@@ -461,18 +470,17 @@
                             <x-business.button wire:click="cancelOfferingEdit">Cancel</x-business.button>
                             <x-business.button variant="primary" type="submit" form="offering-edit-form">Save service</x-business.button>
                         </x-slot:actions>
-                    </x-business.drawer>
+                    </x-business.overlay>
                     <x-business-pagination resource="offerings" label="services" :pagination="$pagination" />
                 </section>
             @elseif ($section === 'programs')
-                <section class="workspace-section narrow-section">
+                <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Optional commercial programs"
-                        title="Grow with Zigpaw"
-                        description="Business verification and directory ranking never depend on joining a commercial program."
+                        title="Available programs"
+                        description="Joining a program has no effect on business verification or directory ranking."
                     />
                     <div class="program-card">
-                        <div><x-business.status tone="blue">Referral program</x-business.status><h3>Recommend Zigpaw when it genuinely helps</h3><p>Approved businesses receive an attributable referral code. Commercial participation never changes organic directory placement.</p></div>
+                        <div><h3>Referral program</h3><p>Approved businesses receive a code to track referrals to Zigpaw.</p></div>
                         @php($referral = collect($programs)->firstWhere('program_key', 'referral'))
                         @if ($referral)
                             <x-business.status :tone="$referral['status'] === 'approved' ? 'good' : 'neutral'">{{ str($referral['status'])->headline() }}</x-business.status>
@@ -485,9 +493,7 @@
             @elseif ($section === 'revenue')
                 <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Revenue"
                         title="Commission activity and agreements"
-                        description="Track approved referral activity and the commercial terms Zigpaw has recorded with your business. Organic directory ranking remains independent."
                     />
                     <div class="metric-grid">
                         @forelse (data_get($financials, 'currencies', []) as $currency)
@@ -496,72 +502,68 @@
                             <article class="metric-card"><span>Commission activity</span><strong>—</strong><small>No approved commission activity yet.</small></article>
                         @endforelse
                     </div>
-                    <div class="section-heading section-heading-spaced"><div><p class="eyebrow">Recent commissions</p></div></div>
-                    <x-business.data-table label="Recent commissions" class="data-list">
+                    <x-business.section-heading class="section-heading-spaced" title="Recent commissions" />
+                    <x-business.data-list label="Recent commissions">
                         @forelse ($commissions as $commission)
-                            <div class="data-row"><div><strong>{{ str($commission['event_type'])->headline() }}</strong><small>{{ $this->displayDate($commission['created_at'] ?? null) }}</small></div><div class="amount"><strong>{{ $commission['currency'] }} {{ number_format($commission['commission_amount_cents'] / 100, 2) }}</strong><small>{{ $commission['status_label'] ?? str($commission['status'])->headline() }}</small></div></div>
+                            <x-business.data-row :title="str($commission['event_type'])->headline()" :description="$this->displayDate($commission['created_at'] ?? null)">
+                                <div class="amount"><strong>{{ $commission['currency'] }} {{ number_format($commission['commission_amount_cents'] / 100, 2) }}</strong><small>{{ $commission['status_label'] ?? str($commission['status'])->headline() }}</small></div>
+                            </x-business.data-row>
                         @empty
-                            <div class="empty-row">No commissions have been recorded.</div>
+                            <li class="empty-row">No commissions have been recorded.</li>
                         @endforelse
-                    </x-business.data-table>
+                    </x-business.data-list>
                     <x-business-pagination resource="commissions" label="commission entries" :pagination="$pagination" />
 
-                    <div class="section-heading section-heading-spaced"><div><p class="eyebrow">Commercial agreements</p></div></div>
-                    <x-business.data-table label="Commercial agreements" class="data-list">
+                    <x-business.section-heading class="section-heading-spaced" title="Commercial agreements" />
+                    <x-business.data-list label="Commercial agreements">
                         @forelse ($agreements as $agreement)
-                            <div class="data-row">
-                                <div>
-                                    <strong>{{ str($agreement['agreement_type'])->headline() }}</strong>
-                                    <small>{{ data_get($agreement, 'provider.name') ?: data_get($agreement, 'place.name') ?: $agreement['reference'] }}</small>
-                                </div>
+                            <x-business.data-row :title="str($agreement['agreement_type'])->headline()" :description="data_get($agreement, 'provider.name') ?: data_get($agreement, 'place.name') ?: $agreement['reference']">
                                 <div class="amount">
                                     <strong>{{ str($agreement['status'])->headline() }}</strong>
                                     <small>{{ $agreement['organic_rank_independent'] ? 'Organic ranking remains independent' : 'Review terms with Zigpaw' }}</small>
                                 </div>
-                            </div>
+                            </x-business.data-row>
                         @empty
-                            <div class="empty-row">No commercial agreements are recorded for this business.</div>
+                            <li class="empty-row">No commercial agreements are recorded for this business.</li>
                         @endforelse
-                    </x-business.data-table>
+                    </x-business.data-list>
                     <x-business-pagination resource="agreements" label="agreements" :pagination="$pagination" />
                 </section>
             @elseif ($section === 'team')
                 <section class="workspace-section">
                     <x-business.section-heading
-                        eyebrow="Team · {{ data_get($pagination, 'team.total', count($team)) }}"
                         title="People with business access"
-                        description="Give each person the smallest role needed for their work."
                     />
                     <form class="inline-form" wire:submit="inviteTeamMember">
                         <x-business.field class="form-grow" label="Email address" name="teamEmail"><x-business.control type="email" wire:model="teamEmail" placeholder="colleague@example.com" /></x-business.field>
                         <x-business.field label="Role" name="teamRole"><x-business.control as="select" wire:model="teamRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="finance">Finance</option></x-business.control></x-business.field>
                         <x-business.button variant="primary" type="submit">Send invitation</x-business.button>
                     </form>
-                    <x-business.data-table label="People with business access" class="data-list">
+                    <x-business.data-list label="People with business access">
                         @forelse ($team as $member)
-                            <div class="data-row">
-                                <div><strong>{{ $member['name'] ?: data_get($member, 'email', 'Invited teammate') }}</strong><small>{{ data_get($member, 'email') }}</small></div>
-                                <div class="row-actions">
+                            <x-business.data-row :title="$member['name'] ?: data_get($member, 'email', 'Invited teammate')" :description="$member['name'] ? data_get($member, 'email') : null">
+                                <x-slot:actions>
                                     <x-business.status :tone="$member['status'] === 'active' ? 'good' : ($member['status'] === 'invited' ? 'blue' : 'neutral')">{{ str($member['status'])->headline() }}</x-business.status>
                                     <strong class="role-label">{{ str($member['role'])->headline() }}</strong>
                                     @unless ($member['is_current_user'] ?? false)
-                                        <x-business.button variant="text" wire:click="startTeamMemberEdit({{ Illuminate\Support\Js::from($member['id']) }})">Edit</x-business.button>
+                                        <x-business.button variant="text" aria-label="Edit role for {{ $member['name'] ?: data_get($member, 'email', 'invited teammate') }}" wire:click="startTeamMemberEdit({{ Illuminate\Support\Js::from($member['id']) }})">Edit</x-business.button>
                                         @if ($member['status'] === 'invited')
                                             <x-business.button variant="text" wire:click="resendTeamInvitation({{ Illuminate\Support\Js::from($member['id']) }})">Resend</x-business.button>
                                         @endif
                                         <x-business.confirmation action="revokeTeamMember('{{ $member['id'] }}')" message="Remove this person’s business access?">Revoke</x-business.confirmation>
                                     @endunless
-                                </div>
-                            </div>
+                                </x-slot:actions>
+                            </x-business.data-row>
                         @empty
-                            <x-business.empty-state title="No team members yet" description="Invite a colleague when they need access to this workspace." />
+                            <li><x-business.empty-state title="No team members yet" description="Invite a colleague when they need access to this workspace." /></li>
                         @endforelse
-                    </x-business.data-table>
+                    </x-business.data-list>
 
                     @php($editingMember = collect($team)->firstWhere('id', $editingTeamMemberId))
-                    <x-business.drawer
+                    <x-business.overlay kind="drawer"
                         id="team-access-drawer"
                         :open="$editingTeamMemberId !== ''"
+                        :message="$message"
                         :title="data_get($editingMember, 'name') ?: data_get($editingMember, 'email', 'Update access')"
                         eyebrow="Team access"
                         close-action="cancelTeamMemberEdit"
@@ -575,35 +577,35 @@
                             <x-business.button wire:click="cancelTeamMemberEdit">Cancel</x-business.button>
                             <x-business.button variant="primary" type="submit" form="team-access-form">Save role</x-business.button>
                         </x-slot:actions>
-                    </x-business.drawer>
+                    </x-business.overlay>
                     <x-business-pagination resource="team" label="team members" :pagination="$pagination" />
                 </section>
             @endif
     </x-business.shell>
     @else
-        <main id="main-content" class="access-shell">
-            <header class="access-header">
-                <div class="access-brand"><span class="brand-art"><img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw"><img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw"></span><span>Partners</span></div>
-                <x-business.button variant="theme" data-theme-toggle aria-label="Change appearance"><span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span></x-business.button>
-            </header>
-            <section class="access-card">
+        <x-business.access-layout :home="route('dashboard')">
                 @if ($state === 'choose_organization')
-                    <p class="eyebrow">Partners workspace</p><h1>Choose where you’re working.</h1><p>Each workspace keeps locations, bookings, staff and financial information isolated.</p>
+                    <h1>Choose your organisation</h1>
+                    <p>Choose where to manage listings, bookings, services and team access.</p>
                     <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" :list="true" />
                     @if ($message)<p role="alert">{{ $message }}</p>@endif
                 @elseif ($state === 'forbidden')
-                    <p class="eyebrow">Workspace access</p><h1>No active Partners workspace.</h1><p>{{ $message ?: 'Ask the organization owner to invite you, or sign in with another account.' }}</p>
+                    <h1>No active Partners workspace.</h1><p>{{ $message ?: 'Ask the organization owner to invite you, or sign in with another account.' }}</p>
                     <form method="POST" action="{{ route('auth.logout') }}">
                         @csrf
                         <x-business.button variant="primary" type="submit">Use another account</x-business.button>
                     </form>
                 @elseif ($state === 'unavailable')
-                    <p class="eyebrow">Connection check</p><h1>The Partners workspace is taking a pause.</h1><p>{{ $message ?: 'Your information is safe. Try again shortly.' }}</p><x-business.button variant="primary" :href="route('dashboard')">Try again</x-business.button>
+                    <h1>The Partners workspace is taking a pause.</h1><p>{{ $message ?: 'Try again in a moment.' }}</p><x-business.button variant="primary" :href="route('dashboard')">Try again</x-business.button>
                 @else
-                    <p class="eyebrow">Zigpaw Partners</p><h1>Manage the work around every pet.</h1><p>{{ $message ?: 'A workspace for vet clinics, groomers, sitters and other pet services. Manage listings, booking requests, services, team access and optional partner programs together.' }}</p><x-business.button variant="primary" :href="route('auth.login')">Sign in</x-business.button>
+                    <h1>Sign in to Partners</h1>
+                    <p>{{ $message ?: 'Manage your listings, bookings, services and team in one place.' }}</p>
+                    <div class="access-actions">
+                        <x-business.button variant="primary" :href="route('auth.login')">Sign in</x-business.button>
+                        <x-business.button variant="text" :href="route('clinical.dashboard')">Clinical workspace</x-business.button>
+                    </div>
                 @endif
-            </section>
-        </main>
+        </x-business.access-layout>
     @endif
 
     <x-business.toast-region>

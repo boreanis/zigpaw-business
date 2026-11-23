@@ -2,6 +2,14 @@
 // small persisted override for operators who work across mixed-lighting screens.
 const themeKey = 'zigpaw-business-theme';
 const themeModes = ['system', 'light', 'dark'];
+let currentTheme = document.documentElement.dataset.theme || 'system';
+
+try {
+    const savedTheme = localStorage.getItem(themeKey);
+    if (themeModes.includes(savedTheme)) currentTheme = savedTheme;
+} catch {
+    // The system setting remains available in browsers that block storage.
+}
 
 const updateThemeControls = (mode) => {
     document.querySelectorAll('[data-theme-toggle]').forEach((control) => {
@@ -12,11 +20,10 @@ const updateThemeControls = (mode) => {
     });
 };
 
-const applyTheme = (mode) => {
-    if (mode === 'system') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.dataset.theme = mode;
-    localStorage.setItem(themeKey, mode);
-    updateThemeControls(mode);
+const applyTheme = () => {
+    if (currentTheme === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.dataset.theme = currentTheme;
+    updateThemeControls(currentTheme);
 };
 
 document.addEventListener('click', (event) => {
@@ -24,11 +31,27 @@ document.addEventListener('click', (event) => {
         ? event.target.closest('[data-theme-toggle]')
         : null;
     if (!control) return;
-    const current = localStorage.getItem(themeKey) || 'system';
-    applyTheme(themeModes[(themeModes.indexOf(current) + 1) % themeModes.length]);
+    currentTheme = themeModes[(themeModes.indexOf(currentTheme) + 1) % themeModes.length];
+    try {
+        localStorage.setItem(themeKey, currentTheme);
+    } catch {
+        // Keep this document's selection when persistence is unavailable.
+    }
+    applyTheme();
 });
 
-applyTheme(localStorage.getItem(themeKey) || 'system');
+applyTheme();
+document.addEventListener('livewire:navigated', applyTheme);
+
+function observeAppearanceChanges() {
+    window.Livewire.hook('morphed', () => updateThemeControls(currentTheme));
+}
+
+if (window.Livewire?.hook) {
+    observeAppearanceChanges();
+} else {
+    document.addEventListener('livewire:init', observeAppearanceChanges, { once: true });
+}
 
 const overlaySelector = '[data-overlay]';
 const focusableSelector = [
@@ -44,7 +67,7 @@ const focusableSelector = [
 ].join(',');
 
 const isFocusable = (element) => {
-    if (!(element instanceof HTMLElement) || element.hidden) return false;
+    if (!(element instanceof HTMLElement) || element.hidden || element.getClientRects().length === 0) return false;
     if (element.closest('[inert]')) return false;
 
     const styles = window.getComputedStyle(element);
@@ -56,6 +79,7 @@ class BusinessSidebarController {
         this.sidebar = null;
         this.backdrop = null;
         this.toggle = null;
+        this.main = null;
         this.restoreTarget = null;
         this.previousBodyOverflow = null;
         this.previousBodyPadding = null;
@@ -80,13 +104,14 @@ class BusinessSidebarController {
         document.addEventListener('livewire:navigated', () => this.sync());
         window.addEventListener('resize', this.handleResize);
         this.sync();
-        this.observer.observe(document.body, { childList: true, subtree: true });
+        this.observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
     sync() {
         this.sidebar = document.querySelector('[data-sidebar]');
         this.backdrop = document.querySelector('[data-sidebar-backdrop], .sidebar-backdrop');
         this.toggle = document.querySelector('[data-sidebar-toggle]');
+        this.main = document.querySelector('.workspace-main');
         this.syncVisibility();
     }
 
@@ -132,7 +157,7 @@ class BusinessSidebarController {
             return;
         }
 
-        if (event.target.closest('[data-sidebar] .business-nav-item')) this.close(false);
+        if (event.target.closest('[data-sidebar] .business-nav-item')) this.close();
     }
 
     handleKeydown(event) {
@@ -152,7 +177,7 @@ class BusinessSidebarController {
         if (event.shiftKey && (document.activeElement === first || !this.sidebar.contains(document.activeElement))) {
             event.preventDefault();
             last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
+        } else if (!event.shiftKey && (document.activeElement === last || !this.sidebar.contains(document.activeElement))) {
             event.preventDefault();
             first.focus();
         }
@@ -164,15 +189,17 @@ class BusinessSidebarController {
 
     open(trigger = null) {
         this.sync();
-        if (!this.sidebar || this.isOpen()) return;
+        if (!this.sidebar || this.isOpen() || !window.matchMedia('(max-width: 760px)').matches) return;
 
         this.restoreTarget = trigger instanceof HTMLElement ? trigger : document.activeElement;
         this.sidebar.dataset.sidebarOpen = 'true';
         this.sidebar.setAttribute('aria-hidden', 'false');
         this.sidebar.removeAttribute('inert');
+        this.sidebar.setAttribute('role', 'dialog');
+        this.sidebar.setAttribute('aria-modal', 'true');
+        this.main?.setAttribute('inert', '');
         if (this.backdrop) {
             this.backdrop.hidden = false;
-            this.backdrop.setAttribute('aria-hidden', 'false');
         }
         this.toggle?.setAttribute('aria-expanded', 'true');
         this.lockBody();
@@ -189,6 +216,9 @@ class BusinessSidebarController {
 
         this.sidebar.dataset.sidebarOpen = 'false';
         this.syncVisibility();
+        this.sidebar.removeAttribute('role');
+        this.sidebar.removeAttribute('aria-modal');
+        this.main?.removeAttribute('inert');
         if (this.backdrop) {
             this.backdrop.hidden = true;
             this.backdrop.setAttribute('aria-hidden', 'true');
@@ -228,6 +258,7 @@ class BusinessOverlayController {
         this.pendingRestoreTarget = null;
         this.pendingClose = new WeakSet();
         this.previousBodyStyles = null;
+        this.inertBackground = new Set();
         this.observer = new MutationObserver((mutations) => this.handleMutations(mutations));
         this.scrollCueObservers = new WeakMap();
 
@@ -241,7 +272,8 @@ class BusinessOverlayController {
         document.addEventListener('livewire:navigating', () => this.closeAll(false));
 
         this.sync(document);
-        this.observer.observe(document.body, {
+        // Livewire navigation replaces the body, so watch the document root.
+        this.observer.observe(document.documentElement, {
             childList: true,
             subtree: true,
             attributes: true,
@@ -319,7 +351,7 @@ class BusinessOverlayController {
         if (event.shiftKey && (active === first || !overlay.contains(active))) {
             event.preventDefault();
             last.focus();
-        } else if (!event.shiftKey && active === last) {
+        } else if (!event.shiftKey && (active === last || !overlay.contains(active))) {
             event.preventDefault();
             first.focus();
         }
@@ -336,6 +368,7 @@ class BusinessOverlayController {
             mutation.addedNodes.forEach((node) => this.sync(node));
         });
 
+        this.syncInertBackground();
         this.openOverlays.forEach((overlay) => this.updateScrollCue(overlay));
     }
 
@@ -380,7 +413,8 @@ class BusinessOverlayController {
 
         requestAnimationFrame(() => requestAnimationFrame(() => {
             if (!this.openOverlays.includes(overlay)) return;
-            const initialFocus = overlay.querySelector('[data-overlay-initial-focus]')
+            const preferredFocus = overlay.querySelector('[data-overlay-initial-focus]');
+            const initialFocus = (isFocusable(preferredFocus) ? preferredFocus : null)
                 || [...overlay.querySelectorAll(focusableSelector)].find(isFocusable)
                 || overlay.querySelector('[data-overlay-panel]');
             initialFocus?.focus({ preventScroll: true });
@@ -468,7 +502,7 @@ class BusinessOverlayController {
             ? [node]
             : [...node.querySelectorAll(overlaySelector)];
         overlays.forEach((overlay) => {
-            if (this.openOverlays.includes(overlay)) this.close(overlay, false);
+            if (this.openOverlays.includes(overlay)) this.close(overlay);
             this.unbindScrollCue(overlay);
         });
     }
@@ -485,6 +519,29 @@ class BusinessOverlayController {
         this.openOverlays.forEach((overlay, index) => {
             overlay.style.zIndex = String(40 + index);
         });
+        this.syncInertBackground();
+    }
+
+    syncInertBackground() {
+        const outside = new Set();
+        for (let node = this.top(); node?.parentElement && node !== document.body; node = node.parentElement) {
+            for (const sibling of node.parentElement.children) {
+                if (sibling !== node && sibling instanceof HTMLElement) outside.add(sibling);
+            }
+        }
+
+        for (const element of this.inertBackground) {
+            if (!outside.has(element)) {
+                element.removeAttribute('inert');
+                this.inertBackground.delete(element);
+            }
+        }
+        for (const element of outside) {
+            if (!element.hasAttribute('inert')) {
+                element.setAttribute('inert', '');
+                this.inertBackground.add(element);
+            }
+        }
     }
 
     bindScrollCue(overlay) {
@@ -560,7 +617,7 @@ class BusinessToastController {
         document.addEventListener('click', this.handleClick);
         window.addEventListener('business:toast', (event) => this.create(event.detail || {}));
         this.scan(document);
-        this.observer.observe(document.body, { childList: true, subtree: true });
+        this.observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
     scan(root) {
@@ -638,9 +695,7 @@ class BusinessToastController {
 }
 
 const startBusinessInteractions = () => {
-    if (!document.body || document.body.dataset.businessInteractions === 'ready') return;
-    document.body.dataset.businessInteractions = 'ready';
-    updateThemeControls(localStorage.getItem(themeKey) || 'system');
+    applyTheme();
     new BusinessSidebarController().start();
     new BusinessOverlayController().start();
     new BusinessToastController().start();

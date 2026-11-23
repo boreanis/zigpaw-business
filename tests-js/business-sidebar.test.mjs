@@ -29,6 +29,10 @@ class FakeElement {
         return this.attributes.get(name) || null;
     }
 
+    hasAttribute(name) {
+        return this.attributes.has(name);
+    }
+
     closest(selector) {
         return this.closestMap[selector] || null;
     }
@@ -88,10 +92,12 @@ test('sidebar closes and restores page scrolling when resizing from mobile to de
     const sidebar = new FakeElement();
     const backdrop = new FakeElement();
     const toggle = new FakeElement();
+    const main = new FakeElement();
     const document = new FakeDocument({
         '[data-sidebar]': sidebar,
         '[data-sidebar-backdrop], .sidebar-backdrop': backdrop,
         '[data-sidebar-toggle]': toggle,
+        '.workspace-main': main,
     });
     let mobile = true;
     const windowListeners = new Map();
@@ -124,6 +130,8 @@ test('sidebar closes and restores page scrolling when resizing from mobile to de
     assert.equal(document.body.style.overflow, 'hidden');
     assert.equal(backdrop.hidden, false);
     assert.equal(toggle.attributes.get('aria-expanded'), 'true');
+    assert.equal(main.hasAttribute('inert'), true);
+    assert.equal(sidebar.getAttribute('aria-modal'), 'true');
 
     mobile = false;
     window.innerWidth = 1024;
@@ -138,6 +146,8 @@ test('sidebar closes and restores page scrolling when resizing from mobile to de
     assert.equal(toggle.attributes.get('aria-expanded'), 'false');
     assert.equal(sidebar.attributes.get('aria-hidden'), 'false');
     assert.equal(sidebar.attributes.has('inert'), false);
+    assert.equal(main.hasAttribute('inert'), false);
+    assert.equal(sidebar.getAttribute('aria-modal'), null);
 
     mobile = true;
     window.innerWidth = 390;
@@ -201,6 +211,11 @@ test('overlay restores focus to a replacement Livewire trigger after close', asy
     const overlay = new FakeElement();
     const closeControl = new FakeElement();
     const panel = new FakeElement();
+    const background = new FakeElement();
+    const alreadyInert = new FakeElement();
+    alreadyInert.setAttribute('inert', '');
+    overlay.parentElement = document.body;
+    document.body.children = [background, alreadyInert, overlay];
     overlay.containsElements = [closeControl, panel];
     overlay.queries = {
         '[data-overlay-scroll-body]': null,
@@ -214,11 +229,14 @@ test('overlay restores focus to a replacement Livewire trigger after close', asy
     oldTrigger.isConnected = false;
     document.all = [replacementTrigger];
     controller.open(overlay);
+    assert.equal(background.hasAttribute('inert'), true);
     closeControl.click = () => controller.close(overlay);
     controller.handleKeydown({ key: 'Escape', preventDefault: () => {} });
 
     assert.equal(oldTrigger.focused, undefined);
     assert.equal(replacementTrigger.focused, true);
+    assert.equal(background.hasAttribute('inert'), false);
+    assert.equal(alreadyInert.hasAttribute('inert'), true);
 });
 
 test('overlay resolves a replacement trigger after a Cancel close morph', async () => {

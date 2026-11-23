@@ -1,12 +1,27 @@
 # Zigpaw Partners
 
-## November 19 — dependency audit follow-up
+## November 20 — clinical patient and submission confirmation
 
-The published rename is on GitHub. Its workflow failed at dependency audit.
-Local updates move Laravel to **13.43.0** and the affected Symfony components
-to **8.1.11**. Composer and npm audits report zero advisories after the updates.
-The updated PHP suite passes **319 tests / 2,271 assertions**. This security
-follow-up remains local. [Platform HANDOFF](../zigpaw-platform/HANDOFF.md)
+Clinical detail pages verify the requested grant and submission identities.
+The patient page also checks that the care records belong to the patient named
+by the grant. The care form opens only for a verified submission grant and
+confirms a write only when Platform returns a submission ID for that patient.
+An incomplete or mismatched receipt keeps the original retry key. The clinician
+can retry the same records or review what arrived from submission history.
+
+Nine synthetic regressions reproduced the prior behavior. The full PHP suite
+passes **332 tests / 2,398 assertions**, plus three JavaScript tests, PHPStan,
+Pint, both contract checks and the production build. The installed asset bundle
+matches the verified build. [Livewire 4 property security](https://livewire.laravel.com/docs/4.x/security) · [Platform handoff](../zigpaw-platform/HANDOFF.md)
+
+## November 19 — clinical session recovery
+
+The published security repair passed GitHub Actions. The later local clinical
+chooser recovery passes **323 tests / 2,321 assertions**, both contract checks,
+Pint, PHPStan, JavaScript tests and a production build. The normal Herd
+clinical sign-in screen fits 390 px. Automated 401 and transient-failure cases
+cover the chooser and check that management authority is preserved.
+[Platform HANDOFF](../zigpaw-platform/HANDOFF.md)
 
 ## November 19 — Consumers, Partners and normal Herd hosts
 
@@ -218,6 +233,12 @@ memberships require an explicit choice in each workspace; only the existing
 authorized single-membership auto-selection remains. Management sign-out retains
 its established whole-device BFF session invalidation and clears both contexts.
 There is no fallback from clinical selection to the management key.
+A 401 during clinical organization search or pagination ends only the clinical
+session, clears its selected organization and stale chooser data, and renders
+the secure sign-in entry. Transient lookup errors keep the chooser and clinical
+credentials available for an explicit retry. Management credentials and selection
+remain independent throughout this recovery.
+
 
 
 ## Deployment And Trust Topology
@@ -366,9 +387,10 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 
 ## Setup
 
-The current lockfiles use PHP 8.5, Laravel 13, Livewire 4, PHPUnit 13,
-Vite 8, Laravel Vite Plugin 3 and Tailwind CSS 4. Use Node 24.22.1 LTS or newer on
-24.x, or Node 26.12.1 or newer, as declared by `package.json`. Install the reviewed
+The lockfiles use PHP 8.5, Laravel 13.43.0, Livewire 4.4.8, PHPUnit 13.4.8,
+Vite 8.3.8, Laravel Vite Plugin 3.2.1 and Tailwind CSS 4.3.5. CI pins Node
+26.13.1 LTS and npm 12.2.3. Node 24.22.3 and later 24.x releases are also
+supported by the manifest. Install the reviewed
 locks; framework upgrades do not authorize a Business database or migrations.
 
 ```bash

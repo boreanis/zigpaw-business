@@ -67,15 +67,32 @@ class ClinicalUiComponentsTest extends TestCase
         $this->assertStringContainsString('<x-clinical.alert', $combined);
     }
 
-    public function test_segmented_filter_reports_selection_to_assistive_technology(): void
+    public function test_submission_filter_has_a_visible_label_and_native_options(): void
     {
         $html = Blade::render(<<<'BLADE'
-            <x-clinical.segmented-filter :options="['all' => 'All', 'pending' => 'Pending']" selected="pending" label="Filter submissions" />
+            <x-clinical.filter-select label="Submission status" wire:model="status">
+                <option value="all">All statuses</option>
+                <option value="pending" selected>Pending</option>
+            </x-clinical.filter-select>
         BLADE);
 
-        $this->assertStringContainsString('aria-label="Filter submissions"', $html);
-        $this->assertStringContainsString('aria-pressed="true"', $html);
-        $this->assertStringContainsString('wire:submit="filter"', $html);
+        $this->assertStringContainsString('<span>Submission status</span>', $html);
+        $this->assertStringContainsString('<select wire:model="status">', $html);
+        $this->assertStringContainsString('<option value="pending" selected>Pending</option>', $html);
+    }
+
+    public function test_submission_state_names_match_between_the_filter_and_detail(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-clinical.submission-status status="partially_approved" />
+            <x-clinical.submission-status status="rejected" />
+            <x-clinical.submission-status :status="null" />
+        BLADE);
+
+        $this->assertStringContainsString('Partly approved', $html);
+        $this->assertStringContainsString('Not added', $html);
+        $this->assertStringContainsString('Status unavailable', $html);
+        $this->assertStringNotContainsString('Rejected', $html);
     }
 
     public function test_clinical_button_centralizes_workspace_and_appearance_actions(): void
@@ -117,7 +134,7 @@ class ClinicalUiComponentsTest extends TestCase
         ])->map(fn (string $path): string => (string) file_get_contents($path));
         $combined = $sources->join("\n");
 
-        $this->assertSame(9, substr_count($combined, '<x-clinical.section-heading'));
+        $this->assertGreaterThanOrEqual(15, substr_count($combined, '<x-clinical.section-heading'));
         $this->assertStringNotContainsString('section-heading-inline', $combined);
     }
 

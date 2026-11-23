@@ -48,12 +48,12 @@ class BusinessUiComponentsTest extends TestCase
     public function test_modal_is_closed_by_default_and_exposes_the_accessible_overlay_contract(): void
     {
         $html = Blade::render(<<<'BLADE'
-            <x-business.modal id="review-modal" title="Fallback heading">
+            <x-business.overlay id="review-modal" title="Fallback heading">
                 <x-slot:heading><p class="eyebrow">Review</p><h2>Review submission</h2></x-slot:heading>
                 <x-slot:body><form id="review-form"><input data-overlay-initial-focus></form></x-slot:body>
                 <x-slot:footer>Changes are reviewed before publishing.</x-slot:footer>
                 <x-slot:actions><button type="submit" form="review-form">Save</button></x-slot:actions>
-            </x-business.modal>
+            </x-business.overlay>
         BLADE);
 
         $this->assertStringContainsString('id="review-modal"', $html);
@@ -74,21 +74,15 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertMatchesRegularExpression('/data-overlay-scroll-body.*data-overlay-scroll-cue.*class="overlay-footer"/s', $html);
         $this->assertSame(1, substr_count($html, 'Review submission'));
 
-        $modal = file_get_contents(resource_path('views/components/business/modal.blade.php'));
-        $drawer = file_get_contents(resource_path('views/components/business/drawer.blade.php'));
-        $this->assertIsString($modal);
-        $this->assertIsString($drawer);
-        $this->assertStringContainsString('<x-business.overlay-close', $modal);
-        $this->assertStringContainsString('<x-business.overlay-close', $drawer);
     }
 
     public function test_open_drawer_uses_the_same_named_slot_and_interaction_hooks(): void
     {
         $html = Blade::render(<<<'BLADE'
-            <x-business.drawer id="location-drawer" :open="true" title="Edit location" eyebrow="Location" close-action="cancelEdit">
+            <x-business.overlay kind="drawer" id="location-drawer" :open="true" title="Edit location" eyebrow="Location" close-action="cancelEdit" message="Location could not be saved.">
                 <x-slot:body><form id="location-form"><input data-overlay-initial-focus></form></x-slot:body>
                 <x-slot:actions><button type="submit" form="location-form">Save location</button></x-slot:actions>
-            </x-business.drawer>
+            </x-business.overlay>
         BLADE);
 
         $this->assertStringContainsString('data-overlay-kind="drawer"', $html);
@@ -99,6 +93,7 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString('form="location-form"', $html);
         $this->assertStringContainsString('data-overlay-scroll-cue', $html);
         $this->assertMatchesRegularExpression('/data-overlay-scroll-body.*data-overlay-scroll-cue.*class="overlay-footer"/s', $html);
+        $this->assertMatchesRegularExpression('/data-overlay-scroll-body.*role="alert">Location could not be saved.*id="location-form"/s', $html);
     }
 
     public function test_toast_region_has_live_feedback_and_dismissal_hooks(): void
@@ -267,12 +262,10 @@ class BusinessUiComponentsTest extends TestCase
 
     public function test_signed_out_workspace_keeps_appearance_control_accessible(): void
     {
-        $workspace = file_get_contents(resource_path('views/livewire/business-workspace.blade.php'));
-
-        $this->assertIsString($workspace);
-        $this->assertStringContainsString('class="access-header"', $workspace);
-        $this->assertStringContainsString('data-theme-toggle', $workspace);
-        $this->assertStringContainsString('aria-label="Change appearance"', $workspace);
+        $this->get(route('dashboard'))->assertOk()
+            ->assertSee('class="access-header"', false)
+            ->assertSee('data-theme-toggle', false)
+            ->assertSee('aria-label="Change appearance"', false);
 
         $layout = file_get_contents(resource_path('views/components/layouts/portal.blade.php'));
         $shell = file_get_contents(resource_path('views/components/business/shell.blade.php'));
@@ -289,11 +282,17 @@ class BusinessUiComponentsTest extends TestCase
 
         $this->assertIsString($shell);
         $this->assertIsString($css);
-        $this->assertStringContainsString('<main id="main-content" class="workspace-main">', $shell);
+        $this->assertStringContainsString('<main id="main-content" class="workspace-main" tabindex="-1"', $shell);
         $this->assertStringNotContainsString('<main id="main-content" class="business-shell">', $shell);
         $this->assertStringNotContainsString('.workspace-section { max-width: 1380px; min-height:', $css);
-        $this->assertStringContainsString('.data-table {', $css);
-        $this->assertStringContainsString('overflow-x: auto;', $css);
+        $html = Blade::render(<<<'BLADE'
+            <x-business.data-list label="Services">
+                <x-business.data-row title="Synthetic service" description="15 minutes">
+                    <x-slot:actions><x-business.button variant="text">Edit</x-business.button></x-slot:actions>
+                </x-business.data-row>
+            </x-business.data-list>
+        BLADE);
+        $this->assertMatchesRegularExpression('/<ul aria-label="Services" class="data-list">.*<li class="data-row">.*Synthetic service.*15 minutes.*Edit.*<\/li>.*<\/ul>/s', $html);
     }
 
     public function test_business_responsive_contracts_stack_narrow_layouts_and_keep_touch_targets_comfortable(): void
@@ -304,9 +303,9 @@ class BusinessUiComponentsTest extends TestCase
         $this->assertStringContainsString('.clinical-workspace .patient-hero { grid-template-columns: 1fr; align-items: flex-start; }', $css);
         $this->assertStringContainsString('.schedule-exception-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }', $css);
         $this->assertStringContainsString('.schedule-exception-grid .schedule-reason { grid-column: 1 / -1; }', $css);
-        $this->assertStringContainsString('.theme-control { min-height: 44px; }', $css);
+        $this->assertStringContainsString('.theme-control { display: inline-flex; min-height: 44px;', $css);
         $this->assertStringContainsString('.icon-button, .toast-close { width: 44px; height: 44px; }', $css);
-        $this->assertStringContainsString('.clinical-workspace .segmented-filter button { min-height: 44px;', $css);
+        $this->assertStringContainsString('.clinical-workspace .submission-filter { grid-template-columns: minmax(0, 1fr); }', $css);
     }
 
     public function test_business_workspace_uses_the_shared_heading_component_for_titled_sections(): void

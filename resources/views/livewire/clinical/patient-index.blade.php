@@ -1,11 +1,5 @@
 <div class="page-stack">
-    <header class="page-heading">
-        <div>
-            <p class="eyebrow">Patient access</p>
-            <h1>Patients shared with your team</h1>
-            <p>Each profile and clinical action is limited by its current family-approved grant.</p>
-        </div>
-    </header>
+    <x-clinical.page-heading title="Patients shared with your team" description="Open a patient to see what their family has shared." />
 
     <form class="filter-bar" wire:submit="applyFilters">
         <x-clinical.search label="Search active patients by name" wire:model="search" maxlength="80" placeholder="Search active patients" :disabled="$status !== 'active'" />

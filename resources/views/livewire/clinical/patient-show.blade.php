@@ -5,8 +5,7 @@
         <x-clinical.empty-state title="Patient access is unavailable" :description="$message" tone="error" :heading-level="1">
             <x-slot:icon><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></x-slot:icon>
             <x-slot:actions>
-                <x-clinical.button :href="route('clinical.patients.index')" wire:navigate>Back to patients</x-clinical.button>
-                <x-clinical.button variant="text" wire:click="retry" wire:loading.attr="disabled" wire:target="retry">Try again</x-clinical.button>
+                <x-clinical.button wire:click="retry" wire:loading.attr="disabled" wire:target="retry">Try again</x-clinical.button>
             </x-slot:actions>
         </x-clinical.empty-state>
     @else
@@ -21,7 +20,7 @@
         <header class="patient-hero">
             <div class="patient-avatar patient-avatar-large" aria-hidden="true">{{ str($displayName)->substr(0, 1)->upper() }}</div>
             <div class="patient-hero-copy">
-                <div class="heading-with-status"><p class="eyebrow">Family-approved access</p><x-clinical.status :tone="$statusTone">{{ str($status)->headline() }}</x-clinical.status></div>
+                <div class="heading-with-status"><x-clinical.status :tone="$statusTone">{{ str($status)->headline() }}</x-clinical.status></div>
                 <h1>{{ $displayName }}</h1>
                 <p>{{ collect([data_get($grant, 'pet.species'), data_get($grant, 'pet.breed')])->filter()->join(' · ') ?: 'No species or breed details available.' }}</p>
             </div>
@@ -30,20 +29,20 @@
             @endif
         </header>
 
-        <section class="access-summary" aria-label="Grant capabilities">
-            <div><span>Purpose</span><strong>{{ str((string) ($grant['purpose'] ?? 'Clinical care'))->headline() }}</strong></div>
-            <div><span>Location</span><strong>{{ data_get($grant, 'location.name', 'Organisation-wide') }}</strong></div>
-            <div><span>Access ends</span><strong>{{ ($grant['expires_at'] ?? null) ? str((string) $grant['expires_at'])->before('T') : 'No set end date' }}</strong></div>
-            <div class="capability-list"><span>Allowed</span><strong>
+        <dl class="access-summary" aria-label="Grant capabilities">
+            <div><dt>Purpose</dt><dd>{{ str((string) ($grant['purpose'] ?? 'Clinical care'))->headline() }}</dd></div>
+            <div><dt>Location</dt><dd>{{ data_get($grant, 'location.name', 'Organisation-wide') }}</dd></div>
+            <div><dt>Access ends</dt><dd>{{ ($grant['expires_at'] ?? null) ? str((string) $grant['expires_at'])->before('T') : 'No set end date' }}</dd></div>
+            <div class="capability-list"><dt>Allowed</dt><dd>
                 @foreach (['read_profile' => 'Profile', 'read_care' => 'Care history', 'submit_care' => 'Submit records', 'read_media' => 'Shared files'] as $capability => $label)
                     @if (($capabilities[$capability] ?? false) === true)<i>{{ $label }}</i>@endif
                 @endforeach
-            </strong></div>
-        </section>
+            </dd></div>
+        </dl>
 
         @if (($capabilities['read_care'] ?? false) === true)
             <section class="plain-section">
-                <x-clinical.section-heading eyebrow="Current care context" title="Information approved for sharing">
+                <x-clinical.section-heading title="Shared care records">
                     <x-slot:meta><span>Read only</span></x-slot:meta>
                 </x-clinical.section-heading>
 
@@ -72,7 +71,7 @@
 
             <div class="clinical-columns">
                 <section class="plain-section">
-                    <x-clinical.section-heading eyebrow="Conditions & allergies" title="Relevant history">
+                    <x-clinical.section-heading title="Conditions and allergies">
                         <x-slot:meta><span>{{ count($care['conditions'] ?? []) }}</span></x-slot:meta>
                     </x-clinical.section-heading>
                     @forelse ($care['conditions'] ?? [] as $condition)
@@ -86,7 +85,7 @@
                 </section>
 
                 <section class="plain-section">
-                    <x-clinical.section-heading eyebrow="Medications" title="Shared medication records">
+                    <x-clinical.section-heading title="Medications">
                         <x-slot:meta><span>{{ count($care['medications'] ?? []) }}</span></x-slot:meta>
                     </x-clinical.section-heading>
                     @forelse ($care['medications'] ?? [] as $medication)
@@ -101,7 +100,7 @@
             </div>
 
             <section class="plain-section">
-                <x-clinical.section-heading eyebrow="Clinical history" title="Visits shared by the family">
+                <x-clinical.section-heading title="Visits">
                     <x-slot:meta><span>{{ count($care['visits'] ?? []) }}</span></x-slot:meta>
                 </x-clinical.section-heading>
                 <div class="timeline">
@@ -121,7 +120,7 @@
             </section>
 
             <section class="plain-section">
-                <x-clinical.section-heading eyebrow="Vaccinations" title="Shared vaccination history">
+                <x-clinical.section-heading title="Vaccinations">
                     <x-slot:meta><span>{{ count($care['vaccinations'] ?? []) }}</span></x-slot:meta>
                 </x-clinical.section-heading>
                 <div class="record-list">
@@ -137,8 +136,10 @@
         @endif
 
         <section class="plain-section">
-            <x-clinical.section-heading eyebrow="Shared media" title="Photos and clinical documents">
-                <x-slot:meta><span>{{ count($media) }}</span></x-slot:meta>
+            <x-clinical.section-heading title="Photos and documents">
+                @if (($capabilities['read_media'] ?? false) === true)
+                    <x-slot:meta><span>{{ count($media) }}</span></x-slot:meta>
+                @endif
             </x-clinical.section-heading>
             @if (($capabilities['read_media'] ?? false) !== true)
                 <p class="quiet-empty">Media access is not included in this grant.</p>

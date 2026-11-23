@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
     <title>{{ $title ?? 'Zigpaw Partners' }}</title>
+    <x-business.theme-init />
     @vite(['resources/css/business.css', 'resources/js/business.js'])
     @livewireStyles
 </head>

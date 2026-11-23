@@ -73,6 +73,12 @@ class ClinicalDashboard extends Component
             $this->pagination['organizations'] = $response['meta'];
             $this->message = null;
         } catch (PlatformApiException $exception) {
+            if ($exception->status === 401) {
+                $this->endClinicalSession($tokens);
+
+                return;
+            }
+
             $this->message = $exception->getMessage();
         }
     }
@@ -80,6 +86,18 @@ class ClinicalDashboard extends Component
     public function render(): View
     {
         return view('livewire.clinical-dashboard')->layout('components.layouts.clinical');
+    }
+
+    private function endClinicalSession(ClinicalPortalAccessTokenStore $tokens): void
+    {
+        $tokens->forget();
+        session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
+        $this->identity = null;
+        $this->overview = [];
+        $this->organizations = [];
+        $this->pagination = [];
+        $this->message = null;
+        $this->state = 'signed_out';
     }
 
     private function load(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
@@ -136,9 +154,7 @@ class ClinicalDashboard extends Component
             $this->state = 'ready';
         } catch (PlatformApiException $exception) {
             if ($exception->status === 401) {
-                $tokens->forget();
-                session()->forget(['clinical_portal.organization_id', 'clinical_portal.organization_name']);
-                $this->state = 'signed_out';
+                $this->endClinicalSession($tokens);
 
                 return;
             }

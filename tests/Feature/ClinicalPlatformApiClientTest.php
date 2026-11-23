@@ -176,6 +176,40 @@ class ClinicalPlatformApiClientTest extends TestCase
             && $request->data() === $payload);
     }
 
+    public function test_it_rejects_a_grant_for_another_patient_route(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response([
+                'data' => ['id' => self::SUBMISSION_ID],
+            ]),
+        ]);
+
+        try {
+            $this->api()->clinicalProviderGrant($this->tokens(), 'organization-1', self::GRANT_ID);
+            self::fail('A clinical grant must match its requested identity.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(502, $exception->status);
+            $this->assertStringContainsString('The patient could not be verified', $exception->getMessage());
+        }
+    }
+
+    public function test_it_rejects_a_status_receipt_for_another_submission(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/submissions/'.self::SUBMISSION_ID => Http::response([
+                'data' => ['id' => self::GRANT_ID, 'status' => 'approved'],
+            ]),
+        ]);
+
+        try {
+            $this->api()->clinicalSubmission($this->tokens(), 'organization-1', self::SUBMISSION_ID);
+            self::fail('A clinical status receipt must match its requested submission.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(502, $exception->status);
+            $this->assertStringContainsString('The submission could not be verified', $exception->getMessage());
+        }
+    }
+
     public function test_it_returns_media_as_an_untouched_response_for_the_secure_proxy(): void
     {
         Http::fake([

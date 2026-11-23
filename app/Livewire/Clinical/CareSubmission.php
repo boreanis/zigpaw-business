@@ -27,11 +27,13 @@ class CareSubmission extends Component
     public bool $hasPendingSubmission = false;
 
     /** @var array<string, mixed> */
+    #[Locked]
     public array $grant = [];
 
     /** @var list<array<string, mixed>> */
     public array $locations = [];
 
+    #[Locked]
     public bool $canSubmit = false;
 
     public ?string $message = null;
@@ -93,7 +95,7 @@ class CareSubmission extends Component
 
     public function mount(string $grantId, PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
     {
-        $this->grantId = $grantId;
+        $this->grantId = strtolower($grantId);
         $this->visitDate = now()->toDateString();
         $this->loadFormContext($api, $tokens);
     }
@@ -168,6 +170,13 @@ class CareSubmission extends Component
             return;
         }
 
+        $petId = data_get($this->grant, 'pet.id');
+        if (($this->grant['id'] ?? null) !== $this->grantId || ! Str::isUuid($petId)) {
+            $this->addError('submission', 'The patient could not be verified. Reopen this patient before submitting records.');
+
+            return;
+        }
+
         $credentials = $this->portalCredentials($tokens);
         if ($credentials === null) {
             return;
@@ -191,7 +200,8 @@ class CareSubmission extends Component
                 $payload,
                 $idempotencyKey,
             );
-            if (! is_string($submission['id'] ?? null) || ! Str::isUuid($submission['id'])) {
+            if (! is_string($submission['id'] ?? null) || ! Str::isUuid($submission['id'])
+                || ($submission['pet_id'] ?? null) !== $petId) {
                 throw new PlatformApiException(502, 'The submission could not be confirmed. Retry the same records or check submission history.');
             }
 
@@ -404,7 +414,13 @@ class CareSubmission extends Component
         [, $organizationId] = $credentials;
 
         try {
-            $this->grant = $api->clinicalProviderGrant($tokens, $organizationId, $this->grantId);
+            $grant = $api->clinicalProviderGrant($tokens, $organizationId, $this->grantId);
+            $canSubmit = data_get($grant, 'capabilities.submit_care') === true;
+            if ($canSubmit && ! Str::isUuid(data_get($grant, 'pet.id'))) {
+                throw new PlatformApiException(502, 'The patient could not be verified. Reopen this patient before submitting records.');
+            }
+
+            $this->grant = $grant;
             $identity = $api->clinicalIdentity($tokens, $organizationId);
             $retry = app(ClinicalSubmissionRetry::class);
             $this->submissionContext = $retry->context($organizationId, $this->grantId, $identity);
@@ -416,7 +432,7 @@ class CareSubmission extends Component
             $this->clinicName = $this->organizationName;
             $this->clinicEmail = (string) ($identity['email'] ?? '');
             $this->locations = array_values(Arr::wrap($dashboard['locations'] ?? []));
-            $this->canSubmit = data_get($this->grant, 'capabilities.submit_care') === true;
+            $this->canSubmit = $canSubmit;
 
             if (! $this->canSubmit) {
                 $this->message = 'This family has not allowed this clinical organisation to submit records for this patient.';

@@ -36,16 +36,18 @@ class PortalOperationalBoundaryTest extends TestCase
         $this->assertStringContainsString('upgrade-insecure-requests', $policy);
     }
 
-    public function test_portal_scripts_follow_the_csp_nonce_contract_without_inline_theme_bootstrap(): void
+    public function test_portal_scripts_and_first_paint_theme_follow_the_csp_nonce_contract(): void
     {
-        $response = $this->get('/')->assertOk();
-        $html = (string) $response->getContent();
-        $policy = (string) $response->headers->get('Content-Security-Policy');
+        foreach (['/', '/clinical'] as $path) {
+            $response = $this->get($path)->assertOk();
+            $html = (string) $response->getContent();
+            $policy = (string) $response->headers->get('Content-Security-Policy');
 
-        $this->assertStringNotContainsString('<script>', $html);
-        $this->assertStringContainsString("script-src 'self' 'nonce-", $policy);
-        $this->assertMatchesRegularExpression('/<script\\b[^>]*type="module"[^>]*nonce="[^"]+"/i', $html);
-        $this->assertStringNotContainsString('localStorage.getItem(\'zigpaw-business-theme\')', $html);
+            $this->assertStringNotContainsString('<script>', $html);
+            $this->assertMatchesRegularExpression('/<script\\b[^>]*type="module"[^>]*nonce="[^"]+"/i', $html);
+            $this->assertSame(1, preg_match("/(?:^|; )script-src 'self' 'nonce-([^']+)'/", $policy, $nonce));
+            $this->assertMatchesRegularExpression('/<script nonce="'.preg_quote($nonce[1], '/').'">(?:(?!<\/script>).)*localStorage\.getItem/s', $html);
+        }
     }
 
     public function test_readiness_checks_the_canonical_api_without_exposing_dependency_details(): void

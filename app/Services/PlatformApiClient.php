@@ -265,8 +265,12 @@ class PlatformApiClient
     public function clinicalProviderGrant(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $grantId): array
     {
         $grantId = $this->uuid($grantId, 'provider grant');
+        $grant = $this->get("/v1/business/clinical/provider-grants/{$grantId}", $this->clinicalToken($tokens), $organizationId);
+        if (($grant['id'] ?? null) !== $grantId) {
+            throw new PlatformApiException(502, 'The patient could not be verified. Reopen this patient and try again.');
+        }
 
-        return $this->get("/v1/business/clinical/provider-grants/{$grantId}", $this->clinicalToken($tokens), $organizationId);
+        return $grant;
     }
 
     /** @return array<string, mixed> */
@@ -352,8 +356,12 @@ class PlatformApiClient
     public function clinicalSubmission(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $submissionId): array
     {
         $submissionId = $this->uuid($submissionId, 'submission');
+        $submission = $this->get("/v1/business/clinical/submissions/{$submissionId}", $this->clinicalToken($tokens), $organizationId);
+        if (($submission['id'] ?? null) !== $submissionId) {
+            throw new PlatformApiException(502, 'The submission could not be verified. Reopen it from submission history and try again.');
+        }
 
-        return $this->get("/v1/business/clinical/submissions/{$submissionId}", $this->clinicalToken($tokens), $organizationId);
+        return $submission;
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
