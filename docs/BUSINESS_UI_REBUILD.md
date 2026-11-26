@@ -15,10 +15,12 @@ Zigpaw Partners uses one reusable operational design system for its management a
 | Services | `services` | Add, edit and remove offering; confirmation for destructive remove; pagination |
 | Programs and revenue | `programs`, `revenue` | Apply for referral programme; review referral activity, commissions and agreements |
 | Team | `team` | Invite member, resend invitation, edit role, revoke access with confirmation, pagination |
+| Invitation | `/team/invitations/{membership}` | Verify the signed-in recipient, review the organisation and role, and confirm acceptance |
 | Clinical access | `/clinical`, `/clinical/auth/login`, `/clinical/auth/callback`, `/clinical/auth/logout` | Organisation selection, access denied/unavailable states, secure sign in/out |
 | Clinical patients | `/clinical/patients`, `/clinical/patients/{grantId}` | Search, status filter, pagination, approved grant detail, record timeline and media links |
 | Clinical submissions | `/clinical/submissions`, `/clinical/submissions/{submissionId}` | Status filtering, pagination, detail/review context, read-only patient context |
 | Care submission | `/clinical/patients/{grantId}/care-submissions/new` | Visit, vaccination, medication and condition repeaters; validation; cancel/submit; review explanation |
+| Recovery | Framework 403, 404, 419, 429 and 5xx pages | Shared Partner brand and recovery action for the current state |
 
 ## Reusable component contract
 
@@ -29,11 +31,12 @@ Components live under `resources/views/components/business` and are deliberately
 - `status`: `neutral`, `good`, `warn` and `blue` tones with one accessible semantic surface.
 - `button`: `primary`, `secondary`, `danger`, and `text` variants; all use regular weight and shared focus treatment.
 - `empty-state`: title/description/action slot for no-data states.
-- `data-table` and `filter-bar`: labelled data regions and search/filter composition points.
-- `modal` and `drawer`: one accessible overlay contract for claims, location edits, service edits and team-role edits. Both accept `heading`, `body`, `footer`, and `actions` named slots. They render closed and inert by default; `open` is the explicit server state.
+- `data-list` and `data-row`: labelled, semantic lists for operational records. Repeated rows share one structure for identity, detail and actions.
+- `overlay`: an accessible dialog for claims, location edits, service edits and team-role edits. Choose `kind="modal"` or `kind="drawer"`. Both use `heading`, `body`, `footer` and `actions` slots, with `open` controlled by the owning Livewire view.
+- `access-layout`, `brand`, `appearance`, and `theme-init`: a shared topbar, current appearance and flat content for signed-out, chooser and recovery pages.
 - `field`: shared labelled form primitive with optional hint/error output.
 - `toast`, `toast-region`, and `confirmation`: live, dismissible transient feedback with timed removal and a consistent destructive-action boundary.
-- Clinical screens use their own domain-level components on the same tokens: `button`, `status`, `empty-state`, `alert`, `pagination`, `segmented-filter`, `search`, `filter-select`, `field`, `select`, and `textarea`. This keeps clinical semantics explicit while removing page-specific action, status, feedback, filter, and validation markup.
+- Clinical screens use the same tokens with their own action, heading, feedback, labelled field and status components. Patient and submission filters use the visible native `filter-select`. Submission history and detail share `submission-status`.
 
 The clinical layout owns the clinical header/navigation and reuses the same token system. Clinical tables, repeaters and patient cards use the same border, control, status and empty-state contracts rather than page-specific colour values. Every labelled clinical field has a stable `for`/`id` pair, its hint and error are connected through `aria-describedby`, and invalid state is exposed through `aria-invalid`.
 
@@ -61,7 +64,7 @@ Instrument Sans is bundled only at regular (400) and medium (500) weights. Body 
 
 - Desktop: fixed business rail, wide multi-column metrics/listing grids, clinical patient cards and media grids.
 - Small laptop/tablet: reduced rail, two-column listings/patients, wrapped headings and filters.
-- Mobile: stacked rail, native section selector, one-column forms/cards, horizontally scrollable clinical nav, two-column metrics, stacked care form footer.
+- Mobile: the menu opens the same section list as desktop. The workspace header keeps the section visible and puts organisation switching behind its own disclosure. Forms and cards use one column where needed. Clinical filters and the care form follow the shared responsive controls.
 - Keyboard: skip links, visible focus rings, labelled selectors/search fields, current navigation state, disabled pagination controls, trapped overlay focus, Escape close, and focus restoration.
 
 ## Verification commands

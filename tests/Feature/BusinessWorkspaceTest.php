@@ -280,7 +280,8 @@ class BusinessWorkspaceTest extends TestCase
             ->assertSee('Laidley Veterinary Surgery')
             ->assertSee('Change appearance')
             ->assertSee('data-theme-toggle', false)
-            ->assertSee('Diesel needs a response')
+            ->assertSee('Diesel')
+            ->assertSee('Respond')
             ->assertSee('<strong>8</strong>', false)
             ->assertSee('<small>3 waiting for a response</small>', false)
             ->assertSee('<strong>7</strong>', false)
@@ -326,7 +327,8 @@ class BusinessWorkspaceTest extends TestCase
         });
 
         Livewire::test(BusinessWorkspace::class)
-            ->assertSee('Diesel needs a response')
+            ->assertSee('Diesel')
+            ->assertSee('Respond')
             ->assertSee('<strong>6</strong>', false)
             ->assertSee('<small>1 waiting for a response</small>', false);
 
@@ -351,7 +353,9 @@ class BusinessWorkspaceTest extends TestCase
                 'membership' => ['role' => 'finance', 'capabilities' => ['portal.view', 'financials.view', 'programs.view']],
                 'features' => ['provider_claims' => false, 'booking_requests' => false],
             ]]),
-            'https://api.zigpaw.test/v1/business/programs*' => Http::response(self::page([])),
+            'https://api.zigpaw.test/v1/business/programs*' => Http::response(self::page([[
+                'id' => 'enrollment-1', 'program_key' => 'referral', 'status' => 'approved', 'code' => 'ZPAPPROVED',
+            ]])),
             'https://api.zigpaw.test/v1/business/financials' => Http::response(['data' => ['currencies' => []]]),
             'https://api.zigpaw.test/v1/business/financials/commissions*' => Http::response(self::page([])),
             'https://api.zigpaw.test/v1/business/financials/agreements*' => Http::response(self::page([])),
@@ -373,6 +377,7 @@ class BusinessWorkspaceTest extends TestCase
 
         $component->call('showSection', 'programs')
             ->assertSet('section', 'programs')
+            ->assertSee('ZPAPPROVED')->assertSee('Copy code')
             ->assertDontSee('Apply')
             ->call('applyForReferralProgram')
             ->assertForbidden();
@@ -446,6 +451,7 @@ class BusinessWorkspaceTest extends TestCase
             ->assertSee('wire:model="businessRegisteredCountryCode" autocomplete="country"', false)
             ->assertSee('<option value="AU">Australia</option>', false)
             ->assertDontSee('placeholder="AU"', false)
+            ->call('saveBusinessProfile')->assertSee('No changes to save.')
             ->set('businessName', 'Laidley Animal Care')
             ->call('saveBusinessProfile')
             ->assertSet('businessName', 'Laidley Animal Care')
@@ -453,7 +459,7 @@ class BusinessWorkspaceTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->method() === 'PATCH'
             && $request->url() === 'https://api.zigpaw.test/v1/business/me'
-            && $request['name'] === 'Laidley Animal Care');
+            && $request->data() === ['name' => 'Laidley Animal Care']);
     }
 
     public function test_country_selector_uses_api_options_and_displays_api_validation_without_changing_organization_identity(): void
@@ -683,6 +689,7 @@ class BusinessWorkspaceTest extends TestCase
         ]];
         $profile = [[
             'id' => '44444444-4444-4444-8444-444444444444',
+            'revision' => str_repeat('a', 64),
             'service_provider_id' => '22222222-2222-4222-8222-222222222222',
             'place_id' => '33333333-3333-4333-8333-333333333333',
             'status' => 'enabled',
@@ -771,6 +778,7 @@ class BusinessWorkspaceTest extends TestCase
         ]);
         $profile = [
             'id' => 'profile-1',
+            'revision' => str_repeat('a', 64),
             'service_provider_id' => 'provider-1',
             'place_id' => 'place-1',
             'status' => 'enabled',

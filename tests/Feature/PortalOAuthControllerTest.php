@@ -176,6 +176,53 @@ class PortalOAuthControllerTest extends TestCase
         $this->assertNotNull(app(TeamInvitationContinuation::class)->entry($membership));
     }
 
+    public function test_booking_continuation_is_exact_session_bound_and_single_use(): void
+    {
+        $booking = '019f5a00-0000-7000-8000-000000000041';
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'synthetic-access-token', 'refresh_token' => 'synthetic-refresh-token', 'expires_in' => 900,
+        ])]);
+
+        $response = $this->get(route('auth.login', ['booking' => $booking, 'booking_status' => 'requested']))
+            ->assertRedirectContains('https://auth.zigpaw.test/oauth/authorize?');
+        self::assertStringNotContainsString($booking, (string) $response->headers->get('Location'));
+        $state = session('platform.oauth.state');
+        $callback = route('auth.callback', [
+            'state' => $state,
+            'code' => 'synthetic-booking-code',
+            'booking' => '019f5a00-0000-7000-8000-000000000099',
+            'return_to' => 'https://untrusted.example',
+        ]);
+        $this->get($callback)
+            ->assertRedirect(route('bookings.show', ['booking' => $booking, 'status' => 'requested']))
+            ->assertHeader('Referrer-Policy', 'no-referrer')
+            ->assertSessionMissing('platform.oauth.booking_return');
+        $this->get($callback)->assertRedirect(route('dashboard'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_expired_or_replaced_booking_continuation_cannot_direct_sign_in(): void
+    {
+        $booking = '019f5a00-0000-7000-8000-000000000041';
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'synthetic-access-token', 'refresh_token' => 'synthetic-refresh-token', 'expires_in' => 900,
+        ])]);
+
+        $this->freezeSecond();
+        $this->get(route('auth.login', ['booking' => $booking]))->assertRedirect();
+        $this->travel(10)->minutes();
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'synthetic-booking-code']))
+            ->assertRedirect(route('dashboard'))->assertSessionMissing('platform.oauth.booking_return');
+
+        $this->get(route('auth.login', ['booking' => $booking]))->assertRedirect();
+        $this->get(route('auth.login', ['booking' => 'https://untrusted.example']))->assertRedirect();
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'another-synthetic-code']))
+            ->assertRedirect(route('dashboard'))->assertSessionMissing('platform.oauth.booking_return');
+        Http::assertSentCount(2);
+    }
+
     public function test_unknown_browser_selected_invitation_cannot_become_an_oauth_return_destination(): void
     {
         config(['platform.oauth_client_id' => 'synthetic-client']);

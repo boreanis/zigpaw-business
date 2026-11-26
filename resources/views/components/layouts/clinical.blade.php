@@ -6,9 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light dark">
     <title>{{ $title ?? 'Zigpaw Partners clinical workspace' }}</title>
-    <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
-        (() => { const value = localStorage.getItem('zigpaw-business-theme'); if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value; })();
-    </script>
+    <x-business.theme-init />
     @vite(['resources/css/business.css', 'resources/js/business.js'])
     @livewireStyles
 </head>
@@ -20,24 +18,18 @@
     <a class="skip-link" href="#main-content">Skip to clinical workspace</a>
     <div class="clinical-app-frame">
         <header class="clinical-app-header">
-            <a class="clinical-brand" href="{{ route('clinical.dashboard') }}" wire:navigate aria-label="Zigpaw Partners clinical workspace home">
-                <img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw">
-                <img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="Zigpaw">
-                <span>Partners · Clinical</span>
-            </a>
+            <x-business.brand :href="route('clinical.dashboard')" label="Partners · Clinical" home-label="Zigpaw Partners clinical workspace home" wire:navigate />
 
             @if ($hasClinicalWorkspace)
                 <nav class="clinical-nav" aria-label="Clinical workspace">
-                    <a @class(['active' => request()->routeIs('clinical.dashboard')]) href="{{ route('clinical.dashboard') }}" wire:navigate>Overview</a>
-                    <a @class(['active' => request()->routeIs('clinical.patients.*')]) href="{{ route('clinical.patients.index') }}" wire:navigate>Patients</a>
-                    <a @class(['active' => request()->routeIs('clinical.submissions.*')]) href="{{ route('clinical.submissions.index') }}" wire:navigate>Submissions</a>
+                    @foreach (['clinical.dashboard' => ['Overview', 'clinical.dashboard'], 'clinical.patients.index' => ['Patients', 'clinical.patients.*'], 'clinical.submissions.index' => ['Submissions', 'clinical.submissions.*']] as $destination => [$label, $section])
+                        <a href="{{ route($destination) }}" @class(['active' => request()->routeIs($section)]) @if (request()->routeIs($section)) aria-current="{{ request()->routeIs($destination) ? 'page' : 'location' }}" @endif wire:navigate>{{ $label }}</a>
+                    @endforeach
                 </nav>
             @endif
 
             <div class="clinical-header-actions">
-                <x-clinical.button variant="theme" data-theme-toggle aria-label="Change appearance">
-                    <span aria-hidden="true" data-theme-icon>◐</span><span data-theme-label>System</span>
-                </x-clinical.button>
+                <x-business.appearance />
                 @if ($hasClinicalWorkspace)
                     <span class="organization-chip">{{ session('clinical_portal.organization_name', 'Clinical workspace') }}</span>
                 @endif
@@ -59,7 +51,7 @@
             @endif
         </x-business.toast-region>
 
-        <main id="main-content" class="clinical-workspace">
+        <main id="main-content" class="clinical-workspace" tabindex="-1">
             {{ $slot }}
         </main>
     </div>

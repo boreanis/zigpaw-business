@@ -29,7 +29,7 @@
         ],
         '500' => [
             'title' => 'We could not complete that request',
-            'description' => 'Your workspace is still safe. Try again, or return home and continue from there.',
+            'description' => 'Try again, or return to your workspace to continue.',
             'primary' => 'Try again',
             'retry' => true,
         ],
@@ -53,34 +53,24 @@
         ],
     ];
     $state = $states[$status] ?? $states['500'];
-    $signedIn = session()->has('platform.oauth.token_handle');
-    $home = $signedIn ? route('dashboard') : route('auth.login');
-    $homeLabel = $signedIn ? 'Workspace home' : 'Partners sign in';
+    $clinical = request()->is('clinical', 'clinical/*');
+    $home = route($clinical ? 'clinical.dashboard' : 'dashboard');
+    $homeLabel = $clinical ? 'Clinical workspace home' : 'Workspace home';
+    $signIn = route($clinical ? 'clinical.auth.login' : 'auth.login');
     $canRetryGet = request()->isMethod('get');
-    $primaryHref = $state['retry'] && $canRetryGet ? url()->current() : ($status === '419' ? route('auth.login') : $home);
+    $primaryHref = $state['retry'] && $canRetryGet ? url()->current() : ($status === '419' ? $signIn : $home);
     $primaryLabel = $state['retry'] && ! $canRetryGet
         ? $homeLabel
         : ($state['primary'] === 'Workspace home' ? $homeLabel : $state['primary']);
 @endphp
 
-<main id="main-content" class="business-error-shell" tabindex="-1">
-    <section class="business-error-page" aria-labelledby="business-error-title">
-        <a class="business-error-brand" href="{{ $home }}" aria-label="Zigpaw Partners home">
-            <span class="brand-art">
-                <img class="brand-light" src="{{ asset('brand/zigpaw-wordmark-light.svg') }}" alt="Zigpaw">
-                <img class="brand-dark" src="{{ asset('brand/zigpaw-wordmark-dark.svg') }}" alt="">
-            </span>
-            <span>Partners</span>
-        </a>
-        <div class="business-error-mark" aria-hidden="true">{{ $status }}</div>
-        <p class="business-error-eyebrow">Zigpaw Partners</p>
+<x-business.access-layout :home="$home" :home-label="$homeLabel" :label="$clinical ? 'Partners · Clinical' : 'Partners'" aria-labelledby="business-error-title">
         <h1 id="business-error-title">{{ $state['title'] }}</h1>
-        <p class="business-error-description">{{ $state['description'] }}</p>
-        <div class="business-error-actions">
+        <p>{{ $state['description'] }}</p>
+        <div class="access-actions">
             <x-business.button variant="primary" :href="$primaryHref">{{ $primaryLabel }}</x-business.button>
-            @if (($state['retry'] && $canRetryGet) || $state['primary'] !== 'Workspace home')
-                <x-business.button variant="secondary" :href="$home">{{ $homeLabel }}</x-business.button>
+            @if ($primaryHref !== $home)
+                <x-business.button variant="text" :href="$home">{{ $homeLabel }}</x-business.button>
             @endif
         </div>
-    </section>
-</main>
+</x-business.access-layout>

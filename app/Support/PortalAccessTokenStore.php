@@ -210,6 +210,13 @@ class PortalAccessTokenStore
         }
     }
 
+    public function contextFingerprint(): ?string
+    {
+        $key = $this->cacheKey(create: false);
+
+        return $key === null ? null : hash('sha256', 'portal-context:'.$key);
+    }
+
     public function apiUrl(): ?string
     {
         return PlatformConfiguration::isSafe($this->context)

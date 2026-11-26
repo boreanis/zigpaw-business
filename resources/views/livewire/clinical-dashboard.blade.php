@@ -1,48 +1,35 @@
 <div>
     @if ($state === 'ready')
         <div class="page-stack">
-            <header class="page-heading">
-                <div>
-                    <p class="eyebrow">{{ $identity['organization']['name'] ?? 'Partners clinical workspace' }}</p>
-                    <h1>Clinical overview</h1>
-                    <p>Only family-approved patient grants and records appear here.</p>
-                </div>
+            <x-clinical.page-heading title="Clinical overview">
                 @if (data_get($pagination, 'organizations.total', 0) > 1)
-                    <x-clinical.button wire:click="changeOrganization" wire:loading.attr="disabled" wire:target="changeOrganization">Change organisation</x-clinical.button>
+                    <x-slot:actions>
+                        <x-clinical.button wire:click="changeOrganization" wire:loading.attr="disabled" wire:target="changeOrganization">Change organisation</x-clinical.button>
+                    </x-slot:actions>
                 @endif
-            </header>
+            </x-clinical.page-heading>
 
             <section class="metric-strip" aria-label="Partners clinical workspace totals">
                 <a href="{{ route('clinical.patients.index') }}" wire:navigate><span>Active patients</span><strong>{{ data_get($overview, 'grants.active', 0) }}</strong></a>
-                <div><span>Expiring soon</span><strong>{{ data_get($overview, 'grants.expiring_soon', 0) }}</strong></div>
+                <a href="{{ route('clinical.patients.index', ['status' => 'expiring_soon']) }}" wire:navigate><span>Expiring soon</span><strong>{{ data_get($overview, 'grants.expiring_soon', 0) }}</strong></a>
                 <a href="{{ route('clinical.submissions.index', ['status' => 'pending']) }}" wire:navigate><span>Pending review</span><strong>{{ data_get($overview, 'submissions.pending', 0) }}</strong></a>
                 <a href="{{ route('clinical.submissions.index') }}" wire:navigate><span>Total submissions</span><strong>{{ data_get($overview, 'submissions.total', 0) }}</strong></a>
             </section>
 
-            <div class="overview-grid">
-                <section class="primary-panel">
-                    <p class="eyebrow">Start here</p>
-                    <h2>Open an approved patient grant</h2>
-                    <p>Review the care context a family chose to share, then submit visit records only when the grant permits it.</p>
-                    <x-clinical.button variant="primary" :href="route('clinical.patients.index')" wire:navigate>View patients</x-clinical.button>
-                </section>
-
-                <section class="plain-section">
-                    <x-clinical.section-heading eyebrow="Submission queue" title="Family review remains in control">
-                        <x-slot:actions><a href="{{ route('clinical.submissions.index') }}" wire:navigate>View history</a></x-slot:actions>
-                    </x-clinical.section-heading>
-                    <p>Clinical records are held as pending until the profile manager reviews them. Existing approved history is never changed directly from this workspace.</p>
-                    <div class="status-key">
-                        <span><i class="dot dot-amber"></i>{{ data_get($overview, 'submissions.pending', 0) }} pending</span>
-                        <span><i class="dot dot-green"></i>{{ data_get($overview, 'submissions.approved', 0) }} approved</span>
-                        <span><i class="dot dot-blue"></i>{{ data_get($overview, 'submissions.partially_approved', 0) }} partly approved</span>
-                    </div>
-                </section>
-            </div>
+            <section class="plain-section">
+                <x-clinical.section-heading title="Family review">
+                    <x-slot:actions><x-clinical.button variant="text" :href="route('clinical.submissions.index')" wire:navigate>Submission history</x-clinical.button></x-slot:actions>
+                </x-clinical.section-heading>
+                <p>Families review submitted records before adding them to their pet’s care history.</p>
+                <div class="status-key">
+                    <span><i class="dot dot-green"></i>{{ data_get($overview, 'submissions.approved', 0) }} approved</span>
+                    <span><i class="dot dot-blue"></i>{{ data_get($overview, 'submissions.partially_approved', 0) }} partly approved</span>
+                </div>
+            </section>
 
             @if (count(data_get($overview, 'locations', [])) > 0)
                 <section class="plain-section">
-                    <x-clinical.section-heading eyebrow="Organisation locations" title="Available clinical locations">
+                    <x-clinical.section-heading title="Clinical locations">
                         <x-slot:meta><span>{{ count(data_get($overview, 'locations', [])) }} listed</span></x-slot:meta>
                     </x-clinical.section-heading>
                     <div class="compact-list">
@@ -55,29 +42,30 @@
         </div>
     @else
         <div class="auth-shell">
-            <section class="auth-card">
+            <section class="access-card">
                 @if ($state === 'choose_organization')
-                    <p class="eyebrow">Clinical organisation</p>
                     <h1>Choose your workspace</h1>
-                    <p>Each patient grant and submission stays within the clinical organisation selected here.</p>
+                    <p>Choose which organisation’s patients and submissions to open.</p>
                     <x-business.workspace-selector label="Organisations" resource="organizations" :items="$organizations" search-property="organizationSearch" search-action="searchOrganizations" select-action="selectOrganization" :pagination="$pagination" :list="true" />
                     @if ($message)<p role="alert">{{ $message }}</p>@endif
                 @elseif ($state === 'forbidden')
-                    <p class="eyebrow">Organisation access</p><h1>Clinical access is not available</h1>
+                    <h1>Clinical access is not available</h1>
                     <p>{{ $message ?: 'This account does not belong to an active, verified veterinary organisation.' }}</p>
                     <form method="POST" action="{{ route('clinical.auth.logout') }}">
                         @csrf
                         <x-clinical.button variant="primary" type="submit">Use another account</x-clinical.button>
                     </form>
                 @elseif ($state === 'unavailable')
-                    <p class="eyebrow">Connection check</p><h1>Zigpaw Partners clinical is temporarily unavailable</h1>
-                    <p>{{ $message ?: 'Your account is safe. Please try again shortly.' }}</p>
+                    <h1>Clinical workspace unavailable</h1>
+                    <p>{{ $message ?: 'Try again in a moment.' }}</p>
                     <x-clinical.button :href="route('clinical.dashboard')">Try again</x-clinical.button>
                 @else
-                    <p class="eyebrow">Zigpaw Partners clinical</p><h1>Care records, with families in control</h1>
-                    <p>Sign in through Zigpaw identity to open only the patient information a family has explicitly shared with your clinical organisation.</p>
-                    <x-clinical.button variant="primary" :href="route('clinical.auth.login')">Sign in securely</x-clinical.button>
-                    <div class="trust-note"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Your clinical session is protected, and patient access stays limited to family-approved grants.</span></div>
+                    <h1>Sign in to the clinical workspace</h1>
+                    <p>Open patient records that families have shared with your clinical organisation.</p>
+                    <div class="access-actions">
+                        <x-clinical.button variant="primary" :href="route('clinical.auth.login', $resume === null ? [] : ['resume' => $resume])">Sign in securely</x-clinical.button>
+                        <x-clinical.button variant="text" :href="route('dashboard')">Partners workspace</x-clinical.button>
+                    </div>
                 @endif
             </section>
         </div>

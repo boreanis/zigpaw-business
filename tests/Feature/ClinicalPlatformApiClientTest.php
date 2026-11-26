@@ -108,6 +108,7 @@ class ClinicalPlatformApiClientTest extends TestCase
             'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/media' => Http::response(['data' => [['id' => self::MEDIA_ID]]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response(['data' => ['id' => self::GRANT_ID]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants?*' => Http::response($this->page([['id' => self::GRANT_ID]])),
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/search' => Http::response($this->page([['id' => self::GRANT_ID]])),
             'https://api.zigpaw.test/v1/business/clinical/submissions/'.self::SUBMISSION_ID => Http::response(['data' => ['id' => self::SUBMISSION_ID]]),
             'https://api.zigpaw.test/v1/business/clinical/submissions?*' => Http::response($this->page([['id' => self::SUBMISSION_ID]])),
         ]);
@@ -119,8 +120,9 @@ class ClinicalPlatformApiClientTest extends TestCase
         $this->assertSame(1, $api->clinicalDashboard($tokens, 'org-1')['grants']['active']);
         $this->assertSame(
             self::GRANT_ID,
-            $api->clinicalProviderGrants($tokens, 'org-1', 1, 25, 'active', '  Patchy  ')['data'][0]['id'],
+            $api->clinicalProviderGrants($tokens, 'org-1', 1, 25, 'active')['data'][0]['id'],
         );
+        $this->assertSame(self::GRANT_ID, $api->searchClinicalProviderGrants($tokens, 'org-1', 'Patchy', 1, 25)['data'][0]['id']);
         $this->assertSame(self::GRANT_ID, $api->clinicalProviderGrant($tokens, 'org-1', self::GRANT_ID)['id']);
         $this->assertSame('pet-1', $api->clinicalCareContext($tokens, 'org-1', self::GRANT_ID)['pet']['id']);
         $this->assertSame(self::MEDIA_ID, $api->clinicalProviderMedia($tokens, 'org-1', self::GRANT_ID)[0]['id']);
@@ -133,16 +135,13 @@ class ClinicalPlatformApiClientTest extends TestCase
             $api->clinicalSubmission($tokens, 'org-1', self::SUBMISSION_ID)['id'],
         );
 
-        Http::assertSent(function (Request $request): bool {
-            if (! str_contains($request->url(), '/clinical/provider-grants?')) {
-                return false;
-            }
-
-            return $request['status'] === 'active'
-                && $request['search'] === 'Patchy'
-                && (int) $request['per_page'] === 25
-                && (int) $request['page'] === 1;
-        });
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/clinical/provider-grants?')
+            && $request['status'] === 'active' && ! isset($request['search']));
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && $request->url() === 'https://api.zigpaw.test/v1/business/clinical/provider-grants/search'
+            && $request->hasHeader('X-Zigpaw-Organization-ID', 'org-1')
+            && ! $request->hasHeader('Idempotency-Key')
+            && $request->data() === ['patient_name' => 'Patchy', 'page' => 1, 'per_page' => 25]);
     }
 
     public function test_it_sends_care_submissions_with_the_caller_idempotency_key(): void
@@ -174,6 +173,40 @@ class ClinicalPlatformApiClientTest extends TestCase
             && $request->hasHeader('Idempotency-Key', $idempotencyKey)
             && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1')
             && $request->data() === $payload);
+    }
+
+    public function test_it_rejects_a_grant_for_another_patient_route(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response([
+                'data' => ['id' => self::SUBMISSION_ID],
+            ]),
+        ]);
+
+        try {
+            $this->api()->clinicalProviderGrant($this->tokens(), 'organization-1', self::GRANT_ID);
+            self::fail('A clinical grant must match its requested identity.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(502, $exception->status);
+            $this->assertStringContainsString('The patient could not be verified', $exception->getMessage());
+        }
+    }
+
+    public function test_it_rejects_a_status_receipt_for_another_submission(): void
+    {
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/submissions/'.self::SUBMISSION_ID => Http::response([
+                'data' => ['id' => self::GRANT_ID, 'status' => 'approved'],
+            ]),
+        ]);
+
+        try {
+            $this->api()->clinicalSubmission($this->tokens(), 'organization-1', self::SUBMISSION_ID);
+            self::fail('A clinical status receipt must match its requested submission.');
+        } catch (PlatformApiException $exception) {
+            $this->assertSame(502, $exception->status);
+            $this->assertStringContainsString('The submission could not be verified', $exception->getMessage());
+        }
     }
 
     public function test_it_returns_media_as_an_untouched_response_for_the_secure_proxy(): void

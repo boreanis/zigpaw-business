@@ -1,9 +1,7 @@
 <div class="page-stack form-page">
     <a class="back-link" href="{{ route('clinical.patients.show', ['grantId' => $grantId]) }}" wire:navigate><span aria-hidden="true">←</span> {{ data_get($grant, 'pet.name', 'Patient') }}</a>
 
-    <header class="page-heading">
-        <div><p class="eyebrow">Pending family review</p><h1>Submit care records for {{ data_get($grant, 'pet.name', 'this patient') }}</h1><p>Enter the visit once. Zigpaw separates each record so the profile manager can review it clearly.</p></div>
-    </header>
+    <x-clinical.page-heading :title="'Submit care records for '.data_get($grant, 'pet.name', 'this patient')" description="The family reviews these records before they appear in the approved care history." />
 
     @if (! $canSubmit)
         <x-clinical.alert title="Submission is not available" :description="$message ?: 'This grant does not include permission to submit clinical records.'" tone="error" />
@@ -15,10 +13,10 @@
             </x-clinical.alert>
         @endif
         <form class="clinical-form" wire:submit="submit" novalidate>
-            @error('submission')<x-clinical.alert title="The submission could not be sent" :description="$message" tone="error" />@enderror
+            @error('submission')<x-clinical.alert title="Check this submission" :description="$message" tone="error" />@enderror
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Visit context</p><h2>Clinician and practice</h2></div><span>Required</span></div>
+                <x-clinical.section-heading title="Clinician and practice" class="form-section-heading" />
                 <div class="form-grid form-grid-two">
                     <x-clinical.field label="Veterinarian name" name="vetName" wire:model="vetName" required autocomplete="name" />
                     <x-clinical.field label="Clinic name" name="clinicName" wire:model="clinicName" required autocomplete="organization" />
@@ -31,7 +29,7 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Visit</p><h2>What happened today</h2></div><span>Required fields marked *</span></div>
+                <x-clinical.section-heading title="Visit details" class="form-section-heading" />
                 <div class="form-grid form-grid-three">
                     <x-clinical.field label="Visit date" name="visitDate" wire:model="visitDate" type="date" required max="{{ now()->toDateString() }}" />
                     <x-clinical.select label="Visit type" name="visitType" wire:model="visitType" required>
@@ -43,7 +41,7 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Measurements</p><h2>Observations</h2></div><span>Optional</span></div>
+                <x-clinical.section-heading title="Measurements" class="form-section-heading" />
                 <div class="form-grid measurement-grid">
                     <div class="compound-field"><x-clinical.field label="Weight" name="weight" wire:model="weight" type="number" min="0" max="999" step="0.01" /><x-clinical.select label="Unit" name="weightUnit" wire:model="weightUnit"><option value="kg">kg</option><option value="lbs">lb</option></x-clinical.select></div>
                     <x-clinical.field label="Body condition" name="bodyConditionScore" wire:model="bodyConditionScore" type="number" min="1" max="9" hint="1–9 scale" />
@@ -54,7 +52,7 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Assessment & plan</p><h2>Clinical narrative</h2></div><span>Optional</span></div>
+                <x-clinical.section-heading title="Assessment and plan" class="form-section-heading" />
                 <div class="form-grid form-grid-two textarea-grid">
                     <x-clinical.textarea label="Assessment or diagnosis" name="diagnosis" wire:model="diagnosis" rows="5" />
                     <x-clinical.textarea label="Differential diagnoses" name="differentialDiagnoses" wire:model="differentialDiagnoses" rows="5" />
@@ -70,7 +68,9 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Vaccinations</p><h2>Vaccines administered</h2></div><x-clinical.button variant="text" wire:click="addVaccination">+ Add vaccination</x-clinical.button></div>
+                <x-clinical.section-heading title="Vaccinations" class="form-section-heading">
+                    <x-slot:actions><x-clinical.button variant="text" wire:click="addVaccination">+ Add vaccination</x-clinical.button></x-slot:actions>
+                </x-clinical.section-heading>
                 <p class="context-note">Enter the product or vaccine name exactly as it appears on the label or certificate.</p>
                 @forelse ($vaccinations as $index => $vaccination)
                     <fieldset class="repeater-row" wire:key="vaccination-{{ $index }}">
@@ -89,7 +89,9 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Medications</p><h2>Prescribed or administered</h2></div><x-clinical.button variant="text" wire:click="addMedication">+ Add medication</x-clinical.button></div>
+                <x-clinical.section-heading title="Medications" class="form-section-heading">
+                    <x-slot:actions><x-clinical.button variant="text" wire:click="addMedication">+ Add medication</x-clinical.button></x-slot:actions>
+                </x-clinical.section-heading>
                 @forelse ($medications as $index => $medication)
                     <fieldset class="repeater-row" wire:key="medication-{{ $index }}"><legend>Medication {{ $index + 1 }}</legend><x-clinical.button variant="danger" wire:click="removeMedication({{ $index }})" aria-label="Remove medication {{ $index + 1 }}">Remove</x-clinical.button>
                         <div class="form-grid form-grid-three">
@@ -106,7 +108,9 @@
             </section>
 
             <section class="form-section">
-                <div class="form-section-heading"><div><p class="eyebrow">Conditions & allergies</p><h2>New clinical findings</h2></div><x-clinical.button variant="text" wire:click="addCondition">+ Add finding</x-clinical.button></div>
+                <x-clinical.section-heading title="Conditions and allergies" class="form-section-heading">
+                    <x-slot:actions><x-clinical.button variant="text" wire:click="addCondition">+ Add finding</x-clinical.button></x-slot:actions>
+                </x-clinical.section-heading>
                 @forelse ($conditions as $index => $condition)
                     <fieldset class="repeater-row" wire:key="condition-{{ $index }}"><legend>Finding {{ $index + 1 }}</legend><x-clinical.button variant="danger" wire:click="removeCondition({{ $index }})" aria-label="Remove finding {{ $index + 1 }}">Remove</x-clinical.button>
                         <div class="form-grid form-grid-three">

@@ -114,9 +114,47 @@ class BusinessWorkspaceSelectorTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT'
             && $request['provider_link_id'] === 'link-101'
+            && $request['expected_revision'] === str_repeat('a', 64)
             && $request['availability_rules'][0]['starts_at'] === '09:00'
             && count($request['availability_exceptions']) === 1);
         Http::assertNotSent(fn (Request $request): bool => $request->method() === 'GET' && str_contains($request->url(), '/booking-profiles'));
+    }
+
+    public function test_concurrent_booking_update_preserves_the_draft_and_requires_an_explicit_reload(): void
+    {
+        $changed = false;
+        $writes = 0;
+        $this->fakeWorkspace(override: function (Request $request) use (&$changed, &$writes) {
+            if ($request->method() === 'PUT') {
+                $writes++;
+                if (! $changed) {
+                    $changed = true;
+
+                    return Http::response(['code' => 'BOOKING_CONFIGURATION_CHANGED', 'message' => 'Booking settings changed.'], 409);
+                }
+            }
+            if ($changed && str_ends_with($request->url(), '/booking-profile')) {
+                return Http::response(['data' => [...$this->profile('link-101'), 'revision' => str_repeat('b', 64), 'customer_instructions' => 'Updated by another operator']]);
+            }
+
+            return null;
+        });
+        $component = Livewire::test(BusinessWorkspace::class)
+            ->call('showSection', 'booking-setup')
+            ->call('selectBookingProvider', 'link-101')
+            ->set('bookingCustomerInstructions', 'Draft to preserve')
+            ->call('saveBookingConfiguration')
+            ->assertSet('bookingConfigurationState', 'conflict')
+            ->assertSet('bookingCustomerInstructions', 'Draft to preserve')
+            ->assertSee('Reload latest settings')
+            ->call('saveBookingConfiguration');
+        self::assertSame(1, $writes);
+        $component->call('selectBookingProvider', 'link-101')
+            ->assertSet('bookingCustomerInstructions', 'Updated by another operator')
+            ->assertSet('bookingConfigurationState', 'configured')
+            ->call('saveBookingConfiguration')->assertHasNoErrors();
+        self::assertSame(2, $writes);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT' && $request['expected_revision'] === str_repeat('b', 64));
     }
 
     public function test_failed_lookup_blocks_saving_and_explicit_null_is_an_unconfigured_location(): void
@@ -233,7 +271,7 @@ class BusinessWorkspaceSelectorTest extends TestCase
 
                 return Http::response(['data' => [
                     'organization' => $this->organization($id),
-                    'membership' => ['id' => 'membership-'.$id, 'role' => 'owner', 'capabilities' => ['portal.view', 'providers.manage', 'bookings.manage', 'team.manage']],
+                    'membership' => ['id' => 'membership-'.$id, 'role' => 'owner', 'assignable_team_roles' => ['viewer', 'operator', 'manager', 'finance'], 'capabilities' => ['portal.view', 'providers.manage', 'bookings.manage', 'team.manage']],
                     'features' => ['provider_claims' => false, 'booking_requests' => true],
                 ]]);
             }
@@ -277,6 +315,7 @@ class BusinessWorkspaceSelectorTest extends TestCase
 
         return [
             'id' => 'profile-'.$suffix, 'service_provider_id' => 'provider-'.$suffix, 'place_id' => 'place-'.$suffix,
+            'revision' => str_repeat('a', 64),
             'status' => 'enabled', 'timezone' => 'Australia/Brisbane', 'minimum_notice_hours' => 0,
             'availability_rules' => [['day_of_week' => 1, 'starts_at' => '09:00', 'ends_at' => '17:00', 'is_active' => true]],
             'availability_exceptions' => [['date' => '2026-12-25', 'availability' => 'unavailable']],

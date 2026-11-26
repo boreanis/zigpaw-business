@@ -1,12 +1,44 @@
 # Zigpaw Partners
 
-## November 19 — dependency audit follow-up
+## Booking setup, business profiles and team management
 
-The published rename is on GitHub. Its workflow failed at dependency audit.
-Local updates move Laravel to **13.43.0** and the affected Symfony components
-to **8.1.11**. Composer and npm audits report zero advisories after the updates.
-The updated PHP suite passes **319 tests / 2,271 assertions**. This security
-follow-up remains local. [Platform HANDOFF](../zigpaw-platform/HANDOFF.md)
+When two operators edit one location, Booking setup keeps the second operator’s draft and shows **Reload latest settings**. This action asks before discarding the draft. Weekly hours may repeat in different seasons. A conflict requires active rules to cover the same weekday, date and time.
+
+The profile form sends only changed fields. Saving a verified profile without changing its details preserves verification. Managers may grant Viewer and Operator. Owners may also grant Manager and Finance. The team screen follows the available actions returned for each membership.
+
+Approved referral partners can copy their code from **Partner programs**. When clipboard access is unavailable, the displayed code can be selected and copied manually.
+
+## November 25 — Patient search and booking responses
+
+Open a booking from Overview or the booking queue to review its exact request, appointment timezone and current Platform actions. The queue prioritizes open requests by response deadline. Back to booking requests restores the selected filter, page and row. When a decision removes the booking from the filter, keyboard focus returns to the selected filter. If the queue has shrunk, it opens the last remaining page. A confirmed decision requires a matching Platform receipt. Opening a patient profile for an appointment checks the current grant and patient again. Leaving the page clears the transient profile. Sign-in retains an authorized exact destination.
+
+Clinical patient-name searches use a JSON body. A ten-minute encrypted search is bound to the clinical login, organization and browser session. Results can be paged without putting the name in a URL. An expired search can be restarted. A patient list page that disappeared is read again at its last available page. The expiring-patient view uses Platform's 30-day window and displays the precise UTC deadline. Historical grants show when access expired or was revoked and list current permissions.
+
+The portal consumes the generated Business and Clinical contracts. The Platform owns the workflow rules and current authority. The relevant framework features are documented in [Laravel pagination](https://laravel.com/docs/13.x/pagination), [Laravel encryption](https://laravel.com/docs/13.x/encryption) and [Livewire URL parameters](https://livewire.laravel.com/docs/4.x/url).
+
+
+## November 20 — clinical patient and submission confirmation
+
+Clinical detail pages verify the requested grant and submission identities.
+The patient page also checks that the care records belong to the patient named
+by the grant. The care form opens only for a verified submission grant and
+confirms a write only when Platform returns a submission ID for that patient.
+An incomplete or mismatched receipt keeps the original retry key. The clinician
+can retry the same records or review what arrived from submission history.
+
+Nine synthetic regressions reproduced the prior behavior. The full PHP suite
+passes **332 tests / 2,398 assertions**, plus three JavaScript tests, PHPStan,
+Pint, both contract checks and the production build. The installed asset bundle
+matches the verified build. [Livewire 4 property security](https://livewire.laravel.com/docs/4.x/security) · [Platform handoff](../zigpaw-platform/HANDOFF.md)
+
+## November 19 — clinical session recovery
+
+The published security repair passed GitHub Actions. The later local clinical
+chooser recovery passes **323 tests / 2,321 assertions**, both contract checks,
+Pint, PHPStan, JavaScript tests and a production build. The normal Herd
+clinical sign-in screen fits 390 px. Automated 401 and transient-failure cases
+cover the chooser and check that management authority is preserved.
+[Platform HANDOFF](../zigpaw-platform/HANDOFF.md)
 
 ## November 19 — Consumers, Partners and normal Herd hosts
 
@@ -218,6 +250,12 @@ memberships require an explicit choice in each workspace; only the existing
 authorized single-membership auto-selection remains. Management sign-out retains
 its established whole-device BFF session invalidation and clears both contexts.
 There is no fallback from clinical selection to the management key.
+A 401 during clinical organization search or pagination ends only the clinical
+session, clears its selected organization and stale chooser data, and renders
+the secure sign-in entry. Transient lookup errors keep the chooser and clinical
+credentials available for an explicit retry. Management credentials and selection
+remain independent throughout this recovery.
+
 
 
 ## Deployment And Trust Topology
@@ -366,9 +404,10 @@ Navigation is derived from API-provided capabilities and release state. Hiding a
 
 ## Setup
 
-The current lockfiles use PHP 8.5, Laravel 13, Livewire 4, PHPUnit 13,
-Vite 8, Laravel Vite Plugin 3 and Tailwind CSS 4. Use Node 24.22.1 LTS or newer on
-24.x, or Node 26.12.1 or newer, as declared by `package.json`. Install the reviewed
+The lockfiles use PHP 8.5, Laravel 13.43.0, Livewire 4.4.8, PHPUnit 13.4.8,
+Vite 8.3.8, Laravel Vite Plugin 3.2.1 and Tailwind CSS 4.3.5. CI pins Node
+26.13.1 LTS and npm 12.2.3. Node 24.22.3 and later 24.x releases are also
+supported by the manifest. Install the reviewed
 locks; framework upgrades do not authorize a Business database or migrations.
 
 ```bash
@@ -418,6 +457,8 @@ Existing explicit staged-mode fixtures retain their isolated test meaning; they
 do not provision or authorize a live alias. Complete normal management and
 clinical OAuth, then record the actual responsive/browser run and its limits in
 the Platform handoff.
+
+The Platform Dusk test `CanonicalBusinessWorkspaceSmokeTest::test_partner_can_respond_to_an_exact_booking_and_search_private_patients_on_phone_and_desktop` exercises both OAuth sessions with synthetic records at 390 × 844 and 1440 × 1000. It verifies a persisted booking decision, keyboard focus on return to the queue, and patient filtering without the search term appearing in the URL.
 
 The former standalone veterinary portal is consolidated here as the
 category-aware clinical template. Management and clinical traffic share this

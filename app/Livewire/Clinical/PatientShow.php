@@ -30,6 +30,11 @@ class PatientShow extends Component
 
     public bool $loadingFailed = false;
 
+    protected function clinicalReturnTarget(): array
+    {
+        return ['clinical.patients.show', $this->grantId];
+    }
+
     public function mount(string $grantId, PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
     {
         $this->grantId = $grantId;
@@ -68,7 +73,13 @@ class PatientShow extends Component
             $capabilities = is_array($this->grant['capabilities'] ?? null) ? $this->grant['capabilities'] : [];
 
             if (($capabilities['read_care'] ?? false) === true) {
-                $this->care = $api->clinicalCareContext($tokens, $organizationId, $this->grantId);
+                $petId = data_get($this->grant, 'pet.id');
+                $care = $api->clinicalCareContext($tokens, $organizationId, $this->grantId);
+                if (! is_string($petId) || $petId === '' || data_get($care, 'pet.id') !== $petId) {
+                    throw new PlatformApiException(502, 'The care records could not be verified for this patient. Please try again.');
+                }
+
+                $this->care = $care;
             }
 
             if (($capabilities['read_media'] ?? false) === true) {

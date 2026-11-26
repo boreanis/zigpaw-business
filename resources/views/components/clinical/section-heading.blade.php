@@ -1,11 +1,11 @@
 @props([
-    'eyebrow',
+    'eyebrow' => null,
     'title',
 ])
 
 <div {{ $attributes->class(['section-heading-inline']) }}>
     <div>
-        <p class="eyebrow">{{ $eyebrow }}</p>
+        @if ($eyebrow)<p class="eyebrow">{{ $eyebrow }}</p>@endif
         <h2>{{ $title }}</h2>
     </div>
     @if (isset($meta))

@@ -5,16 +5,21 @@ namespace Tests\Feature;
 use App\Livewire\BusinessWorkspace;
 use App\Livewire\Clinical\CareSubmission;
 use App\Livewire\Clinical\PatientIndex;
+use App\Livewire\Clinical\PatientShow;
 use App\Livewire\ClinicalDashboard;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
 use App\Support\PortalAccessTokenStore;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Repository;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
 
 class ClinicalWorkspaceTest extends TestCase
@@ -243,7 +248,7 @@ class ClinicalWorkspaceTest extends TestCase
         app(PortalAccessTokenStore::class)->put(['access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900]);
         session()->put(['portal.organization_id' => 'organization-b', 'portal.organization_name' => 'Management choice B']);
         Http::fake(['https://api.zigpaw.test/*' => Http::response([], 401)]);
-        Livewire::test(PatientIndex::class)->assertRedirect(route('clinical.dashboard'));
+        Livewire::test(PatientIndex::class)->assertRedirect();
         self::assertSame('organization-b', session('portal.organization_id'));
         self::assertSame('Management choice B', session('portal.organization_name'));
         self::assertNull(session('clinical_portal.organization_id'));
@@ -286,6 +291,8 @@ class ClinicalWorkspaceTest extends TestCase
 
     private const SUBMISSION_ID = '019fef67-1853-732a-82cf-e76f955e4d32';
 
+    private const SUBMISSION_PET_ID = '019f5a00-0000-7000-8000-000000000003';
+
     public function test_clinical_workspace_has_its_own_signed_out_entry_point(): void
     {
         $this->get('/clinical')
@@ -294,7 +301,7 @@ class ClinicalWorkspaceTest extends TestCase
             ->assertSee('Sign in securely');
 
         $this->get('/clinical/patients')
-            ->assertRedirect(route('clinical.dashboard'))
+            ->assertRedirectContains('/clinical?resume=')
             ->assertSessionHas('error', 'Your secure clinical session has ended. Please sign in again.');
     }
 
@@ -433,7 +440,8 @@ class ClinicalWorkspaceTest extends TestCase
             ->assertSee('Patchy')
             ->assertSee('Dog · Cattle Dog')
             ->assertSee('Riverbank Clinic')
-            ->assertSee('Access expires 2026-09-01')
+            ->assertSee('Access expires')
+            ->assertSee('31 Aug 2026 · 14:00 UTC')
             ->assertDontSee('Ends 2026-09-01');
 
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-1')
@@ -510,11 +518,166 @@ class ClinicalWorkspaceTest extends TestCase
 
         $this->get('/clinical/patients?status=not-a-status&page=-8&search='.str_repeat('x', 100))
             ->assertOk()
-            ->assertSee('No matching active patient');
+            ->assertSee('No grants in this view')
+            ->assertDontSee(str_repeat('x', 80));
 
         Http::assertSent(fn (Request $request): bool => $request['status'] === 'active'
             && (int) $request['page'] === 1
-            && mb_strlen((string) $request['search']) === 80);
+            && ! isset($request['search']));
+    }
+
+    public function test_a_patient_page_that_shrank_reloads_the_last_available_page_once(): void
+    {
+        $this->signIn();
+        $requested = [];
+        Http::fake(function (Request $request) use (&$requested) {
+            $page = (int) $request['page'];
+            $requested[] = $page;
+
+            return Http::response([
+                'data' => [],
+                'links' => $this->pageLinks(),
+                'meta' => [...$this->pageMeta(), 'current_page' => $page, 'last_page' => 1],
+            ]);
+        });
+
+        Livewire::withQueryParams(['page' => 3])->test(PatientIndex::class)
+            ->assertSet('page', 1)->assertSee('No grants in this view');
+        self::assertSame([3, 1], $requested);
+    }
+
+    public function test_private_patient_search_paginates_the_applied_name_without_resending_the_draft(): void
+    {
+        $this->signIn();
+        $this->freezeSecond();
+        $api = 'https://api.zigpaw.test/v1/business/clinical/provider-grants';
+        $criteria = 'Synthetic search term';
+        Http::fake(function (Request $request) use ($api) {
+            $page = (int) $request['page'];
+
+            return Http::response([
+                'data' => $request->url() === $api.'/search'
+                    ? [['id' => self::GRANT_ID, 'status' => 'active', 'pet' => ['name' => 'Synthetic result '.$page]]]
+                    : [],
+                'meta' => ['current_page' => $page, 'last_page' => 2, 'per_page' => 24, 'total' => 25],
+            ]);
+        });
+
+        $component = Livewire::test(PatientIndex::class)
+            ->set('search', $criteria)->call('applyFilters')
+            ->assertSet('search', '')->assertSee('Name filter applied.')->assertSee('Synthetic result 1');
+        self::assertStringNotContainsString($criteria, json_encode($component->snapshot['data'], JSON_THROW_ON_ERROR));
+        $component->set('search', 'Unsubmitted synthetic input')->call('nextPage')
+            ->assertSet('search', '')->assertSee('Synthetic result 2');
+        foreach ([1, 2] as $page) {
+            Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+                && $request->url() === $api.'/search'
+                && $request->data() === ['patient_name' => $criteria, 'page' => $page, 'per_page' => 24]);
+        }
+        Http::assertSentCount(3);
+
+        $this->travel(10)->minutes();
+        $component->call('retry')->assertSee('This search has expired')->assertDontSee('Synthetic result 2');
+        Http::assertSentCount(3);
+        $component->call('clearSearch')->assertSet('appliedSearch', null)->assertSee('No grants in this view');
+        Http::assertSentCount(4);
+    }
+
+    public function test_open_patient_search_cannot_run_under_a_newly_selected_clinical_workspace(): void
+    {
+        $this->signIn();
+        Http::fake(fn (Request $request) => Http::response(['data' => [], 'meta' => $this->pageMeta()]));
+        $component = Livewire::test(PatientIndex::class)->set('search', 'Synthetic old workplace')->call('applyFilters');
+        self::assertIsString($component->get('appliedSearch'));
+        session()->put('clinical_portal.organization_id', 'organization-2');
+
+        $component->call('nextPage')->assertSet('appliedSearch', null)
+            ->assertRedirect(route('clinical.patients.index'));
+        Http::assertSentCount(2);
+    }
+
+    public function test_private_patient_search_is_bound_to_the_clinical_login_even_without_session_id_rotation(): void
+    {
+        $this->signIn();
+        Http::fake(fn () => Http::response(['data' => [], 'meta' => $this->pageMeta()]));
+        $sessionId = session()->getId();
+        $component = Livewire::test(PatientIndex::class)
+            ->set('search', 'Synthetic previous clinician search')->call('applyFilters');
+        $tokens = app(ClinicalPortalAccessTokenStore::class);
+        $oldLogin = $tokens->contextFingerprint();
+        $tokens->forget();
+        $tokens->put(['access_token' => 'second-clinician', 'refresh_token' => 'second-clinician-refresh', 'expires_in' => 900]);
+
+        self::assertSame($sessionId, session()->getId());
+        self::assertNotSame($oldLogin, $tokens->contextFingerprint());
+        $component->call('retry')->assertSee('This search has expired');
+        Http::assertSentCount(2);
+    }
+
+    public function test_patient_cache_failures_allow_retry_without_revealing_search_text(): void
+    {
+        $store = new class extends ArrayStore
+        {
+            public ?string $failure = null;
+
+            public function get($key)
+            {
+                $this->raiseFailure($key, 'get');
+
+                return parent::get($key);
+            }
+
+            public function put($key, $value, $seconds)
+            {
+                $this->raiseFailure($key, 'put');
+
+                return parent::put($key, $value, $seconds);
+            }
+
+            public function forget($key)
+            {
+                $this->raiseFailure($key, 'forget');
+
+                return parent::forget($key);
+            }
+
+            private function raiseFailure(string $key, string $operation): void
+            {
+                if ($this->failure === $operation && str_starts_with($key, 'clinical.patient-search:')) {
+                    throw new RuntimeException('Synthetic private cache detail');
+                }
+            }
+        };
+        Cache::swap(new Repository($store));
+        $this->signIn();
+        Http::fake(fn () => Http::response(['data' => [], 'meta' => $this->pageMeta()]));
+        $component = Livewire::test(PatientIndex::class);
+
+        $store->failure = 'put';
+        $component->set('search', 'Synthetic private cache detail')->call('applyFilters')
+            ->assertSet('search', '')->assertSee('Patient search could not be saved')
+            ->assertDontSee('Synthetic private cache detail');
+        Http::assertSentCount(1);
+
+        $store->failure = null;
+        $component->set('search', 'Synthetic private cache detail')->call('applyFilters')
+            ->assertSee('Name filter applied.');
+        Http::assertSentCount(2);
+
+        $store->failure = 'get';
+        $component->call('retry')->assertSee('Patient search is temporarily unavailable.')
+            ->assertDontSee('Synthetic private cache detail');
+        Http::assertSentCount(2);
+
+        $store->failure = 'forget';
+        $component->call('clearSearch')->assertSet('appliedSearch', null)
+            ->assertSee('Patient search is temporarily unavailable.')
+            ->assertDontSee('Synthetic private cache detail');
+        Http::assertSentCount(2);
+
+        $store->failure = null;
+        $component->call('retry')->assertSee('No grants in this view');
+        Http::assertSentCount(3);
     }
 
     public function test_patient_name_search_is_not_sent_for_inactive_grants(): void
@@ -634,6 +797,29 @@ class ClinicalWorkspaceTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_patient_page_does_not_render_care_returned_for_another_patient(): void
+    {
+        $this->signIn();
+        Http::fake([
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID => Http::response(['data' => [
+                'id' => self::GRANT_ID,
+                'status' => 'active',
+                'capabilities' => ['read_profile' => true, 'read_care' => true],
+                'pet' => ['id' => 'pet-1', 'name' => 'Patchy'],
+            ]]),
+            'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/care-context' => Http::response(['data' => [
+                'pet' => ['id' => 'pet-2', 'name' => 'Another synthetic patient'],
+                'visits' => [['id' => 'visit-1', 'diagnosis' => 'Unrelated synthetic diagnosis']],
+            ]]),
+        ]);
+
+        Livewire::test(PatientShow::class, ['grantId' => self::GRANT_ID])
+            ->assertSet('loadingFailed', true)
+            ->assertSet('care', [])
+            ->assertSee('The care records could not be verified for this patient')
+            ->assertDontSee('Unrelated synthetic diagnosis');
+    }
+
     public function test_care_submission_uses_the_grant_and_redirects_to_family_review_status(): void
     {
         $this->signIn();
@@ -642,7 +828,7 @@ class ClinicalWorkspaceTest extends TestCase
                 'id' => self::GRANT_ID,
                 'status' => 'active',
                 'capabilities' => ['submit_care' => true],
-                'pet' => ['id' => 'pet-1', 'name' => 'Patchy'],
+                'pet' => ['id' => self::SUBMISSION_PET_ID, 'name' => 'Patchy'],
                 'location' => ['id' => 'location-1', 'name' => 'Riverbank Clinic'],
             ]]),
             'https://api.zigpaw.test/v1/business/clinical/me' => Http::response(['data' => [
@@ -659,6 +845,7 @@ class ClinicalWorkspaceTest extends TestCase
             ]]),
             'https://api.zigpaw.test/v1/business/clinical/provider-grants/'.self::GRANT_ID.'/care-submissions' => Http::response(['data' => [
                 'id' => self::SUBMISSION_ID,
+                'pet_id' => self::SUBMISSION_PET_ID,
                 'status' => 'pending',
             ]], 201),
         ]);
@@ -776,11 +963,79 @@ class ClinicalWorkspaceTest extends TestCase
         ]);
 
         Livewire::test(PatientIndex::class)
-            ->assertRedirect(route('clinical.dashboard'));
+            ->assertRedirect();
 
         $this->assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
         $this->assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
         $this->assertNull(session('clinical_portal.organization_id'));
+    }
+
+    /** @return iterable<string, array{string, array}> */
+    public static function clinicalChooserActions(): iterable
+    {
+        yield 'search' => ['searchOrganizations', []];
+        yield 'pagination' => ['changePage', ['organizations', 2]];
+    }
+
+    #[DataProvider('clinicalChooserActions')]
+    public function test_expired_clinical_chooser_actions_return_to_sign_in_without_erasing_management(string $action, array $arguments): void
+    {
+        $this->signIn();
+        session()->forget('clinical_portal.organization_id');
+        session()->put(['portal.organization_id' => 'management-a', 'portal.organization_name' => 'Synthetic management A']);
+        app(PortalAccessTokenStore::class)->put([
+            'access_token' => 'business-access-token', 'refresh_token' => 'business-refresh-token', 'expires_in' => 900,
+        ]);
+        $failure = null;
+        $this->fakeClinicalChooserAction($failure);
+        $component = Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization')
+            ->assertSee('Synthetic clinical A');
+        $failure = 401;
+        $component->call($action, ...$arguments)->assertSet('state', 'signed_out')
+            ->assertSet('organizations', [])->assertSet('pagination', [])
+            ->assertSee('Sign in securely')->assertDontSee('Choose your workspace')->assertDontSee('Synthetic clinical A');
+
+        self::assertNull(app(ClinicalPortalAccessTokenStore::class)->accessToken());
+        self::assertNull(session('clinical_portal.organization_id'));
+        self::assertNull(session('clinical_portal.organization_name'));
+        self::assertSame('business-access-token', app(PortalAccessTokenStore::class)->accessToken());
+        self::assertSame('management-a', session('portal.organization_id'));
+        self::assertSame('Synthetic management A', session('portal.organization_name'));
+        Http::assertNotSent(fn (Request $request): bool => $request->method() !== 'GET');
+    }
+
+    #[DataProvider('clinicalChooserActions')]
+    public function test_transient_clinical_chooser_errors_preserve_authority_and_retry_in_place(string $action, array $arguments): void
+    {
+        $this->signIn();
+        session()->forget('clinical_portal.organization_id');
+        $failure = null;
+        $this->fakeClinicalChooserAction($failure);
+        $component = Livewire::test(ClinicalDashboard::class)->assertSet('state', 'choose_organization');
+        $failure = 503;
+        $component->call($action, ...$arguments)->assertSet('state', 'choose_organization')
+            ->assertSee('Synthetic clinical A')->assertSee('Zigpaw is temporarily unavailable. Please try again shortly.');
+        self::assertSame('clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+
+        $failure = null;
+        $component->call($action, ...$arguments)->assertSet('state', 'choose_organization')->assertSet('message', null)
+            ->assertSee('Synthetic clinical A')->assertDontSee('Zigpaw is temporarily unavailable. Please try again shortly.');
+        self::assertSame('clinical-access-token', app(ClinicalPortalAccessTokenStore::class)->accessToken());
+    }
+
+    private function fakeClinicalChooserAction(?int &$failure): void
+    {
+        Http::fake(function (Request $request) use (&$failure) {
+            if ($failure !== null) {
+                return Http::response(['message' => 'Synthetic clinical API unavailable.'], $failure);
+            }
+
+            return Http::response(['data' => [
+                ['id' => 'organization-a', 'name' => 'Synthetic clinical A', 'role' => 'owner'],
+                ['id' => 'organization-b', 'name' => 'Synthetic clinical B', 'role' => 'viewer'],
+            ], 'meta' => ['current_page' => (int) ($request['page'] ?? 1), 'last_page' => 2, 'per_page' => 25, 'total' => 27],
+                'links' => $this->pageLinks()]);
+        });
     }
 
     private function signIn(): void

@@ -16,7 +16,7 @@ class ExampleTest extends TestCase
 
         $response->assertStatus(200)
             ->assertSee('<title>Zigpaw Partners</title>', false)
-            ->assertSee('A workspace for vet clinics, groomers, sitters and other pet services.')
+            ->assertSee('Sign in to Partners')
             ->assertDontSee('Zigpaw business');
     }
 }

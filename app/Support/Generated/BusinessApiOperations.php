@@ -12,8 +12,8 @@ final class BusinessApiOperations
 {
     /** @var array<string, string> */
     public const CONTRACT_SHA256 = [
-        'business-v1' => '7510f08f73688189eff8d1b5ea73bf71cd78e63597cd97be26ae1d5b4553b4f2',
-        'clinical-v1' => 'c20a2fb622da9da8b24d87eb2d3f886d058882312324d1d8953ca83375374eef',
+        'business-v1' => 'b40fb8b19498054176680e5c21f657fc17646b39d4f4dcf2f282332c441c4a6b',
+        'clinical-v1' => '863c808d337b56d75973cc2ac08c8c04a5ef89d0c94f1fa8404b0d13374ed126',
     ];
 
     /** @var list<array{contract: string, operation_id: string, method: string, path: string}> */
@@ -89,6 +89,12 @@ final class BusinessApiOperations
             'operation_id' => 'v1.business.clinical.provider-grants.index',
             'method' => 'GET',
             'path' => '/v1/business/clinical/provider-grants',
+        ],
+        [
+            'contract' => 'clinical-v1',
+            'operation_id' => 'v1.business.clinical.provider-grants.search',
+            'method' => 'POST',
+            'path' => '/v1/business/clinical/provider-grants/search',
         ],
         [
             'contract' => 'clinical-v1',

@@ -19,6 +19,10 @@ class ClinicalSubmissionRetryTest extends TestCase
 
     private const SUBMISSION_ID = '019f5a00-0000-7000-8000-000000000002';
 
+    private const PET_ID = '019f5a00-0000-7000-8000-000000000003';
+
+    private const OTHER_ID = '019f5a00-0000-7000-8000-000000000004';
+
     /** @var list<array{key: string, payload: array<string, mixed>}> */
     private array $writes = [];
 
@@ -131,6 +135,72 @@ class ClinicalSubmissionRetryTest extends TestCase
         self::assertSame($this->writes[0]['key'], $this->writes[1]['key']);
     }
 
+    #[DataProvider('invalidSubmissionPatients')]
+    public function test_success_must_acknowledge_the_form_patient_before_finishing(array $patientFields): void
+    {
+        $this->fakeClinical(fn (int $attempt) => $attempt === 1
+            ? Http::response(['data' => [
+                'id' => self::SUBMISSION_ID,
+                'status' => 'pending',
+                ...$patientFields,
+            ]], 201)
+            : $this->confirmedSubmission());
+
+        $form = $this->submissionForm()->call('submit')
+            ->assertHasErrors('submission')
+            ->assertSet('hasPendingSubmission', true)
+            ->assertSee('Check submission history');
+        self::assertNull(session('success'));
+
+        $form->call('submit')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('clinical.submissions.show', ['submissionId' => self::SUBMISSION_ID]));
+
+        self::assertCount(2, $this->writes);
+        self::assertSame($this->writes[0]['key'], $this->writes[1]['key']);
+        self::assertSame($this->writes[0]['payload'], $this->writes[1]['payload']);
+        self::assertNull(session(ClinicalSubmissionRetry::SESSION_KEY));
+    }
+
+    public static function invalidSubmissionPatients(): array
+    {
+        return [
+            'missing patient' => [[]],
+            'null patient' => [['pet_id' => null]],
+            'different patient' => [['pet_id' => self::OTHER_ID]],
+        ];
+    }
+
+    #[DataProvider('invalidGrantIdentities')]
+    public function test_an_unverified_grant_patient_cannot_open_a_submission_form(array $grantFields): void
+    {
+        $this->fakeClinical(fn () => $this->confirmedSubmission(), [
+            'id' => self::GRANT_ID,
+            'capabilities' => ['submit_care' => true],
+            'pet' => ['id' => self::PET_ID, 'name' => 'Unexpected patient'],
+            ...$grantFields,
+        ]);
+
+        Livewire::test(CareSubmission::class, ['grantId' => self::GRANT_ID])
+            ->assertSet('canSubmit', false)
+            ->assertDontSee('Unexpected patient')
+            ->assertSee('The patient could not be verified')
+            ->call('submit')
+            ->assertHasErrors('submission');
+
+        self::assertSame([], $this->writes);
+        self::assertNull(session(ClinicalSubmissionRetry::SESSION_KEY));
+    }
+
+    public static function invalidGrantIdentities(): array
+    {
+        return [
+            'different grant' => [['id' => self::OTHER_ID]],
+            'missing patient' => [['pet' => ['name' => 'Unexpected patient']]],
+            'malformed patient' => [['pet' => ['id' => 'unknown', 'name' => 'Unexpected patient']]],
+        ];
+    }
+
     #[DataProvider('identityChanges')]
     public function test_an_old_component_cannot_write_or_clear_pending_state_after_its_context_changes(string $changedField): void
     {
@@ -175,9 +245,9 @@ class ClinicalSubmissionRetryTest extends TestCase
             ->set('diagnosis', 'Synthetic private clinical narrative');
     }
 
-    private function fakeClinical(callable $writeResponse): void
+    private function fakeClinical(callable $writeResponse, ?array $grant = null): void
     {
-        Http::fake(function (Request $request) use ($writeResponse) {
+        Http::fake(function (Request $request) use ($writeResponse, $grant) {
             if ($request->method() === 'POST') {
                 self::assertNotNull(session(ClinicalSubmissionRetry::SESSION_KEY), 'Retry identity must be saved before the outbound write.');
                 $this->writes[] = ['key' => $request->header('Idempotency-Key')[0], 'payload' => $request->data()];
@@ -185,7 +255,11 @@ class ClinicalSubmissionRetryTest extends TestCase
                 return $writeResponse(count($this->writes));
             }
             if (str_ends_with($request->url(), '/provider-grants/'.self::GRANT_ID)) {
-                return Http::response(['data' => ['id' => self::GRANT_ID, 'capabilities' => ['submit_care' => true], 'pet' => ['name' => 'Synthetic pet']]]);
+                return Http::response(['data' => $grant ?? [
+                    'id' => self::GRANT_ID,
+                    'capabilities' => ['submit_care' => true],
+                    'pet' => ['id' => self::PET_ID, 'name' => 'Synthetic pet'],
+                ]]);
             }
             if (str_ends_with($request->url(), '/me')) {
                 return Http::response(['data' => $this->identity]);
@@ -197,6 +271,10 @@ class ClinicalSubmissionRetryTest extends TestCase
 
     private function confirmedSubmission(): PromiseInterface
     {
-        return Http::response(['data' => ['id' => self::SUBMISSION_ID, 'status' => 'pending']], 201);
+        return Http::response(['data' => [
+            'id' => self::SUBMISSION_ID,
+            'pet_id' => self::PET_ID,
+            'status' => 'pending',
+        ]], 201);
     }
 }

@@ -28,6 +28,7 @@ Route::middleware('throttle:30,1')->group(function (): void {
 });
 
 Route::get('/', BusinessWorkspace::class)->name('dashboard');
+Route::get('/bookings/{booking}', BusinessWorkspace::class)->whereUuid('booking')->name('bookings.show');
 Route::get('/auth/login', [PortalOAuthController::class, 'redirect'])->name('auth.login');
 Route::get('/auth/callback', [PortalOAuthController::class, 'callback'])->name('auth.callback');
 Route::post('/auth/logout', [PortalOAuthController::class, 'logout'])->name('auth.logout');
@@ -36,13 +37,13 @@ Route::get('/team/invitations/{membership}', [BusinessTeamInvitationController::
 Route::post('/team/invitations/{membership}', [BusinessTeamInvitationController::class, 'accept'])->whereUuid('membership')->block()->name('team.invitations.accept');
 
 Route::get('/clinical', ClinicalDashboard::class)->name('clinical.dashboard');
-Route::get('/clinical/auth/login', [ClinicalPortalOAuthController::class, 'redirect'])->name('clinical.auth.login');
-Route::get('/clinical/auth/callback', [ClinicalPortalOAuthController::class, 'callback'])->name('clinical.auth.callback');
-Route::post('/clinical/auth/logout', [ClinicalPortalOAuthController::class, 'logout'])->name('clinical.auth.logout');
+Route::get('/clinical/auth/login', [ClinicalPortalOAuthController::class, 'redirect'])->block()->name('clinical.auth.login');
+Route::get('/clinical/auth/callback', [ClinicalPortalOAuthController::class, 'callback'])->block()->name('clinical.auth.callback');
+Route::post('/clinical/auth/logout', [ClinicalPortalOAuthController::class, 'logout'])->block()->name('clinical.auth.logout');
 
 Route::middleware(RequireClinicalWorkspace::class)->group(function (): void {
-    Route::get('/clinical/patients', PatientIndex::class)->name('clinical.patients.index');
-    Route::get('/clinical/patients/{grantId}', PatientShow::class)->whereUuid('grantId')->name('clinical.patients.show');
+    Route::get('/clinical/patients', PatientIndex::class)->block()->name('clinical.patients.index');
+    Route::get('/clinical/patients/{grantId}', PatientShow::class)->whereUuid('grantId')->block()->name('clinical.patients.show');
     Route::get('/clinical/patients/{grantId}/care-submissions/new', CareSubmission::class)
         ->whereUuid('grantId')
         ->name('clinical.patients.submissions.create');

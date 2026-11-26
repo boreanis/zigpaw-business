@@ -6,8 +6,10 @@ use App\Exceptions\PlatformApiException;
 use App\Livewire\Concerns\HandlesWorkspaceValidation;
 use App\Services\PlatformApiClient;
 use App\Support\PortalAccessTokenStore;
+use App\Support\PortalDateTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -19,6 +21,18 @@ class BusinessWorkspace extends Component
 
     #[Url]
     public string $section = 'overview';
+
+    #[Url(as: 'status', except: 'all')]
+    public string $bookingListStatus = 'all';
+
+    #[Url(as: 'booking_page', except: 1)]
+    public int $bookingPage = 1;
+
+    #[Locked]
+    public ?string $bookingId = null;
+
+    #[Locked]
+    public bool $bookingPetProfileOpen = false;
 
     public string $state = 'signed_out';
 
@@ -54,6 +68,9 @@ class BusinessWorkspace extends Component
 
     #[Locked]
     public string $bookingConfigurationState = 'unavailable';
+
+    #[Locked]
+    public ?string $bookingConfigurationRevision = null;
 
     /** @var array<string, mixed> */
     #[Locked]
@@ -105,9 +122,6 @@ class BusinessWorkspace extends Component
     /** @var list<array<string, mixed>> */
     public array $bookings = [];
 
-    /** @var array<string, array<string, mixed>> */
-    public array $bookingPetContexts = [];
-
     /** @var array<string, mixed> */
     public array $financials = [];
 
@@ -121,6 +135,7 @@ class BusinessWorkspace extends Component
     public array $programs = [];
 
     /** @var list<array<string, mixed>> */
+    #[Locked]
     public array $team = [];
 
     /** @var array<string, array{current_page: int, last_page: int, per_page: int, total: int}> */
@@ -230,8 +245,9 @@ class BusinessWorkspace extends Component
 
     public string $editingTeamRole = '';
 
-    /** @var array<string, string> */
-    public array $declineReasons = [];
+    public string $bookingDeclineReason = '';
+
+    public string $bookingProposedTime = '';
 
     /** @var array<string, array{label: string, icon: string, capability: string, feature: ?string}> */
     private const SECTION_DEFINITIONS = [
@@ -268,8 +284,11 @@ class BusinessWorkspace extends Component
     // Leave a safety margin below Platform's 15-minute processing lease.
     private const PENDING_MUTATION_SAFE_RETRY_SECONDS = 14 * 60;
 
-    public function mount(PlatformApiClient $api, PortalAccessTokenStore $tokens): void
+    public function mount(PlatformApiClient $api, PortalAccessTokenStore $tokens, ?string $booking = null): void
     {
+        abort_unless($booking === null || Str::isUuid($booking), 404);
+        $this->bookingPage = max(1, min(100_000, $this->bookingPage));
+        $this->bookingId = $booking === null ? null : strtolower($booking);
         $this->message = session()->pull('error');
         $this->notice = session()->pull('status');
 
@@ -312,9 +331,14 @@ class BusinessWorkspace extends Component
             $this->identity = $api->identity($accessToken, $organizationId);
             $this->hydrateBusinessProfile();
             $this->navigationSections = $this->availableNavigationSections();
-            $this->section = array_key_exists($this->section, $this->navigationSections) ? $this->section : 'overview';
+            if ($this->bookingId !== null) {
+                $this->section = 'bookings';
+                $this->authorizeSection($this->section);
+            } else {
+                $this->section = array_key_exists($this->section, $this->navigationSections) ? $this->section : 'overview';
+                $this->loadSection($api, $accessToken);
+            }
             $this->state = 'ready';
-            $this->loadSection($api, $accessToken);
         } catch (PlatformApiException $exception) {
             $this->handlePlatformFailure($exception, $tokens);
         }
@@ -324,6 +348,11 @@ class BusinessWorkspace extends Component
     {
         abort_unless($organizationId === $this->organizationId || collect($this->organizations)->contains('id', $organizationId), 403);
         session()->put('portal.organization_id', $organizationId);
+        if ($this->bookingId !== null) {
+            $this->redirectRoute('bookings.show', ['booking' => $this->bookingId, 'status' => $this->bookingFilter(), 'booking_page' => $this->bookingPage > 1 ? $this->bookingPage : null], navigate: true);
+
+            return;
+        }
         $this->redirectRoute('dashboard', ['section' => 'overview'], navigate: true);
     }
 
@@ -362,7 +391,12 @@ class BusinessWorkspace extends Component
 
     public function showSection(string $section): void
     {
-        abort_unless(array_key_exists($section, $this->navigationSections), 403);
+        $this->authorizeSection($section);
+        if ($this->bookingId !== null) {
+            $this->redirectRoute('dashboard', ['section' => $section, 'status' => $section === 'bookings' ? $this->bookingFilter() : null], navigate: true);
+
+            return;
+        }
         $this->section = $section;
         $this->message = null;
 
@@ -376,12 +410,12 @@ class BusinessWorkspace extends Component
         return $this->displayCarbon($value)?->translatedFormat($this->displayDateFormat) ?? '—';
     }
 
-    public function displayDateTime(?string $value): string
+    public function displayDateTime(?string $value, bool $includeZone = false, ?string $timezone = null): string
     {
-        $date = $this->displayCarbon($value);
+        $date = $this->displayCarbon($value, $timezone);
 
         return $date
-            ? $date->translatedFormat($this->displayDateFormat).' · '.$date->translatedFormat($this->displayTimeFormat)
+            ? $date->translatedFormat($this->displayDateFormat).' · '.$date->translatedFormat($this->displayTimeFormat.($includeZone ? ' T' : ''))
             : '—';
     }
 
@@ -415,6 +449,10 @@ class BusinessWorkspace extends Component
             max(1, $page),
             max(1, $meta['last_page']),
         );
+
+        if ($resource === 'bookings') {
+            $this->bookingPage = (int) $this->pagination[$resource]['current_page'];
+        }
 
         if ($resource === 'claimableProviders') {
             $this->loadClaimableProviders();
@@ -569,6 +607,17 @@ class BusinessWorkspace extends Component
             'primary_contact_phone' => $this->nullableField($this->businessPrimaryContactPhone),
             'website' => $this->nullableField($this->businessWebsite),
         ];
+
+        $current = $this->identity['business_profile'] ?? [];
+        $current['name'] = Str::squish((string) data_get($this->identity, 'organization.name'));
+        $current['primary_contact_email'] = mb_strtolower(trim((string) ($current['primary_contact_email'] ?? '')));
+        $current['registered_country_code'] = Str::upper(trim((string) ($current['registered_country_code'] ?? '')));
+        $payload = array_filter($payload, fn ($value, $key): bool => $this->nullableField((string) ($current[$key] ?? '')) !== $value, ARRAY_FILTER_USE_BOTH);
+        if ($payload === []) {
+            $this->notice = 'No changes to save.';
+
+            return;
+        }
 
         $this->withMutationApi('business_profile.update', 'business-profile', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
             $this->identity = $api->updateBusinessProfile($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
@@ -763,6 +812,7 @@ class BusinessWorkspace extends Component
         $this->authorizeBookingConfiguration();
         $this->loadedBookingProviderLinkId = null;
         $this->bookingConfigurationState = 'unavailable';
+        $this->bookingConfigurationRevision = null;
         $this->bookingProviderLinkId = $providerLinkId;
         $this->selectedBookingProvider = null;
         if ($providerLinkId === '') {
@@ -826,6 +876,11 @@ class BusinessWorkspace extends Component
     public function saveBookingConfiguration(): void
     {
         $this->authorizeBookingConfiguration();
+        if ($this->bookingConfigurationState === 'conflict') {
+            $this->message = 'Review the latest booking settings before saving again.';
+
+            return;
+        }
         if ($this->selectedBookingProvider === null || $this->loadedBookingProviderLinkId === null || $this->loadedBookingProviderLinkId !== $this->bookingProviderLinkId) {
             $this->addError('bookingProviderLinkId', 'Choose a location and load its current booking settings before saving.');
 
@@ -858,6 +913,7 @@ class BusinessWorkspace extends Component
 
         $payload = [
             'provider_link_id' => $this->bookingProviderLinkId,
+            'expected_revision' => $this->bookingConfigurationRevision,
             'status' => $this->bookingStatus,
             'timezone' => $this->bookingTimezone,
             'notification_email' => $this->nullableField(mb_strtolower(trim($this->bookingNotificationEmail))),
@@ -887,40 +943,59 @@ class BusinessWorkspace extends Component
         $this->respondToBooking($bookingId, ['action' => 'accept', 'window_id' => $windowId]);
     }
 
+    public function proposeBooking(string $bookingId): void
+    {
+        $this->authorizeExactBooking($bookingId);
+        $this->validate(['bookingProposedTime' => ['required', 'date_format:Y-m-d\TH:i']], attributes: ['bookingProposedTime' => 'appointment time']);
+        $this->bookingPetProfileOpen = false;
+        $this->notice = null;
+
+        $startsAt = null;
+        $this->withApi(function (PlatformApiClient $api, string $token) use ($bookingId, &$startsAt): void {
+            $booking = $api->booking($token, $this->requiredOrganizationId(), $bookingId);
+            if (($booking['id'] ?? null) !== $bookingId
+                || ! in_array('propose', (array) ($booking['available_actions'] ?? []), true)) {
+                throw new PlatformApiException(409, 'This booking can no longer receive a proposed time.');
+            }
+
+            $timezone = new \DateTimeZone((string) ($booking['appointment_timezone'] ?? 'UTC'));
+            $format = 'Y-m-d\TH:i';
+            $start = \DateTimeImmutable::createFromFormat('!'.$format, $this->bookingProposedTime, $timezone);
+            if ($start === false || $start->format($format) !== $this->bookingProposedTime) {
+                $this->addError('bookingProposedTime', 'Enter a valid time in the appointment location’s timezone.');
+
+                return;
+            }
+
+            $startsAt = $start->format(DATE_ATOM);
+        });
+        if ($startsAt !== null) {
+            $this->respondToBooking($bookingId, ['action' => 'propose', 'proposed_windows' => [['starts_at' => $startsAt]]]);
+        }
+    }
+
     public function completeBooking(string $bookingId): void
     {
         $this->respondToBooking($bookingId, ['action' => 'complete']);
     }
 
-    public function viewBookingPetContext(string $bookingId): void
+    public function toggleBookingPetProfile(string $bookingId): void
     {
-        $this->authorizeCapability('bookings.manage');
-        $this->authorizeFeature('booking_requests');
-
-        $booking = collect($this->bookings)->firstWhere('id', $bookingId);
-        abort_unless(is_array($booking) && data_get($booking, 'pet_access.status') === 'active', 404);
-
-        $this->withApi(function (PlatformApiClient $api, string $accessToken) use ($bookingId): void {
-            $this->bookingPetContexts[$bookingId] = $api->bookingPetContext(
-                $accessToken,
-                $this->requiredOrganizationId(),
-                $bookingId,
-            );
-        });
+        $this->authorizeExactBooking($bookingId);
+        $this->bookingPetProfileOpen = ! $this->bookingPetProfileOpen;
     }
 
     public function declineBooking(string $bookingId): void
     {
-        $this->authorizeCapability('bookings.manage');
-        $this->authorizeFeature('booking_requests');
+        $this->authorizeExactBooking($bookingId);
         $this->validate([
-            "declineReasons.{$bookingId}" => ['required', 'string', 'max:1000'],
+            'bookingDeclineReason' => ['required', 'string', 'max:1000'],
         ], [
-            "declineReasons.{$bookingId}.required" => 'Add a short reason before declining this request.',
+            'bookingDeclineReason.required' => 'Add a short reason before declining this request.',
         ]);
         $this->respondToBooking($bookingId, [
             'action' => 'decline',
-            'reason' => Str::squish($this->declineReasons[$bookingId]),
+            'reason' => Str::squish($this->bookingDeclineReason),
         ]);
     }
 
@@ -949,7 +1024,7 @@ class BusinessWorkspace extends Component
         $this->authorizeCapability('team.manage');
         $this->validate([
             'teamEmail' => ['required', 'email:rfc', 'max:254'],
-            'teamRole' => ['required', 'in:manager,operator,finance,viewer'],
+            'teamRole' => ['required', Rule::in(data_get($this->identity, 'membership.assignable_team_roles', []))],
         ]);
 
         $payload = [
@@ -975,7 +1050,7 @@ class BusinessWorkspace extends Component
     {
         $this->authorizeCapability('team.manage');
         $member = collect($this->team)->firstWhere('id', $membershipId);
-        abort_unless(is_array($member) && ! ($member['is_current_user'] ?? false), 404);
+        abort_unless(data_get($member, 'actions.edit_role') === true, 404);
 
         $this->editingTeamMemberId = $membershipId;
         $this->editingTeamRole = (string) ($member['role'] ?? 'viewer');
@@ -993,9 +1068,11 @@ class BusinessWorkspace extends Component
         $this->authorizeCapability('team.manage');
         $this->validate([
             'editingTeamMemberId' => ['required', 'string'],
-            'editingTeamRole' => ['required', 'in:manager,operator,finance,viewer'],
+            'editingTeamRole' => ['required', Rule::in(data_get($this->identity, 'membership.assignable_team_roles', []))],
         ]);
 
+        $member = collect($this->team)->firstWhere('id', $this->editingTeamMemberId);
+        abort_unless(data_get($member, 'actions.edit_role') === true, 404);
         $payload = ['role' => $this->editingTeamRole];
 
         $this->withMutationApi('team.memberships.update', "team/memberships/{$this->editingTeamMemberId}", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
@@ -1017,7 +1094,7 @@ class BusinessWorkspace extends Component
     {
         $this->authorizeCapability('team.manage');
         $member = collect($this->team)->firstWhere('id', $membershipId);
-        abort_unless(is_array($member) && ($member['status'] ?? null) === 'invited', 404);
+        abort_unless(data_get($member, 'actions.resend') === true, 404);
 
         $this->withMutationApi('team.invitations.resend', "team/invitations/{$membershipId}/resend", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($membershipId): void {
             $api->resendTeamInvitation($accessToken, $this->requiredOrganizationId(), $membershipId, $idempotencyKey);
@@ -1031,7 +1108,7 @@ class BusinessWorkspace extends Component
     {
         $this->authorizeCapability('team.manage');
         $member = collect($this->team)->firstWhere('id', $membershipId);
-        abort_unless(is_array($member) && ! ($member['is_current_user'] ?? false), 404);
+        abort_unless(data_get($member, 'actions.revoke') === true, 404);
 
         $this->withMutationApi('team.memberships.revoke', "team/memberships/{$membershipId}", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($membershipId): void {
             $api->revokeTeamMember($accessToken, $this->requiredOrganizationId(), $membershipId, $idempotencyKey);
@@ -1061,35 +1138,145 @@ class BusinessWorkspace extends Component
 
     public function render(): View
     {
-        return view('livewire.business-workspace')->layout('components.layouts.portal', [
-            'title' => 'Zigpaw Partners',
-        ]);
+        $booking = $bookingPetProfile = $bookingError = $bookingPetError = null;
+        if ($this->state === 'ready' && $this->bookingId !== null) {
+            $tokens = app(PortalAccessTokenStore::class);
+            try {
+                $token = $tokens->accessToken();
+                if ($token === null) {
+                    throw new PlatformApiException(401, 'Sign in to open the booking.');
+                }
+                $this->authorizeExactBooking($this->bookingId);
+                $api = app(PlatformApiClient::class);
+                $booking = $api->booking($token, $this->requiredOrganizationId(), $this->bookingId);
+                if (($booking['id'] ?? null) !== $this->bookingId || ! is_string($booking['request_number'] ?? null)
+                    || ! is_string($booking['status'] ?? null) || ! is_array($booking['available_actions'] ?? null)) {
+                    throw new PlatformApiException(502, 'Zigpaw could not verify the booking details. Try again.');
+                }
+                if ($this->bookingPetProfileOpen) {
+                    [$bookingPetProfile, $bookingPetError] = $this->readBookingPetProfile($api, $token, $booking);
+                }
+            } catch (PlatformApiException $exception) {
+                $booking = null;
+                $this->bookingPetProfileOpen = false;
+                if ($exception->status === 401) {
+                    $this->handlePlatformFailure($exception, $tokens);
+                } else {
+                    $bookingError = $exception->getMessage();
+                }
+            }
+        }
+
+        return view('livewire.business-workspace', compact('booking', 'bookingPetProfile', 'bookingError', 'bookingPetError'))
+            ->layout('components.layouts.portal', ['title' => 'Zigpaw Partners']);
+    }
+
+    /** @param array<string, mixed> $booking */
+    public function canShowBookingPetProfile(array $booking): bool
+    {
+        $expiresAt = data_get($booking, 'pet_access.expires_at');
+
+        return data_get($booking, 'pet_access.status') === 'active'
+            && is_string(data_get($booking, 'pet_access.id'))
+            && is_string(data_get($booking, 'pet.id'))
+            && ($expiresAt === null || (is_string($expiresAt) && $this->displayCarbon($expiresAt)?->isFuture() === true));
+    }
+
+    /** @param array<string, mixed> $booking @return array{0: array<string, mixed>|null, 1: string|null} */
+    private function readBookingPetProfile(PlatformApiClient $api, string $token, array $booking): array
+    {
+        if ($this->canShowBookingPetProfile($booking)) {
+            try {
+                $profile = $api->bookingPetContext($token, $this->requiredOrganizationId(), (string) $this->bookingId);
+                $expiresAt = data_get($profile, 'access.expires_at');
+                if (data_get($profile, 'access.id') === data_get($booking, 'pet_access.id')
+                    && data_get($profile, 'access.status') === 'active'
+                    && ($expiresAt === null || (is_string($expiresAt) && $this->displayCarbon($expiresAt)?->isFuture() === true))
+                    && data_get($profile, 'pet.id') === data_get($booking, 'pet.id')
+                    && is_array($profile['pet'] ?? null)) {
+                    return [$profile['pet'], null];
+                }
+            } catch (PlatformApiException $exception) {
+                if ($exception->status === 401) {
+                    throw $exception;
+                }
+                if (! in_array($exception->status, [403, 404], true)) {
+                    $this->bookingPetProfileOpen = false;
+
+                    return [null, 'The pet profile could not be loaded. Try opening it again.'];
+                }
+            }
+        }
+
+        $this->bookingPetProfileOpen = false;
+
+        return [null, 'This appointment no longer grants access to the pet profile.'];
+    }
+
+    private function authorizeExactBooking(string $bookingId): void
+    {
+        abort_unless($this->bookingId === $bookingId && $this->organizationId !== null
+            && $this->organizationId === session('portal.organization_id'), 404);
+        $this->authorizeCapability('bookings.manage');
+        $this->authorizeFeature('booking_requests');
+    }
+
+    public function bookingFilter(): ?string
+    {
+        return in_array($this->bookingListStatus, ['requested', 'accepted'], true) ? $this->bookingListStatus : null;
     }
 
     /** @param array<string, mixed> $payload */
     private function respondToBooking(string $bookingId, array $payload): void
     {
-        $this->authorizeCapability('bookings.manage');
-        $this->authorizeFeature('booking_requests');
+        $this->authorizeExactBooking($bookingId);
+        $this->bookingPetProfileOpen = false;
+        $this->notice = null;
 
         $this->withMutationApi('bookings.respond', "bookings/{$bookingId}/response", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($bookingId, $payload): void {
-            $api->respondToBooking($accessToken, $this->requiredOrganizationId(), $bookingId, $payload, $idempotencyKey);
-            $markMutationSucceeded();
-            $this->assignPage('bookings', $api->bookings(
-                $accessToken,
-                $this->requiredOrganizationId(),
-                $this->currentPage('bookings'),
-            ));
-            if ($payload['action'] === 'decline') {
-                unset($this->declineReasons[$bookingId]);
+            $status = match ($payload['action']) {
+                'accept' => 'accepted',
+                'propose' => 'proposed',
+                'decline' => 'declined',
+                'complete' => 'completed',
+                default => throw new \LogicException('Unknown booking action.'),
+            };
+            try {
+                $receipt = $api->respondToBooking($accessToken, $this->requiredOrganizationId(), $bookingId, $payload, $idempotencyKey);
+            } catch (PlatformApiException $exception) {
+                if ($payload['action'] === 'accept' && $exception->status === 422 && isset($exception->errors['window_id'])) {
+                    throw new PlatformApiException(422, 'That time is now unavailable. Review the updated appointment options.');
+                }
+
+                throw $exception;
             }
-            $this->notice = match ($payload['action']) {
-                'accept' => 'Booking accepted. The customer can now see the confirmed time.',
-                'decline' => 'Booking declined. The customer has been told why.',
-                'complete' => 'Booking marked complete.',
-                default => 'Booking updated.',
+            if (($receipt['id'] ?? null) !== $bookingId || ($receipt['status'] ?? null) !== $status
+                || ($status === 'proposed' && ! $this->confirmsBookingProposal($receipt, $payload['proposed_windows'][0]['starts_at']))) {
+                throw new PlatformApiException(502, 'Zigpaw could not confirm the update. Review the current booking before retrying.');
+            }
+            $markMutationSucceeded();
+            $this->bookingDeclineReason = '';
+            $this->bookingProposedTime = '';
+            $this->notice = match ($status) {
+                'accepted' => 'Booking accepted. The customer can now see the confirmed time.',
+                'proposed' => 'New time proposed. Waiting for customer confirmation.',
+                'declined' => 'Booking declined.',
+                'completed' => 'Booking marked complete.',
             };
         });
+    }
+
+    /** @param array<string, mixed> $booking */
+    private function confirmsBookingProposal(array $booking, string $startsAt): bool
+    {
+        $expected = $this->displayCarbon($startsAt);
+
+        return $expected !== null && collect($booking['requested_windows'] ?? [])->contains(
+            fn ($window): bool => data_get($window, 'source') === 'provider'
+                && data_get($window, 'status') === 'proposed'
+                && is_string(data_get($window, 'starts_at'))
+                && $this->displayCarbon($window['starts_at'])?->equalTo($expected) === true,
+        );
     }
 
     private function loadSection(PlatformApiClient $api, string $accessToken): void
@@ -1101,7 +1288,7 @@ class BusinessWorkspace extends Component
             'overview' => $this->loadOverview($api, $accessToken, $organizationId),
             'profile' => $this->hydrateBusinessProfile(),
             'listings' => $this->loadListings($api, $accessToken, $organizationId),
-            'bookings' => $this->assignPage('bookings', $api->bookings($accessToken, $organizationId, $this->currentPage('bookings'))),
+            'bookings' => $this->loadBookingQueue($api, $accessToken, $organizationId),
             'booking-setup' => $this->loadBookingSetup($api, $accessToken, $organizationId),
             'services' => $this->loadServices($api, $accessToken, $organizationId),
             'programs' => $this->assignPage('programs', $api->programs($accessToken, $organizationId, $this->currentPage('programs'))),
@@ -1109,6 +1296,17 @@ class BusinessWorkspace extends Component
             'team' => $this->assignPage('team', $api->team($accessToken, $organizationId, $this->currentPage('team'))),
             default => abort(404),
         };
+    }
+
+    private function loadBookingQueue(PlatformApiClient $api, string $accessToken, string $organizationId): void
+    {
+        $fetch = fn (int $page): array => $api->bookings($accessToken, $organizationId, $page, status: $this->bookingFilter());
+        $page = $fetch($this->currentPage('bookings'));
+        if ($page['data'] === [] && $this->bookingPage > $page['meta']['last_page']) {
+            $this->bookingPage = max(1, $page['meta']['last_page']);
+            $page = $fetch($this->bookingPage);
+        }
+        $this->assignPage('bookings', $page);
     }
 
     private function loadOverview(PlatformApiClient $api, string $accessToken, string $organizationId): void
@@ -1219,6 +1417,10 @@ class BusinessWorkspace extends Component
 
     private function currentPage(string $resource): int
     {
+        if ($resource === 'bookings') {
+            return max(1, min(100_000, $this->bookingPage));
+        }
+
         return max(1, (int) data_get($this->pagination, "{$resource}.current_page", 1));
     }
 
@@ -1234,11 +1436,7 @@ class BusinessWorkspace extends Component
         $this->businessRegistrationNumberType = (string) data_get($this->identity, 'business_profile.registration_number_type', '');
         $this->businessTaxIdentifier = (string) data_get($this->identity, 'business_profile.tax_identifier', '');
         $this->businessTaxIdentifierType = (string) data_get($this->identity, 'business_profile.tax_identifier_type', '');
-        $this->businessRegisteredCountryCode = (string) data_get(
-            $this->identity,
-            'business_profile.registered_country_code',
-            data_get($this->identity, 'organization.primary_country_code', ''),
-        );
+        $this->businessRegisteredCountryCode = (string) data_get($this->identity, 'business_profile.registered_country_code', '');
         $this->businessPrimaryContactName = (string) data_get($this->identity, 'business_profile.primary_contact_name', '');
         $this->businessPrimaryContactEmail = (string) data_get($this->identity, 'business_profile.primary_contact_email', '');
         $this->businessPrimaryContactPhone = (string) data_get($this->identity, 'business_profile.primary_contact_phone', '');
@@ -1247,6 +1445,9 @@ class BusinessWorkspace extends Component
 
     private function hydrateBookingConfiguration(array $link, ?array $profile): void
     {
+        if ($profile !== null && (! is_string($profile['revision'] ?? null) || ! preg_match('/^[a-f0-9]{64}$/D', $profile['revision']))) {
+            throw new PlatformApiException(502, 'The booking settings revision could not be verified. Reload this location before editing.');
+        }
         $serviceProviderId = (string) data_get($link, 'provider.id', '');
         $placeId = data_get($link, 'place.id');
         if ($profile !== null && ((string) ($profile['service_provider_id'] ?? '') !== $serviceProviderId
@@ -1258,6 +1459,7 @@ class BusinessWorkspace extends Component
         $this->bookingProviderLinkId = (string) $link['id'];
         $this->loadedBookingProviderLinkId = $this->bookingProviderLinkId;
         $this->bookingConfigurationState = $profile === null ? 'unconfigured' : 'configured';
+        $this->bookingConfigurationRevision = $profile === null ? 'unconfigured' : $profile['revision'];
         $this->bookingStatus = is_array($profile) ? (string) ($profile['status'] ?? '') : '';
         $this->bookingTimezone = is_array($profile)
             ? (string) ($profile['timezone'] ?? '')
@@ -1338,21 +1540,9 @@ class BusinessWorkspace extends Component
         return $value === '' ? null : $value;
     }
 
-    private function displayCarbon(?string $value): ?Carbon
+    private function displayCarbon(?string $value, ?string $timezone = null): ?Carbon
     {
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($value)
-                ->timezone($this->displayTimezone)
-                ->locale($this->displayLocale);
-        } catch (\Throwable) {
-            // An upstream record should never be able to break the whole
-            // workspace because a date is malformed or incomplete.
-            return null;
-        }
+        return PortalDateTime::parse($value, $timezone ?? $this->displayTimezone, $this->displayLocale);
     }
 
     /** @return list<array<string, mixed>> */
@@ -1483,6 +1673,9 @@ class BusinessWorkspace extends Component
                 $callback($api, $accessToken, $idempotencyKey, $markMutationSucceeded);
                 $this->forgetPendingMutation($fingerprint);
             } catch (PlatformApiException $exception) {
+                if ($operation === 'booking_profiles.update' && $exception->errorCode === 'BOOKING_CONFIGURATION_CHANGED') {
+                    $this->bookingConfigurationState = 'conflict';
+                }
                 if ($exception->status === 422) {
                     $this->mapWorkspaceValidationErrors($exception->errors, $this->mutationValidationFields($operation, $resource));
                 }
@@ -1620,7 +1813,7 @@ class BusinessWorkspace extends Component
     {
         // Preserve every conflict key. Platform uses typed 409 conflicts for
         // in-flight idempotency and a message is not a stable contract.
-        return $exception->status >= 500 || $exception->status === 409;
+        return $exception->status >= 500 || ($exception->status === 409 && $exception->errorCode !== 'BOOKING_CONFIGURATION_CHANGED');
     }
 
     /** @return array<string, string> */
@@ -1656,12 +1849,13 @@ class BusinessWorkspace extends Component
                 'provider_link_id' => 'bookingProviderLinkId', 'status' => 'bookingStatus', 'timezone' => 'bookingTimezone',
                 'notification_email' => 'bookingNotificationEmail', 'notification_phone' => 'bookingNotificationPhone',
                 'minimum_notice_hours' => 'bookingMinimumNoticeHours', 'maximum_advance_days' => 'bookingMaximumAdvanceDays',
-                'response_window_hours' => 'bookingResponseWindowHours', 'customer_instructions' => 'bookingCustomerInstructions',
+                'response_window_hours' => 'bookingResponseWindowHours',
+                'customer_instructions' => 'bookingCustomerInstructions',
                 'availability_rules' => 'bookingAvailabilityRules', 'availability_exceptions' => 'bookingAvailabilityExceptions',
             ],
             'team.invitations.create' => ['email' => 'teamEmail', 'role' => 'teamRole'],
             'team.memberships.update' => ['role' => 'editingTeamRole'],
-            'bookings.respond' => ['reason' => 'declineReasons.'.(explode('/', $resource)[1] ?? '')],
+            'bookings.respond' => ['reason' => 'bookingDeclineReason', 'proposed_windows.0.starts_at' => 'bookingProposedTime'],
             default => [],
         };
     }
@@ -1696,7 +1890,7 @@ class BusinessWorkspace extends Component
             'bookingAvailabilityExceptions' => 'date exceptions', 'bookingAvailabilityExceptions.*.date' => 'exception date',
             'bookingAvailabilityExceptions.*.starts_at' => 'opening time', 'bookingAvailabilityExceptions.*.ends_at' => 'closing time',
             'bookingAvailabilityExceptions.*.availability' => 'availability', 'bookingAvailabilityExceptions.*.reason' => 'exception reason',
-            'teamEmail' => 'email address', 'teamRole' => 'role', 'editingTeamRole' => 'role', 'declineReasons.*' => 'decline reason',
+            'teamEmail' => 'email address', 'teamRole' => 'role', 'editingTeamRole' => 'role', 'bookingDeclineReason' => 'decline reason',
         ];
     }
 

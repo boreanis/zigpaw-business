@@ -19,6 +19,8 @@ class PortalOAuthController
 
     private const VERIFIER_KEY = 'platform.oauth.verifier';
 
+    private const BOOKING_RETURN = 'platform.oauth.booking_return';
+
     public function redirect(Request $request): RedirectResponse
     {
         $clientId = config('platform.oauth_client_id');
@@ -42,6 +44,7 @@ class PortalOAuthController
         $request->session()->put([self::STATE_KEY => $state, self::VERIFIER_KEY => $verifier]);
         $invitation = $request->query('invitation');
         app(TeamInvitationContinuation::class)->beginOAuth(is_string($invitation) ? $invitation : null, $state);
+        $this->rememberBookingReturn($request, $state);
 
         $challenge = strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
         $query = http_build_query([
@@ -68,6 +71,7 @@ class PortalOAuthController
         $state = $request->string('state')->toString();
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $verifier = $request->session()->pull(self::VERIFIER_KEY);
+        $bookingReturn = $this->consumeBookingReturn($request, $state);
         $invitationReturn = app(TeamInvitationContinuation::class)->consumeOAuthReturn(is_string($expectedState) ? $expectedState : null);
 
         if (! is_string($expectedState) || ! hash_equals($expectedState, $state) || ! is_string($verifier)) {
@@ -116,11 +120,57 @@ class PortalOAuthController
             return redirect()->route('dashboard')->with('error', 'Zigpaw could not complete sign-in. Please try again.');
         }
 
-        $request->session()->regenerate();
+        $request->session()->regenerate(true);
 
-        return $invitationReturn !== null
-            ? redirect()->route('team.invitations.show', ['membership' => $invitationReturn])->header('Referrer-Policy', 'no-referrer')
-            : redirect()->route('dashboard');
+        if ($invitationReturn !== null) {
+            return redirect()->route('team.invitations.show', ['membership' => $invitationReturn])
+                ->header('Referrer-Policy', 'no-referrer');
+        }
+        if ($bookingReturn !== null) {
+            return redirect()->route('bookings.show', $bookingReturn)
+                ->header('Referrer-Policy', 'no-referrer');
+        }
+
+        return redirect()->route('dashboard');
+    }
+
+    private function rememberBookingReturn(Request $request, string $state): void
+    {
+        $request->session()->forget(self::BOOKING_RETURN);
+        $booking = $request->query('booking');
+        if (! is_string($booking) || ! Str::isUuid($booking)) {
+            return;
+        }
+
+        $status = $request->query('booking_status');
+        $request->session()->put(self::BOOKING_RETURN, [
+            'booking' => strtolower($booking),
+            'status' => in_array($status, ['requested', 'accepted'], true) ? $status : null,
+            'booking_page' => max(1, min(100_000, $request->integer('booking_page', 1))),
+            'state_hash' => hash('sha256', $state),
+            'expires_at' => now()->addMinutes(10)->timestamp,
+        ]);
+    }
+
+    /** @return array{booking: string, status: ?string, booking_page: ?int}|null */
+    private function consumeBookingReturn(Request $request, string $state): ?array
+    {
+        $return = $request->session()->pull(self::BOOKING_RETURN);
+        if (! is_array($return)
+            || ! is_string($return['booking'] ?? null)
+            || ! Str::isUuid($return['booking'])
+            || ! is_string($return['state_hash'] ?? null)
+            || ! hash_equals($return['state_hash'], hash('sha256', $state))
+            || ! is_int($return['expires_at'] ?? null)
+            || $return['expires_at'] <= now()->timestamp) {
+            return null;
+        }
+
+        return [
+            'booking' => $return['booking'],
+            'booking_page' => ($return['booking_page'] ?? 1) > 1 ? (int) $return['booking_page'] : null,
+            'status' => in_array($return['status'] ?? null, ['requested', 'accepted'], true) ? $return['status'] : null,
+        ];
     }
 
     public function logout(Request $request, PortalAccessTokenStore $tokens): RedirectResponse

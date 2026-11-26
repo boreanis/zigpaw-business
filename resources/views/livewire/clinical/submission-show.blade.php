@@ -6,13 +6,13 @@
             <x-slot:actions><x-clinical.button wire:click="retry" wire:loading.attr="disabled" wire:target="retry">Try again</x-clinical.button></x-slot:actions>
         </x-clinical.empty-state>
     @else
-        @php
-            $status = (string) ($submission['status'] ?? 'pending');
-            $statusTone = match ($status) { 'approved' => 'good', 'partially_approved' => 'blue', 'rejected' => 'danger', 'pending' => 'warn', default => 'neutral' };
-        @endphp
-        <header class="page-heading submission-heading">
-            <div><div class="heading-with-status"><p class="eyebrow">Care submission</p><x-clinical.status :tone="$statusTone">{{ str($status)->replace('_', ' ')->headline() }}</x-clinical.status></div><h1>Family review status</h1><p>Submitted {{ str((string) ($submission['submitted_at'] ?? ''))->replace('T', ' · ')->before('+') }}</p></div>
-        </header>
+        @php($status = $submission['status'] ?? null)
+        <x-clinical.page-heading
+            title="Family review status"
+            :description="isset($submission['submitted_at']) ? 'Submitted '.str((string) $submission['submitted_at'])->before('T') : null"
+        >
+            <x-slot:context><x-clinical.submission-status :status="$status" /></x-slot:context>
+        </x-clinical.page-heading>
 
         <section class="review-explainer">
             @if ($status === 'pending')
@@ -21,15 +21,18 @@
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><div><strong>Records approved</strong><p>The family accepted the records into the pet’s care history.</p></div>
             @elseif ($status === 'partially_approved')
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg><div><strong>Some records were approved</strong><p>The family chose which submitted records to add to the pet’s care history.</p></div>
-            @else
+            @elseif ($status === 'rejected')
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg><div><strong>Records were not added</strong><p>The family did not add these records to the pet’s approved care history.</p></div>
+            @else
+                <p>Try refreshing this page to check the family’s review.</p>
             @endif
         </section>
 
         <section class="plain-section">
-            <x-clinical.section-heading eyebrow="Submitted record set" title="{{ $submission['records_pending_review'] ?? 0 }} records">
-                <x-slot:meta><span>Provenance preserved</span></x-slot:meta>
-            </x-clinical.section-heading>
+            <x-clinical.section-heading
+                eyebrow="Submitted records"
+                :title="isset($submission['records_pending_review']) ? $submission['records_pending_review'].' '.str('record')->plural($submission['records_pending_review']) : 'Record totals'"
+            />
             <div class="record-count-grid">
                 @foreach (['visits' => 'Visits', 'weights' => 'Weights', 'vaccinations' => 'Vaccinations', 'medications' => 'Medications', 'conditions' => 'Conditions & allergies'] as $key => $label)
                     <div><strong>{{ data_get($submission, 'record_counts.'.$key, 0) }}</strong><span>{{ $label }}</span></div>

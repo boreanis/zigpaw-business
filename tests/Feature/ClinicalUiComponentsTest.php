@@ -7,6 +7,32 @@ use Tests\TestCase;
 
 class ClinicalUiComponentsTest extends TestCase
 {
+    public function test_clinical_access_deadline_displays_an_exact_instant_with_its_zone(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-clinical.access-deadline value="2026-11-23T17:30:00-07:00" />
+            <x-clinical.access-deadline value="2026-11-23" />
+            <x-clinical.access-deadline no-deadline="No set end date" />
+            BLADE);
+
+        $this->assertStringContainsString('<time datetime="2026-11-23T17:30:00-07:00">24 Nov 2026 · 00:30 UTC</time>', $html);
+        $this->assertStringContainsString('Expiry unavailable', $html);
+        $this->assertStringContainsString('No set end date', $html);
+
+        $grant = ['status' => 'revoked', 'revoked_at' => '2026-11-24T00:30:00Z', 'expires_at' => '2027-11-24T00:30:00Z'];
+        $template = '<x-clinical.grant-timing :grant="$grant" />';
+        $revocation = Blade::render($template, compact('grant'));
+        $this->assertStringContainsString('Access revoked', $revocation);
+        $this->assertStringContainsString('24 Nov 2026 · 00:30 UTC', $revocation);
+        $this->assertStringNotContainsString('2027', $revocation);
+        $grant['revoked_at'] = null;
+        $this->assertSame('Access revoked', trim(Blade::render($template, compact('grant'))));
+        $grant['status'] = 'expired';
+        $this->assertStringContainsString('Access expired', Blade::render($template, compact('grant')));
+        $grant = ['status' => 'active', 'expires_at' => ''];
+        $this->assertStringContainsString('Expiry unavailable', Blade::render($template, compact('grant')));
+    }
+
     public function test_clinical_fields_have_stable_label_hint_and_validation_relationships(): void
     {
         $html = Blade::render(<<<'BLADE'
@@ -67,15 +93,32 @@ class ClinicalUiComponentsTest extends TestCase
         $this->assertStringContainsString('<x-clinical.alert', $combined);
     }
 
-    public function test_segmented_filter_reports_selection_to_assistive_technology(): void
+    public function test_submission_filter_has_a_visible_label_and_native_options(): void
     {
         $html = Blade::render(<<<'BLADE'
-            <x-clinical.segmented-filter :options="['all' => 'All', 'pending' => 'Pending']" selected="pending" label="Filter submissions" />
+            <x-clinical.filter-select label="Submission status" wire:model="status">
+                <option value="all">All statuses</option>
+                <option value="pending" selected>Pending</option>
+            </x-clinical.filter-select>
         BLADE);
 
-        $this->assertStringContainsString('aria-label="Filter submissions"', $html);
-        $this->assertStringContainsString('aria-pressed="true"', $html);
-        $this->assertStringContainsString('wire:submit="filter"', $html);
+        $this->assertStringContainsString('<span>Submission status</span>', $html);
+        $this->assertStringContainsString('<select wire:model="status">', $html);
+        $this->assertStringContainsString('<option value="pending" selected>Pending</option>', $html);
+    }
+
+    public function test_submission_state_names_match_between_the_filter_and_detail(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-clinical.submission-status status="partially_approved" />
+            <x-clinical.submission-status status="rejected" />
+            <x-clinical.submission-status :status="null" />
+        BLADE);
+
+        $this->assertStringContainsString('Partly approved', $html);
+        $this->assertStringContainsString('Not added', $html);
+        $this->assertStringContainsString('Status unavailable', $html);
+        $this->assertStringNotContainsString('Rejected', $html);
     }
 
     public function test_clinical_button_centralizes_workspace_and_appearance_actions(): void
@@ -117,7 +160,7 @@ class ClinicalUiComponentsTest extends TestCase
         ])->map(fn (string $path): string => (string) file_get_contents($path));
         $combined = $sources->join("\n");
 
-        $this->assertSame(9, substr_count($combined, '<x-clinical.section-heading'));
+        $this->assertGreaterThanOrEqual(15, substr_count($combined, '<x-clinical.section-heading'));
         $this->assertStringNotContainsString('section-heading-inline', $combined);
     }
 

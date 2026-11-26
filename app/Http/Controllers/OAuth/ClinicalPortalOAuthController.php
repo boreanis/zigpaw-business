@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\OAuth;
 
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalReturnDestination;
 use App\Support\ClinicalSubmissionRetry;
 use App\Support\PlatformConfiguration;
 use App\Support\RequestCorrelation;
@@ -15,10 +16,6 @@ use Illuminate\Support\Str;
 
 class ClinicalPortalOAuthController
 {
-    private const STATE_KEY = 'platform.oauth.clinical.state';
-
-    private const VERIFIER_KEY = 'platform.oauth.clinical.verifier';
-
     public function redirect(Request $request): RedirectResponse
     {
         $clientId = config('platform_clinical.oauth_client_id');
@@ -39,10 +36,7 @@ class ClinicalPortalOAuthController
 
         $state = Str::random(64);
         $verifier = Str::random(96);
-        $request->session()->put([
-            self::STATE_KEY => $state,
-            self::VERIFIER_KEY => $verifier,
-        ]);
+        app(ClinicalReturnDestination::class)->begin(ClinicalReturnDestination::validHandle($request->query('resume')), $state, $verifier);
 
         $challenge = strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
         $query = http_build_query([
@@ -66,11 +60,10 @@ class ClinicalPortalOAuthController
             'The clinical workspace has not been connected to Zigpaw yet.',
         );
 
-        $state = $request->string('state')->toString();
-        $expectedState = $request->session()->pull(self::STATE_KEY);
-        $verifier = $request->session()->pull(self::VERIFIER_KEY);
+        $continuation = app(ClinicalReturnDestination::class);
+        $authorization = $continuation->authorization($request->string('state')->toString());
 
-        if (! is_string($expectedState) || ! hash_equals($expectedState, $state) || ! is_string($verifier)) {
+        if ($authorization === null) {
             return redirect()->route('clinical.dashboard')->with('error', 'That clinical sign-in link is no longer valid. Please try again.');
         }
 
@@ -89,7 +82,7 @@ class ClinicalPortalOAuthController
                     'client_id' => config('platform_clinical.oauth_client_id'),
                     'client_secret' => config('platform_clinical.oauth_client_secret'),
                     'redirect_uri' => config('platform_clinical.oauth_redirect_uri'),
-                    'code_verifier' => $verifier,
+                    'code_verifier' => $authorization['verifier'],
                     'code' => $code,
                 ]);
         } catch (ConnectionException $exception) {
@@ -116,8 +109,9 @@ class ClinicalPortalOAuthController
         }
 
         $request->session()->regenerate();
+        $resume = $continuation->complete($authorization['target']);
 
-        return redirect()->route('clinical.dashboard');
+        return redirect()->route('clinical.dashboard', $resume === null ? [] : ['resume' => $resume]);
     }
 
     public function logout(Request $request, ClinicalPortalAccessTokenStore $tokens): RedirectResponse
@@ -138,6 +132,7 @@ class ClinicalPortalOAuthController
                     'clinical_portal.organization_id',
                     'clinical_portal.organization_name',
                     ClinicalSubmissionRetry::SESSION_KEY,
+                    ClinicalReturnDestination::BROWSER_CONTEXT,
                 ]);
                 $request->session()->regenerateToken();
             }

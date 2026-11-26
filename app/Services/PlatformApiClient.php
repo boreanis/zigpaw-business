@@ -181,6 +181,14 @@ class PlatformApiClient
     }
 
     /** @return array<string, mixed> */
+    public function booking(string $accessToken, string $organizationId, string $bookingId): array
+    {
+        $bookingId = $this->pathSegment($bookingId, 'booking');
+
+        return $this->get("/v1/business/bookings/{$bookingId}", $accessToken, $organizationId);
+    }
+
+    /** @return array<string, mixed> */
     public function bookingPetContext(string $accessToken, string $organizationId, string $bookingId): array
     {
         $bookingId = $this->pathSegment($bookingId, 'booking');
@@ -251,22 +259,50 @@ class PlatformApiClient
         int $page = 1,
         int $perPage = 25,
         ?string $status = null,
-        ?string $search = null,
     ): array {
-        $parameters = array_filter([
-            'status' => $status,
-            'search' => $search === null ? null : trim($search),
-        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+        $parameters = $status === null ? [] : ['status' => $status];
 
         return $this->getPage('/v1/business/clinical/provider-grants', $this->clinicalToken($tokens), $organizationId, $page, $perPage, $parameters);
+    }
+
+    /** @return PageEnvelope */
+    public function searchClinicalProviderGrants(
+        ClinicalPortalAccessTokenStore $tokens,
+        string $organizationId,
+        #[\SensitiveParameter] string $name,
+        int $page,
+        int $perPage,
+    ): array {
+        $path = '/v1/business/clinical/provider-grants/search';
+        $this->assertAllowedRoute('POST', $path);
+
+        try {
+            $response = $this->request($this->clinicalToken($tokens), $organizationId, $path)->post($path, [
+                'patient_name' => $name,
+                'page' => $page,
+                'per_page' => $perPage,
+            ]);
+        } catch (ConnectionException) {
+            throw new PlatformApiException(503, 'Patient search is temporarily unavailable. Try again.');
+        }
+
+        if (! $response->successful()) {
+            $this->throwForResponse($response, self::MAX_ERROR_BODY_BYTES, sanitizeMessage: true);
+        }
+
+        return $this->page($response, $perPage);
     }
 
     /** @return array<string, mixed> */
     public function clinicalProviderGrant(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $grantId): array
     {
         $grantId = $this->uuid($grantId, 'provider grant');
+        $grant = $this->get("/v1/business/clinical/provider-grants/{$grantId}", $this->clinicalToken($tokens), $organizationId);
+        if (($grant['id'] ?? null) !== $grantId) {
+            throw new PlatformApiException(502, 'The patient could not be verified. Reopen this patient and try again.');
+        }
 
-        return $this->get("/v1/business/clinical/provider-grants/{$grantId}", $this->clinicalToken($tokens), $organizationId);
+        return $grant;
     }
 
     /** @return array<string, mixed> */
@@ -352,8 +388,12 @@ class PlatformApiClient
     public function clinicalSubmission(ClinicalPortalAccessTokenStore $tokens, string $organizationId, string $submissionId): array
     {
         $submissionId = $this->uuid($submissionId, 'submission');
+        $submission = $this->get("/v1/business/clinical/submissions/{$submissionId}", $this->clinicalToken($tokens), $organizationId);
+        if (($submission['id'] ?? null) !== $submissionId) {
+            throw new PlatformApiException(502, 'The submission could not be verified. Reopen it from submission history and try again.');
+        }
 
-        return $this->get("/v1/business/clinical/submissions/{$submissionId}", $this->clinicalToken($tokens), $organizationId);
+        return $submission;
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */

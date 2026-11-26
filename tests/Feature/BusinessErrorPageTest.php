@@ -16,9 +16,10 @@ final class BusinessErrorPageTest extends TestCase
         $html = Blade::render('<x-business.error-page status="'.$status.'" />');
 
         $this->assertStringContainsString('id="business-error-title"', $html);
-        $this->assertStringContainsString('>'.$status.'</div>', $html);
+        $this->assertStringContainsString('class="access-header"', $html);
+        $this->assertStringContainsString('data-theme-toggle', $html);
         $this->assertStringContainsString($title, $html);
-        $this->assertStringContainsString('href="'.route('auth.login').'"', $html);
+        $this->assertStringContainsString('href="'.route('dashboard').'"', $html);
         $this->assertStringNotContainsString('exception', strtolower($html));
         $this->assertStringNotContainsString('stack trace', strtolower($html));
     }
@@ -48,9 +49,16 @@ final class BusinessErrorPageTest extends TestCase
 
         $response->assertNotFound();
         $response->assertSee('That page is not here');
-        $response->assertSee('Partners sign in');
+        $response->assertSee('Workspace home');
         $response->assertDontSee('Whoops');
         $response->assertDontSee('stack trace');
+    }
+
+    public function test_clinical_missing_routes_return_to_the_clinical_workspace(): void
+    {
+        $this->get('/clinical/__missing-page-for-error-qa')->assertNotFound()
+            ->assertSee('Clinical workspace home')
+            ->assertSee('href="'.route('clinical.dashboard').'"', false);
     }
 
     /** @return array<string, array{string, string}> */
