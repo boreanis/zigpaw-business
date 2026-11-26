@@ -356,7 +356,12 @@ class BusinessWorkspaceTest extends TestCase
             'https://api.zigpaw.test/v1/business/programs*' => Http::response(self::page([[
                 'id' => 'enrollment-1', 'program_key' => 'referral', 'status' => 'approved', 'code' => 'ZPAPPROVED',
             ]])),
-            'https://api.zigpaw.test/v1/business/financials' => Http::response(['data' => ['currencies' => []]]),
+            'https://api.zigpaw.test/v1/business/financials' => Http::response(['data' => ['currencies' => [[
+                'currency' => 'CAD', 'commissions' => [
+                    ['status' => 'approved', 'status_label' => 'Approved', 'payable' => true, 'entry_count' => 1, 'amount_cents' => 2000],
+                    ['status' => 'refunded', 'status_label' => 'Refunded', 'payable' => false, 'entry_count' => 1, 'amount_cents' => 3000],
+                ],
+            ]]]]),
             'https://api.zigpaw.test/v1/business/financials/commissions*' => Http::response(self::page([])),
             'https://api.zigpaw.test/v1/business/financials/agreements*' => Http::response(self::page([])),
         ]);
@@ -373,7 +378,9 @@ class BusinessWorkspaceTest extends TestCase
 
         $component->call('showSection', 'revenue')
             ->assertSet('section', 'revenue')
-            ->assertSee('Commission activity and agreements');
+            ->assertSee('Commission activity and agreements')
+            ->assertSeeHtmlInOrder(['CAD · Approved (payable)', '20.00', 'CAD · Refunded', '30.00'])
+            ->assertDontSee('50.00');
 
         $component->call('showSection', 'programs')
             ->assertSet('section', 'programs')

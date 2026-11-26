@@ -1026,6 +1026,12 @@
                                                                         "status": {
                                                                             "type": "string"
                                                                         },
+                                                                        "status_label": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "payable": {
+                                                                            "type": "boolean"
+                                                                        },
                                                                         "entry_count": {
                                                                             "type": "integer"
                                                                         },
@@ -1035,6 +1041,8 @@
                                                                     },
                                                                     "required": [
                                                                         "status",
+                                                                        "status_label",
+                                                                        "payable",
                                                                         "entry_count",
                                                                         "amount_cents"
                                                                     ]

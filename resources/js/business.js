@@ -66,7 +66,10 @@ document.addEventListener('livewire:navigated', () => {
 
 // Livewire snapshots outgoing HTML before routing. Keep a transient profile
 // out of both that cache and the browser's page-restoration state.
-const clearBookingProfile = () => document.querySelector('[data-booking-private-profile]')?.remove();
+const clearBookingProfile = () => {
+    document.querySelector('[data-booking-private-profile]')?.remove();
+    document.querySelector('[data-booking-conversation]')?.remove();
+};
 document.addEventListener('livewire:navigating', clearBookingProfile);
 window.addEventListener('pagehide', clearBookingProfile);
 window.addEventListener('pageshow', (event) => {

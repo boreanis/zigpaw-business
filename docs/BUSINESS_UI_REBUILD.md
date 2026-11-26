@@ -83,3 +83,5 @@ php artisan view:cache
 ## Follow-up contract
 
 When a new business screen is added, it must use the shell and component primitives, keep destructive actions behind a confirmation, expose loading/error/empty states, and add its route/action/state row to this matrix. New overlays must use the shared components and named slots; do not render a custom `role="dialog"` in a page. API failures should be shown as a concise inline alert or toast; never expose provider URLs, tokens or internal architecture details.
+
+The booking detail accepts an optional customer-visible message with the operator’s decision. It stays in the draft on an unconfirmed submission and appears in the private conversation after confirmation. The location editor distinguishes a flexible, unscheduled week from a saved schedule with every window disabled, where only dated openings accept requests.

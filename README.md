@@ -2,6 +2,10 @@
 
 ## Booking setup, business profiles and team management
 
+Booking detail shows the current opening note and the authorized conversation, newest messages first, ten per page. A failed conversation read has its own retry. An explicit branch pause turns off incoming requests at that branch even if its provider accepts requests elsewhere. Completion is available from the confirmed appointment start. After a provider proposes a time, its provider reminder stops. The customer can receive one reminder in the Updates inbox during the final day before their decision deadline.
+
+Revenue shows each commission status separately for each currency. Approved payable, paid, pending and reversed amounts retain their individual labels.
+
 When two operators edit one location, Booking setup keeps the second operator’s draft and shows **Reload latest settings**. This action asks before discarding the draft. Weekly hours may repeat in different seasons. A conflict requires active rules to cover the same weekday, date and time.
 
 The profile form sends only changed fields. Saving a verified profile without changing its details preserves verification. Managers may grant Viewer and Operator. Owners may also grant Manager and Finance. The team screen follows the available actions returned for each membership.

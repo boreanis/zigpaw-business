@@ -275,6 +275,35 @@
                             @if ($booking['customer_message'] ?? null)
                                 <p class="booking-note">{{ $booking['customer_message'] }}</p>
                             @endif
+                            <section aria-label="Booking conversation" data-booking-conversation>
+                                @if ($bookingMessagesError)
+                                    <x-business.error-state title="Booking conversation unavailable" :message="$bookingMessagesError">
+                                        <x-slot:actions><x-business.button wire:click="$refresh">Retry conversation</x-business.button></x-slot:actions>
+                                    </x-business.error-state>
+                                @elseif ($bookingMessages['data'] ?? [])
+                                    <h3>Booking conversation</h3>
+                                    <ol class="schedule-list">
+                                        @foreach ($bookingMessages['data'] as $entry)
+                                            <li wire:key="booking-message-{{ $entry['id'] }}">
+                                                <strong>{{ match ($entry['sender_type']) { 'customer' => 'Customer', 'organization', 'external_provider', 'provider' => 'Provider', default => 'Zigpaw' } }}</strong>
+                                                <time datetime="{{ $entry['created_at'] }}">{{ $this->displayDateTime($entry['created_at'], true, $appointmentTimezone) }}</time>
+                                                <p class="booking-note">{{ $entry['message'] }}</p>
+                                            </li>
+                                        @endforeach
+                                    </ol>
+                                    @if ($bookingMessages['meta']['last_page'] > 1)
+                                        <nav aria-label="Conversation pages">
+                                            @if ($bookingMessagePage > 1)
+                                                <x-business.button wire:click="showBookingMessagePage({{ $bookingMessagePage - 1 }})">Newer messages</x-business.button>
+                                            @endif
+                                            <span>Page {{ $bookingMessagePage }} of {{ $bookingMessages['meta']['last_page'] }}</span>
+                                            @if ($bookingMessagePage < $bookingMessages['meta']['last_page'])
+                                                <x-business.button wire:click="showBookingMessagePage({{ $bookingMessagePage + 1 }})">Older messages</x-business.button>
+                                            @endif
+                                        </nav>
+                                    @endif
+                                @endif
+                            </section>
                             @if ($this->canShowBookingPetProfile($booking))
                                 <div class="booking-pet-access">
                                     <div>
@@ -300,6 +329,12 @@
                             </div>
                             @if ($bookingPetError)
                                 <x-business.error-state title="Pet profile unavailable" :message="$bookingPetError" />
+                            @endif
+                            @if ($actions !== [])
+                                <x-business.field label="Message to customer (optional)" name="bookingReply">
+                                    <x-business.control as="textarea" wire:model="bookingReply" rows="2" maxlength="4000" aria-describedby="booking-reply-help" />
+                                </x-business.field>
+                                <small id="booking-reply-help" class="section-note">Sent with your booking decision and saved in the conversation.</small>
                             @endif
                             @if (in_array('accept', $actions, true) && $windows->isNotEmpty())
                                 <x-business.section-heading class="section-heading-spaced" title="Requested appointment times" />
@@ -401,7 +436,7 @@
                                     <div>
                                         <p class="eyebrow">Weekly availability</p>
                                         <h3 id="weekly-availability-heading">When customers can request a booking</h3>
-                                        <p>Add only the windows this location normally accepts requests.</p>
+                                        <p>Add the hours customers may request. Disabling every saved window limits requests to dates you explicitly open below.</p>
                                     </div>
                                     <x-business.button wire:click="addBookingAvailabilityRule">Add window</x-business.button>
                                 </div>
@@ -439,7 +474,7 @@
                                             </details>
                                         </fieldset>
                                     @empty
-                                        <p class="schedule-empty">No weekly windows have been added. Customers can still contact the business, but they cannot choose from normal availability.</p>
+                                        <p class="schedule-empty">No weekly hours are set. With booking requests enabled, customers may suggest any time within your notice limits, except dates you close. Pause requests to stop accepting them.</p>
                                     @endforelse
                                 </div>
                             </section>
@@ -578,9 +613,15 @@
                     />
                     <div class="metric-grid">
                         @forelse (data_get($financials, 'currencies', []) as $currency)
-                            <article class="metric-card"><span>{{ $currency['currency'] }}</span><strong>{{ number_format(collect($currency['commissions'])->sum('amount_cents') / 100, 2) }}</strong><small>{{ collect($currency['commissions'])->sum('entry_count') }} commission entries</small></article>
+                            @foreach ($currency['commissions'] as $group)
+                                <article class="metric-card">
+                                    <span>{{ $currency['currency'] }} · {{ $group['status_label'] ?? str($group['status'])->headline() }}{{ ($group['payable'] ?? false) ? ' (payable)' : '' }}</span>
+                                    <strong>{{ number_format($group['amount_cents'] / 100, 2) }}</strong>
+                                    <small>{{ $group['entry_count'] }} {{ str('commission entry')->plural($group['entry_count']) }}</small>
+                                </article>
+                            @endforeach
                         @empty
-                            <article class="metric-card"><span>Commission activity</span><strong>—</strong><small>No approved commission activity yet.</small></article>
+                            <article class="metric-card"><span>Commission activity</span><strong>—</strong><small>No commissions have been recorded.</small></article>
                         @endforelse
                     </div>
                     <x-business.section-heading class="section-heading-spaced" title="Recent commissions" />

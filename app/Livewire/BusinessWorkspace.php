@@ -34,6 +34,9 @@ class BusinessWorkspace extends Component
     #[Locked]
     public bool $bookingPetProfileOpen = false;
 
+    #[Locked]
+    public int $bookingMessagePage = 1;
+
     public string $state = 'signed_out';
 
     public ?string $message = null;
@@ -246,6 +249,8 @@ class BusinessWorkspace extends Component
     public string $editingTeamRole = '';
 
     public string $bookingDeclineReason = '';
+
+    public string $bookingReply = '';
 
     public string $bookingProposedTime = '';
 
@@ -979,6 +984,12 @@ class BusinessWorkspace extends Component
         $this->respondToBooking($bookingId, ['action' => 'complete']);
     }
 
+    public function showBookingMessagePage(int $page): void
+    {
+        $this->authorizeExactBooking((string) $this->bookingId);
+        $this->bookingMessagePage = max(1, min($page, 100_000));
+    }
+
     public function toggleBookingPetProfile(string $bookingId): void
     {
         $this->authorizeExactBooking($bookingId);
@@ -1138,7 +1149,7 @@ class BusinessWorkspace extends Component
 
     public function render(): View
     {
-        $booking = $bookingPetProfile = $bookingError = $bookingPetError = null;
+        $booking = $bookingPetProfile = $bookingError = $bookingPetError = $bookingMessages = $bookingMessagesError = null;
         if ($this->state === 'ready' && $this->bookingId !== null) {
             $tokens = app(PortalAccessTokenStore::class);
             try {
@@ -1152,6 +1163,18 @@ class BusinessWorkspace extends Component
                 if (($booking['id'] ?? null) !== $this->bookingId || ! is_string($booking['request_number'] ?? null)
                     || ! is_string($booking['status'] ?? null) || ! is_array($booking['available_actions'] ?? null)) {
                     throw new PlatformApiException(502, 'Zigpaw could not verify the booking details. Try again.');
+                }
+                try {
+                    $bookingMessages = $api->bookingMessages($token, $this->requiredOrganizationId(), $this->bookingId, $this->bookingMessagePage);
+                    if ($this->bookingMessagePage > $bookingMessages['meta']['last_page']) {
+                        $this->bookingMessagePage = $bookingMessages['meta']['last_page'];
+                        $bookingMessages = $api->bookingMessages($token, $this->requiredOrganizationId(), $this->bookingId, $this->bookingMessagePage);
+                    }
+                } catch (PlatformApiException $exception) {
+                    if (in_array($exception->status, [401, 403, 404], true)) {
+                        throw $exception;
+                    }
+                    $bookingMessagesError = 'Booking messages could not be loaded. Retry to see the latest instructions.';
                 }
                 if ($this->bookingPetProfileOpen) {
                     [$bookingPetProfile, $bookingPetError] = $this->readBookingPetProfile($api, $token, $booking);
@@ -1167,7 +1190,7 @@ class BusinessWorkspace extends Component
             }
         }
 
-        return view('livewire.business-workspace', compact('booking', 'bookingPetProfile', 'bookingError', 'bookingPetError'))
+        return view('livewire.business-workspace', compact('booking', 'bookingPetProfile', 'bookingError', 'bookingPetError', 'bookingMessages', 'bookingMessagesError'))
             ->layout('components.layouts.portal', ['title' => 'Zigpaw Partners']);
     }
 
@@ -1233,6 +1256,11 @@ class BusinessWorkspace extends Component
         $this->bookingPetProfileOpen = false;
         $this->notice = null;
 
+        $this->validate(['bookingReply' => ['nullable', 'string', 'max:4000']]);
+        if (filled($this->bookingReply)) {
+            $payload['message'] = trim($this->bookingReply);
+        }
+
         $this->withMutationApi('bookings.respond', "bookings/{$bookingId}/response", $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($bookingId, $payload): void {
             $status = match ($payload['action']) {
                 'accept' => 'accepted',
@@ -1255,6 +1283,7 @@ class BusinessWorkspace extends Component
                 throw new PlatformApiException(502, 'Zigpaw could not confirm the update. Review the current booking before retrying.');
             }
             $markMutationSucceeded();
+            $this->bookingReply = '';
             $this->bookingDeclineReason = '';
             $this->bookingProposedTime = '';
             $this->notice = match ($status) {

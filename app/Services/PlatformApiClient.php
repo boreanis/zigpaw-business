@@ -188,6 +188,14 @@ class PlatformApiClient
         return $this->get("/v1/business/bookings/{$bookingId}", $accessToken, $organizationId);
     }
 
+    /** @return PageEnvelope */
+    public function bookingMessages(string $accessToken, string $organizationId, string $bookingId, int $page): array
+    {
+        $bookingId = $this->pathSegment($bookingId, 'booking');
+
+        return $this->getPage("/v1/business/bookings/{$bookingId}/messages", $accessToken, $organizationId, $page, 10);
+    }
+
     /** @return array<string, mixed> */
     public function bookingPetContext(string $accessToken, string $organizationId, string $bookingId): array
     {

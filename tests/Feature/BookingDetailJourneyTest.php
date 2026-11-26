@@ -78,6 +78,16 @@ final class BookingDetailJourneyTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/bookings?status=requested&page=1&per_page=25'));
     }
 
+    public function test_message_history_stays_with_the_exact_booking_and_outside_the_browser_snapshot(): void
+    {
+        $component = Livewire::test(BusinessWorkspace::class, ['booking' => self::BOOKING])
+            ->assertSee('Updated arrival instructions')->assertSee('Older messages')
+            ->call('showBookingMessagePage', 2)->assertSee('Earlier arrival instructions')->assertDontSee('Updated arrival instructions')
+            ->assertSee('Newer messages');
+        self::assertStringNotContainsString('Earlier arrival instructions', json_encode($component->snapshot, JSON_THROW_ON_ERROR));
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/bookings/'.self::BOOKING.'/messages?page=2&per_page=10'));
+    }
+
     public function test_returning_from_booking_restores_its_queue_page_and_row(): void
     {
         $this->get('/?section=bookings&status=requested&booking_page=2')->assertOk()
@@ -150,16 +160,19 @@ final class BookingDetailJourneyTest extends TestCase
     public function test_booking_decision_reuses_unconfirmed_identity_and_pet_context_expires_privately(): void
     {
         $component = Livewire::test(BusinessWorkspace::class, ['booking' => self::BOOKING]);
+        $component->set('bookingReply', 'Arrival instructions.');
         $this->receiptId = self::OTHER;
         $component->call('acceptBooking', self::BOOKING, self::WINDOW)
             ->assertSee('Zigpaw could not confirm the update')
-            ->assertDontSee('Booking accepted.');
+            ->assertDontSee('Booking accepted.')->assertSet('bookingReply', 'Arrival instructions.');
         $this->receiptId = self::BOOKING;
         $component->call('acceptBooking', self::BOOKING, self::WINDOW)
             ->assertSee('Booking accepted.')->assertSee('Confirmed for')->assertSee('View pet profile')
             ->call('toggleBookingPetProfile', self::BOOKING)->assertSee('Synthetic private breed');
         self::assertCount(2, $this->mutationKeys);
         self::assertIsString($this->mutationKeys[0]);
+        $component->assertSet('bookingReply', '');
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request['message'] === 'Arrival instructions.');
         self::assertSame($this->mutationKeys[0], $this->mutationKeys[1]);
         self::assertStringNotContainsString('Synthetic private breed', json_encode($component->snapshot['data'], JSON_THROW_ON_ERROR));
 
@@ -282,6 +295,15 @@ final class BookingDetailJourneyTest extends TestCase
                 'pet_access' => ['id' => self::GRANT, 'status' => in_array($this->bookingStatus, ['accepted', 'completed'], true) ? 'active' : 'revoked',
                     'expires_at' => '2026-11-25T21:00:00+00:00'],
             ]]);
+        }
+        if (str_starts_with($request->url(), $bookingPath.'/messages?')) {
+            $page = (int) $request['page'];
+
+            return Http::response([
+                'data' => [['id' => 'message-'.$page, 'sender_type' => 'customer',
+                    'created_at' => '2026-11-24T19:00:00Z', 'message' => $page === 1 ? 'Updated arrival instructions' : 'Earlier arrival instructions']],
+                'meta' => ['current_page' => $page, 'last_page' => 2, 'per_page' => 10, 'total' => 11],
+            ]);
         }
         if ($request->url() === $bookingPath.'/pet-context') {
             if (! $this->profileAllowed) {
