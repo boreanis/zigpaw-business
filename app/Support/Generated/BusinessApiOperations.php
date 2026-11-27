@@ -12,7 +12,7 @@ final class BusinessApiOperations
 {
     /** @var array<string, string> */
     public const CONTRACT_SHA256 = [
-        'business-v1' => '09481188622a44acbf2055c8df94721cf2b0a25ebb0375afab5a1d070c398969',
+        'business-v1' => '9183e4bc69481646f3fc57bd75718efece11fd866d208f3a2df93536dc20c184',
         'clinical-v1' => '863c808d337b56d75973cc2ac08c8c04a5ef89d0c94f1fa8404b0d13374ed126',
     ];
 

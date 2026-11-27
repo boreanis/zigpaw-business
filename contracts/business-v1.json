@@ -1037,6 +1037,9 @@
                                                                         },
                                                                         "amount_cents": {
                                                                             "type": "integer"
+                                                                        },
+                                                                        "amount_display": {
+                                                                            "type": "string"
                                                                         }
                                                                     },
                                                                     "required": [
@@ -1044,7 +1047,8 @@
                                                                         "status_label",
                                                                         "payable",
                                                                         "entry_count",
-                                                                        "amount_cents"
+                                                                        "amount_cents",
+                                                                        "amount_display"
                                                                     ]
                                                                 }
                                                             }
@@ -6441,8 +6445,17 @@
                     "subscription_amount_cents": {
                         "type": "integer"
                     },
+                    "subscription_currency": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "commission_amount_cents": {
                         "type": "integer"
+                    },
+                    "amount_display": {
+                        "type": "string"
                     },
                     "currency": {
                         "type": "string"
@@ -6478,7 +6491,9 @@
                     "event_type",
                     "source_type",
                     "subscription_amount_cents",
+                    "subscription_currency",
                     "commission_amount_cents",
+                    "amount_display",
                     "currency",
                     "status",
                     "status_label",

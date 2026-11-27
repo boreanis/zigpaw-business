@@ -6,6 +6,7 @@ use App\Exceptions\PlatformApiException;
 use App\Livewire\Concerns\UsesPortalWorkspace;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalSubmissionHistory;
 use Illuminate\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -17,6 +18,10 @@ class SubmissionShow extends Component
     #[Locked]
     public string $submissionId;
 
+    /** @var array{status?: string, page?: int} */
+    #[Locked]
+    public array $historyQuery = [];
+
     /** @var array<string, mixed> */
     public array $submission = [];
 
@@ -27,7 +32,15 @@ class SubmissionShow extends Component
     public function mount(string $submissionId, PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
     {
         $this->submissionId = $submissionId;
+        $query = request()->query();
+        $this->historyQuery = ClinicalSubmissionHistory::query($query['status'] ?? null, $query['page'] ?? null);
         $this->loadSubmission($api, $tokens);
+    }
+
+    /** @return array{string, array{submissionId: string, status?: string, page?: int}} */
+    protected function clinicalReturnTarget(): array
+    {
+        return ['clinical.submissions.show', ['submissionId' => $this->submissionId] + $this->historyQuery];
     }
 
     public function retry(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void

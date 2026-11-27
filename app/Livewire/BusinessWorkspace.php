@@ -32,6 +32,9 @@ class BusinessWorkspace extends Component
     public ?string $bookingId = null;
 
     #[Locked]
+    public bool $bookingWasVerified = false;
+
+    #[Locked]
     public bool $bookingPetProfileOpen = false;
 
     #[Locked]
@@ -353,12 +356,18 @@ class BusinessWorkspace extends Component
     {
         abort_unless($organizationId === $this->organizationId || collect($this->organizations)->contains('id', $organizationId), 403);
         session()->put('portal.organization_id', $organizationId);
+        if ($this->bookingWasVerified && $this->organizationId !== $organizationId) {
+            $this->redirectRoute('dashboard', ['section' => 'bookings'], navigate: true);
+
+            return;
+        }
         if ($this->bookingId !== null) {
             $this->redirectRoute('bookings.show', ['booking' => $this->bookingId, 'status' => $this->bookingFilter(), 'booking_page' => $this->bookingPage > 1 ? $this->bookingPage : null], navigate: true);
 
             return;
         }
-        $this->redirectRoute('dashboard', ['section' => 'overview'], navigate: true);
+        $section = $this->state === 'choose_organization' && $this->section === 'programs' ? 'programs' : 'overview';
+        $this->redirectRoute('dashboard', ['section' => $section], navigate: true);
     }
 
     public function searchOrganizations(): void
@@ -1164,6 +1173,7 @@ class BusinessWorkspace extends Component
                     || ! is_string($booking['status'] ?? null) || ! is_array($booking['available_actions'] ?? null)) {
                     throw new PlatformApiException(502, 'Zigpaw could not verify the booking details. Try again.');
                 }
+                $this->bookingWasVerified = true;
                 try {
                     $bookingMessages = $api->bookingMessages($token, $this->requiredOrganizationId(), $this->bookingId, $this->bookingMessagePage);
                     if ($this->bookingMessagePage > $bookingMessages['meta']['last_page']) {

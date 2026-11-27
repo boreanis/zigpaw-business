@@ -616,7 +616,7 @@
                             @foreach ($currency['commissions'] as $group)
                                 <article class="metric-card">
                                     <span>{{ $currency['currency'] }} · {{ $group['status_label'] ?? str($group['status'])->headline() }}{{ ($group['payable'] ?? false) ? ' (payable)' : '' }}</span>
-                                    <strong>{{ number_format($group['amount_cents'] / 100, 2) }}</strong>
+                                    <strong>{{ $group['amount_display'] ?? 'Unavailable' }}</strong>
                                     <small>{{ $group['entry_count'] }} {{ str('commission entry')->plural($group['entry_count']) }}</small>
                                 </article>
                             @endforeach
@@ -628,7 +628,7 @@
                     <x-business.data-list label="Recent commissions">
                         @forelse ($commissions as $commission)
                             <x-business.data-row :title="str($commission['event_type'])->headline()" :description="$this->displayDate($commission['created_at'] ?? null)">
-                                <div class="amount"><strong>{{ $commission['currency'] }} {{ number_format($commission['commission_amount_cents'] / 100, 2) }}</strong><small>{{ $commission['status_label'] ?? str($commission['status'])->headline() }}</small></div>
+                                <div class="amount"><strong>{{ $commission['currency'] }} {{ $commission['amount_display'] ?? 'Unavailable' }}</strong><small>{{ $commission['status_label'] ?? str($commission['status'])->headline() }}</small></div>
                             </x-business.data-row>
                         @empty
                             <li class="empty-row">No commissions have been recorded.</li>
@@ -730,6 +730,7 @@
                     @if ($message)<p role="alert">{{ $message }}</p>@endif
                 @elseif ($state === 'forbidden')
                     <h1>No active Partners workspace.</h1><p>{{ $message ?: 'Ask the organization owner to invite you, or sign in with another account.' }}</p>
+                    <x-business.button :href="rtrim(config('platform.auth_url'), '/').'/partner-workspace-access'" variant="secondary">Request Partner workspace access</x-business.button>
                     <form method="POST" action="{{ route('auth.logout') }}">
                         @csrf
                         <x-business.button variant="primary" type="submit">Use another account</x-business.button>

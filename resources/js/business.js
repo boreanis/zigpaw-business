@@ -57,9 +57,12 @@ applyTheme();
 document.addEventListener('livewire:navigated', applyTheme);
 
 document.addEventListener('livewire:navigated', () => {
-    if (window.location.hash.startsWith('#booking-')) {
-        const row = document.getElementById(window.location.hash.slice(1));
-        const destination = row ?? document.querySelector('[data-booking-filters] [aria-current="page"]');
+    const rowId = window.location.hash.slice(1);
+    const fallback = rowId.startsWith('booking-')
+        ? '[data-booking-filters] [aria-current="page"]'
+        : rowId.startsWith('submission-') ? '.submission-filter select' : null;
+    if (fallback) {
+        const destination = document.getElementById(rowId) ?? document.querySelector(fallback);
         destination?.focus();
     }
 });

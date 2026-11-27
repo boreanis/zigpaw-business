@@ -29,7 +29,7 @@ trait UsesPortalWorkspace
         return [$accessToken, $organizationId];
     }
 
-    /** @return array{0: string, 1: string}|null */
+    /** @return array{0: string, 1: string|array<string, int|string>}|null */
     protected function clinicalReturnTarget(): ?array
     {
         return null;

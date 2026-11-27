@@ -1,5 +1,5 @@
 <div class="page-stack page-narrow">
-    <a class="back-link" href="{{ route('clinical.submissions.index') }}" wire:navigate><span aria-hidden="true">←</span> Submission history</a>
+    <a class="back-link" href="{{ route('clinical.submissions.index', $historyQuery) }}#submission-{{ $submissionId }}" wire:navigate><span aria-hidden="true">←</span> Submission history</a>
 
     @if ($loadingFailed)
         <x-clinical.empty-state title="Submission status is unavailable" :description="$message" tone="error" :heading-level="1">
@@ -7,11 +7,9 @@
         </x-clinical.empty-state>
     @else
         @php($status = $submission['status'] ?? null)
-        <x-clinical.page-heading
-            title="Family review status"
-            :description="isset($submission['submitted_at']) ? 'Submitted '.str((string) $submission['submitted_at'])->before('T') : null"
-        >
+        <x-clinical.page-heading title="Family review status">
             <x-slot:context><x-clinical.submission-status :status="$status" /></x-slot:context>
+            <x-slot:description><x-clinical.submitted-at :value="$submission['submitted_at'] ?? null" prefix="Submitted " /></x-slot:description>
         </x-clinical.page-heading>
 
         <section class="review-explainer">

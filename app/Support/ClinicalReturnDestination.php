@@ -28,6 +28,15 @@ final class ClinicalReturnDestination
             return $this->remember('clinical.patients.show', $request->route('grantId'));
         }
 
+        if ($request->routeIs('clinical.submissions.index', 'clinical.submissions.show')) {
+            $query = $request->query();
+            $context = ClinicalSubmissionHistory::query($query['status'] ?? null, $query['page'] ?? null);
+
+            return $request->routeIs('clinical.submissions.show')
+                ? $this->remember('clinical.submissions.show', ['submissionId' => $request->route('submissionId')] + $context)
+                : $this->remember('clinical.submissions.index', $context);
+        }
+
         return null;
     }
 
@@ -87,7 +96,7 @@ final class ClinicalReturnDestination
         return $handle;
     }
 
-    /** @return array{0: string, 1: array<string, string>}|null */
+    /** @return array{0: string, 1: array<string, string|int>}|null */
     public function consume(?string $handle, string $authorizedOrganization): ?array
     {
         $intent = $handle === null ? null : ($this->take('ready', $handle) ?? $this->take('queued', $handle));
@@ -100,6 +109,10 @@ final class ClinicalReturnDestination
         $value = $this->validatedValue($route, $intent['value']);
         if ($value === null) {
             return null;
+        }
+
+        if (is_array($value)) {
+            return [$route, $value];
         }
 
         return [$route, $route === 'clinical.patients.show' ? ['grantId' => $value] : ['status' => $value]];
@@ -145,8 +158,20 @@ final class ClinicalReturnDestination
         return 'clinical-return:'.hash_hmac('sha256', $stage.':'.$context.':'.$handle, (string) config('app.key'));
     }
 
-    private function validatedValue(string $route, mixed $value): ?string
+    /** @return string|array<string, int|string>|null */
+    private function validatedValue(string $route, mixed $value): string|array|null
     {
+        if (is_array($value) && in_array($route, ['clinical.submissions.index', 'clinical.submissions.show'], true)) {
+            $query = ClinicalSubmissionHistory::query($value['status'] ?? null, $value['page'] ?? null);
+            if ($route === 'clinical.submissions.index') {
+                return $query;
+            }
+
+            $id = $value['submissionId'] ?? null;
+
+            return is_string($id) && Str::isUuid($id) ? ['submissionId' => $id] + $query : null;
+        }
+
         return match ($route) {
             'clinical.patients.index' => in_array($value, self::PATIENT_STATUSES, true) ? $value : 'active',
             'clinical.patients.show' => is_string($value) && Str::isUuid($value) ? $value : null,

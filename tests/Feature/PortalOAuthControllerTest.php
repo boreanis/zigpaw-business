@@ -27,6 +27,23 @@ class PortalOAuthControllerTest extends TestCase
         $this->assertSame('https://partners.zigpaw.test/auth/callback', $query['redirect_uri'] ?? null);
     }
 
+    public function test_partner_application_resumes_at_programs_only_for_the_sign_in_that_started_it(): void
+    {
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'example-access', 'refresh_token' => 'example-refresh', 'expires_in' => 900,
+        ])]);
+
+        $this->get(route('auth.login', ['intent' => 'join']))->assertRedirectContains('intent=join');
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'code']))
+            ->assertRedirect(route('dashboard', ['section' => 'programs']));
+
+        $this->get(route('auth.login', ['intent' => 'join']));
+        $this->get(route('auth.login'));
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'code', 'intent' => 'join']))
+            ->assertRedirect(route('dashboard'));
+    }
+
     public function test_it_redirects_an_alternate_host_before_starting_an_oauth_session(): void
     {
         config([

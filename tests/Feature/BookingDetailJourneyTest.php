@@ -128,6 +128,22 @@ final class BookingDetailJourneyTest extends TestCase
         $this->get($path)->assertOk()->assertSee('Synthetic private appointment note');
     }
 
+    public function test_switching_organization_from_a_verified_booking_opens_the_new_organizations_queue(): void
+    {
+        $this->multipleOrganizations = true;
+        session()->put('portal.organization_id', 'organization-1');
+
+        Livewire::withQueryParams(['status' => 'requested', 'booking_page' => 2])
+            ->test(BusinessWorkspace::class, ['booking' => self::BOOKING])
+            ->assertSee('Synthetic private appointment note')
+            ->call('selectOrganization', 'organization-2')
+            ->assertRedirect(route('dashboard', ['section' => 'bookings']));
+
+        $this->assertSame('organization-2', session('portal.organization_id'));
+        Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/bookings/'.self::BOOKING)
+            && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-2'));
+    }
+
     public function test_booking_link_keeps_its_id_and_filter_when_requesting_sign_in(): void
     {
         app(PortalAccessTokenStore::class)->forget();

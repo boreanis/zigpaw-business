@@ -19,6 +19,8 @@ class PortalOAuthController
 
     private const VERIFIER_KEY = 'platform.oauth.verifier';
 
+    private const PARTNER_APPLICATION = 'platform.oauth.application_state';
+
     private const BOOKING_RETURN = 'platform.oauth.booking_return';
 
     public function redirect(Request $request): RedirectResponse
@@ -35,11 +37,16 @@ class PortalOAuthController
             'This portal has not been connected to Zigpaw yet.',
         );
 
+        $applying = $request->query('intent') === 'join';
         if (! hash_equals($canonicalPortalUrl, $request->getSchemeAndHttpHost())) {
-            return redirect()->away($canonicalPortalUrl.'/auth/login', 308);
+            return redirect()->away($canonicalPortalUrl.'/auth/login'.($applying ? '?intent=join' : ''), 308);
         }
 
         $state = Str::random(64);
+        $request->session()->forget(self::PARTNER_APPLICATION);
+        if ($applying) {
+            $request->session()->put(self::PARTNER_APPLICATION, $state);
+        }
         $verifier = Str::random(96);
         $request->session()->put([self::STATE_KEY => $state, self::VERIFIER_KEY => $verifier]);
         $invitation = $request->query('invitation');
@@ -55,6 +62,7 @@ class PortalOAuthController
             'state' => $state,
             'code_challenge' => $challenge,
             'code_challenge_method' => 'S256',
+            ...($applying ? ['intent' => 'join'] : []),
         ]);
 
         return redirect()->away(config('platform.auth_url').'/oauth/authorize?'.$query);
@@ -70,6 +78,7 @@ class PortalOAuthController
 
         $state = $request->string('state')->toString();
         $expectedState = $request->session()->pull(self::STATE_KEY);
+        $applicationState = $request->session()->pull(self::PARTNER_APPLICATION);
         $verifier = $request->session()->pull(self::VERIFIER_KEY);
         $bookingReturn = $this->consumeBookingReturn($request, $state);
         $invitationReturn = app(TeamInvitationContinuation::class)->consumeOAuthReturn(is_string($expectedState) ? $expectedState : null);
@@ -129,6 +138,10 @@ class PortalOAuthController
         if ($bookingReturn !== null) {
             return redirect()->route('bookings.show', $bookingReturn)
                 ->header('Referrer-Policy', 'no-referrer');
+        }
+
+        if (is_string($applicationState) && hash_equals($applicationState, $state)) {
+            return redirect()->route('dashboard', ['section' => 'programs']);
         }
 
         return redirect()->route('dashboard');

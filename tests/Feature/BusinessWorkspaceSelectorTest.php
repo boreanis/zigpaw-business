@@ -54,6 +54,16 @@ class BusinessWorkspaceSelectorTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/me'));
     }
 
+    public function test_application_destination_survives_choosing_a_workspace(): void
+    {
+        $this->fakeWorkspace(organizationTotal: 27);
+
+        Livewire::withQueryParams(['section' => 'programs'])->test(BusinessWorkspace::class)
+            ->assertSet('state', 'choose_organization')
+            ->call('selectOrganization', 'org-1')
+            ->assertRedirect(route('dashboard', ['section' => 'programs']));
+    }
+
     public function test_organization_search_and_later_pages_remain_selectable(): void
     {
         $this->fakeWorkspace(organizationTotal: 27);

@@ -4,7 +4,7 @@
 
 Booking detail shows the current opening note and the authorized conversation, newest messages first, ten per page. A failed conversation read has its own retry. An explicit branch pause turns off incoming requests at that branch even if its provider accepts requests elsewhere. Completion is available from the confirmed appointment start. After a provider proposes a time, its provider reminder stops. The customer can receive one reminder in the Updates inbox during the final day before their decision deadline.
 
-Revenue shows each commission status separately for each currency. Approved payable, paid, pending and reversed amounts retain their individual labels.
+Revenue shows each commission status separately for each currency. Approved payable, paid, pending and reversed amounts retain their individual labels. The Platform formats individual amounts and totals at the settlement currency’s precision. A flat fee follows the agreement currency even when the customer paid in a different currency.
 
 When two operators edit one location, Booking setup keeps the second operator’s draft and shows **Reload latest settings**. This action asks before discarding the draft. Weekly hours may repeat in different seasons. A conflict requires active rules to cover the same weekday, date and time.
 
@@ -14,7 +14,7 @@ Approved referral partners can copy their code from **Partner programs**. When c
 
 ## November 25 — Patient search and booking responses
 
-Open a booking from Overview or the booking queue to review its exact request, appointment timezone and current Platform actions. The queue prioritizes open requests by response deadline. Back to booking requests restores the selected filter, page and row. When a decision removes the booking from the filter, keyboard focus returns to the selected filter. If the queue has shrunk, it opens the last remaining page. A confirmed decision requires a matching Platform receipt. Opening a patient profile for an appointment checks the current grant and patient again. Leaving the page clears the transient profile. Sign-in retains an authorized exact destination.
+Open a booking from Overview or the booking queue to review its exact request, appointment timezone and current Platform actions. The queue prioritizes open requests by response deadline. Back to booking requests restores the selected filter, page and row. When a decision removes the booking from the filter, keyboard focus returns to the selected filter. If the queue has shrunk, it opens the last remaining page. Switching organisations from a verified booking opens the new organisation’s booking queue. An initial organisation choice can still open the original booking link. A confirmed decision requires a matching Platform receipt. Opening a patient profile for an appointment checks the current grant and patient again. Leaving the page clears the transient profile. Sign-in retains an authorized exact destination.
 
 Clinical patient-name searches use a JSON body. A ten-minute encrypted search is bound to the clinical login, organization and browser session. Results can be paged without putting the name in a URL. An expired search can be restarted. A patient list page that disappeared is read again at its last available page. The expiring-patient view uses Platform's 30-day window and displays the precise UTC deadline. Historical grants show when access expired or was revoked and list current permissions.
 
@@ -306,6 +306,8 @@ token handle, organization context and pending retry state while preserving the
 management session. Local cleanup still runs if revocation or cache locking
 fails.
 
+Clinical submission history restores the selected status, page and receipt row when staff return from a receipt. If a page disappears, the workspace requests the last remaining page once. History and receipt links can resume after clinical sign-in through a single-use handle. A continuation associated with a selected organisation requires that organisation again. Receipt timestamps include the time and timezone in both views.
+
 Clinical patient cards label the API-provided date as `Access expires`. Missing
 species or breed values show `No species or breed details available.`; they do
 not imply that profile access was denied. Capability controls continue to use
@@ -336,6 +338,8 @@ sequenceDiagram
 ```
 
 ## Workspace
+
+The public referral application opens Partner sign-in with a fixed application intent. After the OAuth exchange, an eligible member lands in Partner programs. Choosing an organization preserves that destination and checks the selected membership. A person without an active workspace can open the public partnership enquiry. Staff invitations and booking continuations retain their own destinations.
 
 The portal presents:
 

@@ -6,6 +6,8 @@ use App\Exceptions\PlatformApiException;
 use App\Livewire\Concerns\UsesPortalWorkspace;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalSubmissionHistory;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -13,9 +15,6 @@ use Livewire\Component;
 class SubmissionIndex extends Component
 {
     use UsesPortalWorkspace;
-
-    /** @var list<string> */
-    private const SUBMISSION_STATUSES = ['all', 'pending', 'approved', 'partially_approved', 'rejected'];
 
     /** @var list<array<string, mixed>> */
     public array $submissions = [];
@@ -41,7 +40,7 @@ class SubmissionIndex extends Component
 
     public function filter(PlatformApiClient $api, ClinicalPortalAccessTokenStore $tokens): void
     {
-        $this->validate(['status' => ['required', 'in:all,pending,approved,partially_approved,rejected']]);
+        $this->validate(['status' => ['required', Rule::in(array_keys(ClinicalSubmissionHistory::STATUSES))]]);
         $this->page = 1;
         $this->loadSubmissions($api, $tokens);
     }
@@ -65,7 +64,7 @@ class SubmissionIndex extends Component
 
     public function render(): View
     {
-        return view('livewire.clinical.submission-index')
+        return view('livewire.clinical.submission-index', ['historyQuery' => ClinicalSubmissionHistory::query($this->status, $this->page)])
             ->layout('components.layouts.clinical', ['title' => 'Care submissions · Zigpaw Partners clinical']);
     }
 
@@ -83,13 +82,19 @@ class SubmissionIndex extends Component
         $this->message = null;
 
         try {
-            $response = $api->clinicalSubmissions(
+            $fetchPage = fn (int $page): array => $api->clinicalSubmissions(
                 $tokens,
                 $organizationId,
-                $this->page,
+                $page,
                 25,
                 $this->status === 'all' ? null : $this->status,
             );
+            $response = $fetchPage($this->page);
+            $lastPage = $response['meta']['last_page'];
+            if ($this->page > $lastPage) {
+                $this->page = $lastPage;
+                $response = $fetchPage($lastPage);
+            }
             $this->submissions = $response['data'];
             $this->meta = $response['meta'];
         } catch (PlatformApiException $exception) {
@@ -101,12 +106,16 @@ class SubmissionIndex extends Component
         }
     }
 
+    /** @return array{string, array{status?: string, page?: int}} */
+    protected function clinicalReturnTarget(): array
+    {
+        return ['clinical.submissions.index', ClinicalSubmissionHistory::query($this->status, $this->page)];
+    }
+
     private function normalizeFilters(): void
     {
-        if (! in_array($this->status, self::SUBMISSION_STATUSES, true)) {
-            $this->status = 'all';
-        }
-
-        $this->page = max(1, min(100_000, $this->page));
+        $query = ClinicalSubmissionHistory::query($this->status, $this->page);
+        $this->status = $query['status'] ?? 'all';
+        $this->page = $query['page'] ?? 1;
     }
 }

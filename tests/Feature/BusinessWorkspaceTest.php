@@ -358,8 +358,8 @@ class BusinessWorkspaceTest extends TestCase
             ]])),
             'https://api.zigpaw.test/v1/business/financials' => Http::response(['data' => ['currencies' => [[
                 'currency' => 'CAD', 'commissions' => [
-                    ['status' => 'approved', 'status_label' => 'Approved', 'payable' => true, 'entry_count' => 1, 'amount_cents' => 2000],
-                    ['status' => 'refunded', 'status_label' => 'Refunded', 'payable' => false, 'entry_count' => 1, 'amount_cents' => 3000],
+                    ['status' => 'approved', 'status_label' => 'Approved', 'payable' => true, 'entry_count' => 1, 'amount_cents' => 2000, 'amount_display' => '20.00'],
+                    ['status' => 'refunded', 'status_label' => 'Refunded', 'payable' => false, 'entry_count' => 1, 'amount_cents' => 3000, 'amount_display' => '30.00'],
                 ],
             ]]]]),
             'https://api.zigpaw.test/v1/business/financials/commissions*' => Http::response(self::page([])),

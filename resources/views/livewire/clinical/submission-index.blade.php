@@ -1,12 +1,9 @@
 <div class="page-stack">
     <x-clinical.page-heading title="Care submissions" description="Track records your team sent for family review." />
 
-    @php
-        $statuses = ['all' => 'All statuses', 'pending' => 'Pending', 'approved' => 'Approved', 'partially_approved' => 'Partly approved', 'rejected' => 'Not added'];
-    @endphp
     <form class="filter-bar submission-filter" wire:submit="filter">
         <x-clinical.filter-select label="Filter submission status" wire:model="status">
-            @foreach ($statuses as $value => $label)
+            @foreach (\App\Support\ClinicalSubmissionHistory::STATUSES as $value => $label)
                 <option value="{{ $value }}">{{ $label }}</option>
             @endforeach
         </x-clinical.filter-select>
@@ -33,15 +30,13 @@
                 @php
                     $counts = collect($submission['record_counts'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $type) => $count.' '.str((string) $type)->replace('_', ' '));
                 @endphp
-                <a href="{{ route('clinical.submissions.show', ['submissionId' => $submission['id']]) }}" wire:navigate>
+                <a id="submission-{{ $submission['id'] }}" href="{{ route('clinical.submissions.show', ['submissionId' => $submission['id']] + $historyQuery) }}" wire:navigate>
                     <div class="submission-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5m-5 4h5"/></svg></div>
                     <div class="submission-copy">
                         <div><strong>Care submission</strong><x-clinical.submission-status :status="$submission['status'] ?? null" /></div>
                         @if ($counts->isNotEmpty())<p>{{ $counts->join(' · ') }}</p>@endif
                     </div>
-                    @if ($submission['submitted_at'] ?? null)
-                        <time datetime="{{ $submission['submitted_at'] }}">{{ str((string) $submission['submitted_at'])->before('T') }}</time>
-                    @endif
+                    <x-clinical.submitted-at :value="$submission['submitted_at'] ?? null" />
                     <svg class="row-arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m9 5 7 7-7 7"/></svg>
                 </a>
             @endforeach

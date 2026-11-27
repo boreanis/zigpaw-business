@@ -6,9 +6,11 @@ use App\Livewire\BusinessWorkspace;
 use App\Livewire\Clinical\CareSubmission;
 use App\Livewire\Clinical\PatientIndex;
 use App\Livewire\Clinical\PatientShow;
+use App\Livewire\Clinical\SubmissionIndex;
 use App\Livewire\ClinicalDashboard;
 use App\Services\PlatformApiClient;
 use App\Support\ClinicalPortalAccessTokenStore;
+use App\Support\ClinicalReturnDestination;
 use App\Support\PortalAccessTokenStore;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
@@ -919,14 +921,66 @@ class ClinicalWorkspaceTest extends TestCase
 
         $this->get('/clinical/submissions')
             ->assertOk()
+            ->assertSee('16 Aug 2026, 01:30 UTC')
             ->assertSee('1 visits')
             ->assertSee('2 vaccinations');
 
         $this->get('/clinical/submissions/'.self::SUBMISSION_ID)
             ->assertOk()
             ->assertSee('Waiting for the profile manager')
+            ->assertSee('16 Aug 2026, 01:30 UTC')
             ->assertSee('4 records')
             ->assertDontSee('clinical API');
+    }
+
+    public function test_filtered_history_recovers_a_vanished_page_and_the_receipt_returns_to_that_row(): void
+    {
+        $this->signIn();
+        $submission = ['id' => self::SUBMISSION_ID, 'status' => 'approved'];
+        $pages = [];
+        Http::fake(function (Request $request) use ($submission, &$pages) {
+            if (str_ends_with($request->url(), '/'.self::SUBMISSION_ID)) {
+                return Http::response(['data' => $submission]);
+            }
+            $this->assertSame('approved', $request['status']);
+            $pages[] = $page = (int) $request['page'];
+
+            return Http::response([
+                'data' => $page === 2 ? [$submission] : [],
+                'links' => $this->pageLinks(),
+                'meta' => ['current_page' => $page, 'last_page' => 2, 'per_page' => 25, 'total' => 26],
+            ]);
+        });
+
+        $context = ['status' => 'approved', 'page' => 2];
+        $receipt = route('clinical.submissions.show', ['submissionId' => self::SUBMISSION_ID] + $context);
+        Livewire::withQueryParams(['status' => 'approved', 'page' => 8])->test(SubmissionIndex::class)
+            ->assertSet('page', 2)->assertSee($receipt)->assertDontSee('No submissions match');
+        $this->assertSame([8, 2], $pages);
+
+        $this->get($receipt)->assertOk()
+            ->assertSee(route('clinical.submissions.index', $context).'#submission-'.self::SUBMISSION_ID);
+    }
+
+    public function test_a_failed_clinical_receipt_can_resume_once_in_its_authorized_organization(): void
+    {
+        $this->signIn();
+        Http::fake(['*' => Http::response(['message' => 'Session expired.'], 401)]);
+        $location = $this->get('/clinical/submissions/'.self::SUBMISSION_ID.'?status=pending&page=3&next=untrusted')
+            ->assertRedirect()->headers->get('Location');
+        $this->assertStringNotContainsString(self::SUBMISSION_ID, $location);
+        parse_str(parse_url($location, PHP_URL_QUERY), $query);
+        $returns = app(ClinicalReturnDestination::class);
+        $expected = ['submissionId' => self::SUBMISSION_ID, 'status' => 'pending', 'page' => 3];
+        $this->assertSame(['clinical.submissions.show', $expected], $returns->consume($query['resume'], 'organization-1'));
+        $this->assertNull($returns->consume($query['resume'], 'organization-1'));
+
+        session()->put('clinical_portal.organization_id', 'organization-1');
+        $location = $this->get('/clinical/submissions?status=approved&page=2')->assertRedirect()->headers->get('Location');
+        parse_str(parse_url($location, PHP_URL_QUERY), $query);
+        $this->assertNull($returns->consume($query['resume'], 'another-organization'));
+        $this->assertNull($returns->consume($query['resume'], 'organization-1'));
+        $this->assertNull($returns->remember('clinical.submissions.show', ['submissionId' => 'invalid']));
     }
 
     public function test_submission_filters_normalize_hostile_url_values_before_the_platform_request(): void
