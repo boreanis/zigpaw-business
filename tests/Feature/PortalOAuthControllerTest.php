@@ -219,6 +219,24 @@ class PortalOAuthControllerTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_booking_queue_sign_in_restores_only_its_allowed_status_and_page(): void
+    {
+        config(['platform.oauth_client_id' => 'synthetic-client']);
+        Http::fake(['https://auth.zigpaw.test/oauth/token' => Http::response([
+            'access_token' => 'synthetic-access-token', 'refresh_token' => 'synthetic-refresh-token', 'expires_in' => 900,
+        ])]);
+        $launch = $this->get(route('auth.login', ['booking_queue' => 1, 'booking_status' => 'proposed', 'booking_page' => 3]))
+            ->assertRedirectContains('https://auth.zigpaw.test/oauth/authorize?');
+        self::assertStringNotContainsString('proposed', (string) $launch->headers->get('Location'));
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'synthetic', 'booking_status' => 'declined']))
+            ->assertRedirect(route('dashboard', ['section' => 'bookings', 'booking_page' => 3, 'status' => 'proposed']))
+            ->assertSessionMissing('platform.oauth.booking_return');
+
+        $this->get(route('auth.login', ['booking_queue' => 1, 'booking_status' => 'unlisted', 'booking_page' => -2]));
+        $this->get(route('auth.callback', ['state' => session('platform.oauth.state'), 'code' => 'synthetic']))
+            ->assertRedirect(route('dashboard', ['section' => 'bookings']));
+    }
+
     public function test_expired_or_replaced_booking_continuation_cannot_direct_sign_in(): void
     {
         $booking = '019f5a00-0000-7000-8000-000000000041';

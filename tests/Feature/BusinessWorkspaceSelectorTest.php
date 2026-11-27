@@ -62,6 +62,11 @@ class BusinessWorkspaceSelectorTest extends TestCase
             ->assertSet('state', 'choose_organization')
             ->call('selectOrganization', 'org-1')
             ->assertRedirect(route('dashboard', ['section' => 'programs']));
+
+        session()->forget('portal.organization_id');
+        Livewire::withQueryParams(['section' => 'bookings', 'status' => 'completed', 'booking_page' => 3])->test(BusinessWorkspace::class)
+            ->assertSet('state', 'choose_organization')->call('selectOrganization', 'org-1')
+            ->assertRedirect(route('dashboard', ['section' => 'bookings', 'status' => 'completed', 'booking_page' => 3]));
     }
 
     public function test_organization_search_and_later_pages_remain_selectable(): void
@@ -128,6 +133,92 @@ class BusinessWorkspaceSelectorTest extends TestCase
             && $request['availability_rules'][0]['starts_at'] === '09:00'
             && count($request['availability_exceptions']) === 1);
         Http::assertNotSent(fn (Request $request): bool => $request->method() === 'GET' && str_contains($request->url(), '/booking-profiles'));
+    }
+
+    public function test_location_switch_requires_a_choice_when_a_booking_draft_is_dirty(): void
+    {
+        $this->fakeWorkspace();
+        $screen = Livewire::test(BusinessWorkspace::class)->call('showSection', 'booking-setup')
+            ->set('bookingCustomerInstructions', 'Keep this draft')
+            ->call('addBookingAvailabilityRule')
+            ->call('selectBookingProvider', 'link-101')
+            ->assertSet('bookingProviderLinkId', 'link-1')->assertSet('pendingBookingProvider', 'link-101')
+            ->assertSee('Discard booking changes?')->call('keepBookingDraft')
+            ->assertSet('pendingBookingProvider', null)->assertSet('bookingCustomerInstructions', 'Keep this draft');
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'link-101'));
+        $screen->call('selectBookingProvider', 'link-101')->call('discardBookingDraftAndSwitch')
+            ->assertSet('loadedBookingProviderLinkId', 'link-101')->assertSet('bookingCustomerInstructions', '')
+            ->assertSet('pendingBookingProvider', null);
+        Http::assertNotSent(fn (Request $request): bool => $request->method() === 'PUT');
+    }
+
+    public function test_services_identify_each_provider_and_open_a_new_draft_outside_the_visible_page(): void
+    {
+        $offering = [
+            'id' => '019f5a00-0000-7000-8000-000000000144', 'name' => 'Annual checkup', 'status' => 'draft',
+            'default_duration_minutes' => 17, 'request_mode' => 'request', 'provider' => ['name' => 'Synthetic provider one'],
+            'place_id' => null,
+        ];
+        $created = [...$offering, 'id' => '019f5a00-0000-7000-8000-000000000145', 'name' => 'Zebra consultation',
+            'provider' => ['name' => 'Synthetic provider two'], 'place_id' => 'place-two', 'place' => ['name' => 'Synthetic branch two']];
+        $this->fakeWorkspace(override: function (Request $request) use ($offering, $created) {
+            if (parse_url($request->url(), PHP_URL_PATH) !== '/v1/business/offerings') {
+                return null;
+            }
+
+            return $request->method() === 'POST'
+                ? Http::response(['data' => $created], 201)
+                : Http::response($this->page([$offering], 1, 26));
+        });
+        Livewire::test(BusinessWorkspace::class)->call('showSection', 'services')
+            ->assertSee('Synthetic provider one · All locations')
+            ->call('startOfferingEdit', $offering['id'])->assertSet('editingOfferingScope', 'Synthetic provider one · All locations')
+            ->call('cancelOfferingEdit')->set('offeringName', $created['name'])->set('offeringDurationMinutes', 17)
+            ->call('createOffering')->assertSet('offerings.0.id', $offering['id'])
+            ->assertSet('editingOfferingId', $created['id'])->assertSet('editingOfferingDurationMinutes', 17)
+            ->assertSet('editingOfferingScope', 'Synthetic provider two · Synthetic branch two');
+    }
+
+    public function test_revenue_pagination_only_reads_the_requested_ledger_and_commits_its_page_after_a_successful_read(): void
+    {
+        $reads = [];
+        $fail = false;
+        $this->fakeWorkspace(override: function (Request $request) use (&$reads, &$fail) {
+            $path = basename(parse_url($request->url(), PHP_URL_PATH));
+            if ($path === 'me') {
+                return Http::response(['data' => ['organization' => $this->organization('org-1'), 'membership' => [
+                    'role' => 'finance', 'capabilities' => ['portal.view', 'financials.view'],
+                ]]]);
+            }
+            if (! in_array($path, ['financials', 'agreements', 'commissions'], true)) {
+                return null;
+            }
+            $reads[] = $path;
+            if ($path === 'financials') {
+                return Http::response(['data' => ['currencies' => []]]);
+            }
+            if ($path === 'commissions' && $fail) {
+                return Http::response(['message' => 'Ledger temporarily unavailable.'], 503);
+            }
+            $page = (int) $request['page'];
+
+            return Http::response($this->page($path === 'agreements' ? [] : [[
+                'id' => 'entry-'.$page, 'event_type' => 'referral', 'currency' => 'CAD', 'amount_display' => '2.00', 'status' => 'approved',
+            ]], $page, 30));
+        });
+        $screen = Livewire::withQueryParams(['section' => 'revenue'])->test(BusinessWorkspace::class)
+            ->assertSet('commissions.0.id', 'entry-1');
+        self::assertSame(['financials', 'commissions', 'agreements'], $reads);
+        $reads = [];
+        $fail = true;
+        $screen->call('changePage', 'commissions', 2)->assertSet('pagination.commissions.current_page', 1)
+            ->assertSet('commissions.0.id', 'entry-1');
+        self::assertSame(['commissions'], array_values(array_unique($reads)));
+        $reads = [];
+        $fail = false;
+        $screen->call('changePage', 'commissions', 2)->assertSet('pagination.commissions.current_page', 2)
+            ->assertSet('commissions.0.id', 'entry-2');
+        self::assertSame(['commissions'], $reads);
     }
 
     public function test_concurrent_booking_update_preserves_the_draft_and_requires_an_explicit_reload(): void

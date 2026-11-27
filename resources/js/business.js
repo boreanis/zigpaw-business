@@ -508,7 +508,8 @@ class BusinessOverlayController {
                     && !overlay.contains(active);
                 if (userChoseAnotherTarget) return;
 
-                const restoreTarget = this.resolveRestoreTarget(restoreDescriptor);
+                const explicitTarget = overlay.dataset.overlayReturnId && document.getElementById(overlay.dataset.overlayReturnId);
+                const restoreTarget = explicitTarget || this.resolveRestoreTarget(restoreDescriptor);
                 if (restoreTarget instanceof HTMLElement && restoreTarget.isConnected) {
                     restoreTarget.focus({ preventScroll: true });
                 }

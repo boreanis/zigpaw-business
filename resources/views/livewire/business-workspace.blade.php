@@ -379,10 +379,13 @@
                     @else
                         <x-business.section-heading title="Booking requests" description="Customers pay your business directly." />
                         <nav class="window-list" aria-label="Booking status" data-booking-filters>
-                            @foreach (['all' => 'All requests', 'requested' => 'Needs response', 'accepted' => 'Accepted'] as $status => $label)
-                                @php($active = ($this->bookingFilter() ?? 'all') === $status)
-                                <x-business.button :variant="$active ? 'primary' : 'secondary'" :href="route('dashboard', ['section' => 'bookings', 'status' => $status === 'all' ? null : $status])" :aria-current="$active ? 'page' : null" wire:navigate>{{ $label }}</x-business.button>
-                            @endforeach
+                            <x-business.booking-status-links :statuses="\App\Support\PartnerBookingStatus::QUICK_FILTERS" :current="$this->bookingFilter()" />
+                            <details @if (isset(\App\Support\PartnerBookingStatus::OTHER_FILTERS[$this->bookingFilter()])) open @endif>
+                                <summary>More statuses</summary>
+                                <div class="window-list">
+                                    <x-business.booking-status-links :statuses="\App\Support\PartnerBookingStatus::OTHER_FILTERS" :current="$this->bookingFilter()" />
+                                </div>
+                            </details>
                         </nav>
                         <div class="booking-list">
                             @forelse ($bookings as $row)
@@ -398,7 +401,7 @@
                                     <x-business.status :tone="$row['status'] === 'requested' ? 'warn' : ($row['status'] === 'accepted' ? 'good' : 'neutral')">{{ str($row['status'])->headline() }}</x-business.status>
                                 </x-business.button>
                             @empty
-                                <x-business.empty-state :title="$this->bookingFilter() === 'requested' ? 'No requests need a response' : ($this->bookingFilter() === 'accepted' ? 'No accepted bookings' : 'No booking requests yet')" :description="$this->bookingFilter() === null ? 'New customer requests will appear here.' : null" />
+                                <x-business.empty-state :title="$this->bookingFilter() === 'requested' ? 'No requests need a response' : ($this->bookingFilter() ? 'No '.$this->bookingFilter().' bookings' : 'No booking requests yet')" :description="$this->bookingFilter() === null ? 'New customer requests will appear here.' : null" />
                             @endforelse
                         </div>
                         <x-business-pagination resource="bookings" label="booking requests" :pagination="$pagination" />
@@ -411,7 +414,18 @@
                         description="Choose where to accept requests. Your team can see them here even without email or phone notifications."
                     />
 
-                    <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$bookingProviderLinkId" :selected-label="data_get($selectedBookingProvider, 'place.name') ?: data_get($selectedBookingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectBookingProvider" field-name="bookingProviderLinkId" :pagination="$pagination" />
+                    <div wire:key="booking-location-picker-{{ $pendingBookingProvider === null ? 'current' : 'confirm' }}">
+                        <x-business.workspace-selector label="Locations" resource="providerOptions" :items="$providerOptions" :selected-id="$bookingProviderLinkId" :selected-label="data_get($selectedBookingProvider, 'place.name') ?: data_get($selectedBookingProvider, 'provider.name')" search-property="providerSearch" search-action="searchProviders" select-action="selectBookingProvider" field-name="bookingProviderLinkId" :pagination="$pagination" />
+                    </div>
+                    @if ($pendingBookingProvider !== null)
+                        <x-business.overlay id="booking-location-change" data-overlay-return-id="business-field-bookingProviderLinkId" title="Discard booking changes?" :open="true" close-action="keepBookingDraft">
+                            <x-slot:body><p>Switching locations will discard the changes to this location’s booking setup.</p></x-slot:body>
+                            <x-slot:actions>
+                                <x-business.button wire:click="keepBookingDraft" data-overlay-initial-focus>Keep editing</x-business.button>
+                                <x-business.button variant="danger" wire:click="discardBookingDraftAndSwitch">Discard and switch</x-business.button>
+                            </x-slot:actions>
+                        </x-business.overlay>
+                    @endif
                     @if ($providerOptions !== [] || $bookingProviderLinkId !== '')
                         @if ($loadedBookingProviderLinkId === null)
                             <x-business.error-state title="Booking settings could not be loaded" message="Choose a location or retry before changing its settings.">
@@ -533,7 +547,7 @@
                     @if ($providerOptions !== [] || $selectedOfferingProvider !== null)
                         <form class="inline-form" wire:submit="createOffering">
                             <x-business.field class="form-grow" label="Service name" name="offeringName"><x-business.control type="text" wire:model="offeringName" placeholder="Wellness consultation" /></x-business.field>
-                            <x-business.field label="Duration (minutes)" name="offeringDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="offeringDurationMinutes" placeholder="30" /></x-business.field>
+                            <x-business.field label="Duration (minutes)" name="offeringDurationMinutes"><x-business.control type="number" min="5" max="1440" step="1" wire:model="offeringDurationMinutes" placeholder="30" /></x-business.field>
                             <x-business.button variant="primary" type="submit">Add service</x-business.button>
                         </form>
                     @endif
@@ -541,7 +555,7 @@
                         @forelse ($offerings as $offering)
                             <x-business.data-row
                                 :title="$offering['name']"
-                                :description="data_get($offering, 'place.name', 'All locations').($offering['default_duration_minutes'] ? ' · '.$offering['default_duration_minutes'].' minutes' : '')"
+                                :description="\App\Support\PartnerOfferingScope::label($offering).($offering['default_duration_minutes'] ? ' · '.$offering['default_duration_minutes'].' minutes' : '')"
                             >
                                 <x-slot:actions>
                                     <x-business.status :tone="$offering['status'] === 'active' ? 'good' : 'neutral'">{{ $offering['status'] === 'active' ? 'Available' : str($offering['status'])->headline() }}</x-business.status>
@@ -558,14 +572,14 @@
                         :open="$editingOfferingId !== ''"
                         :message="$message"
                         :title="$editingOfferingName ?: 'Edit service'"
-                        eyebrow="Service"
+                        :eyebrow="$editingOfferingScope"
                         close-action="cancelOfferingEdit"
                     >
                         <x-slot:body>
                         <form id="offering-edit-form" wire:submit="saveOffering">
                             <div class="form-grid form-grid-two">
                                 <x-business.field label="Service name" name="editingOfferingName"><x-business.control type="text" wire:model="editingOfferingName" data-overlay-initial-focus /></x-business.field>
-                                <x-business.field label="Duration (minutes)" name="editingOfferingDurationMinutes"><x-business.control type="number" min="5" max="1440" step="5" wire:model="editingOfferingDurationMinutes" /></x-business.field>
+                                <x-business.field label="Duration (minutes)" name="editingOfferingDurationMinutes"><x-business.control type="number" min="5" max="1440" step="1" wire:model="editingOfferingDurationMinutes" /></x-business.field>
                                 <x-business.field label="Status" name="editingOfferingStatus"><x-business.control as="select" wire:model="editingOfferingStatus"><option value="draft">Draft</option><option value="active">Available</option><option value="paused">Paused</option></x-business.control></x-business.field>
                                 <x-business.field label="How customers respond" name="editingOfferingRequestMode"><x-business.control as="select" wire:model="editingOfferingRequestMode"><option value="request">Request in Zigpaw</option><option value="contact">Contact the business</option><option value="external">Use an external page</option></x-business.control></x-business.field>
                                 <x-business.field class="form-span-two" label="Description" name="editingOfferingDescription"><x-business.control as="textarea" wire:model="editingOfferingDescription" rows="4"></x-business.control></x-business.field>
@@ -741,7 +755,7 @@
                     <h1>Sign in to Partners</h1>
                     <p>{{ $message ?: 'Manage your listings, bookings, services and team in one place.' }}</p>
                     <div class="access-actions">
-                        <x-business.button variant="primary" :href="route('auth.login', $bookingId === null ? [] : ['booking' => $bookingId, 'booking_status' => $this->bookingFilter(), 'booking_page' => $bookingPage > 1 ? $bookingPage : null])">Sign in</x-business.button>
+                        <x-business.button variant="primary" :href="route('auth.login', $bookingId !== null || $section === 'bookings' ? ['booking' => $bookingId, 'booking_queue' => $bookingId === null ? 1 : null, 'booking_status' => $this->bookingFilter(), 'booking_page' => $bookingPage > 1 ? $bookingPage : null] : [])">Sign in</x-business.button>
                         <x-business.button variant="text" :href="route('clinical.dashboard')">Clinical workspace</x-business.button>
                     </div>
                 @endif

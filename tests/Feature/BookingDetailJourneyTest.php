@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\BusinessWorkspace;
+use App\Support\PartnerBookingStatus;
 use App\Support\PortalAccessTokenStore;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
@@ -142,6 +143,21 @@ final class BookingDetailJourneyTest extends TestCase
         $this->assertSame('organization-2', session('portal.organization_id'));
         Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/bookings/'.self::BOOKING)
             && $request->hasHeader('X-Zigpaw-Organization-ID', 'organization-2'));
+    }
+
+    public function test_each_contract_booking_status_can_be_selected_and_survives_the_queue_detail_round_trip(): void
+    {
+        $contract = json_decode(file_get_contents(base_path('contracts/business-v1.json')), true, flags: JSON_THROW_ON_ERROR);
+        $parameter = collect($contract['paths']['/business/bookings']['get']['parameters'])->firstWhere('name', 'status');
+        $statuses = array_filter($parameter['schema']['enum'], 'is_string');
+        self::assertEqualsCanonicalizing($statuses, array_values(array_diff(array_keys(PartnerBookingStatus::QUICK_FILTERS + PartnerBookingStatus::OTHER_FILTERS), ['all'])));
+        foreach ($statuses as $status) {
+            $this->get('/?section=bookings&status='.$status)->assertOk()
+                ->assertSee(route('dashboard', ['section' => 'bookings', 'status' => $status]));
+            Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/bookings?status='.$status.'&'));
+            $this->get('/bookings/'.self::BOOKING.'?status='.$status)->assertOk()
+                ->assertSee(route('dashboard', ['section' => 'bookings', 'status' => $status]).'#booking-'.self::BOOKING);
+        }
     }
 
     public function test_booking_link_keeps_its_id_and_filter_when_requesting_sign_in(): void

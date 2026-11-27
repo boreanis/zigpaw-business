@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Exceptions\PlatformApiException;
 use App\Livewire\Concerns\HandlesWorkspaceValidation;
 use App\Services\PlatformApiClient;
+use App\Support\PartnerBookingStatus;
+use App\Support\PartnerOfferingScope;
 use App\Support\PortalAccessTokenStore;
 use App\Support\PortalDateTime;
 use Illuminate\Support\Carbon;
@@ -78,6 +80,12 @@ class BusinessWorkspace extends Component
     #[Locked]
     public ?string $bookingConfigurationRevision = null;
 
+    #[Locked]
+    public ?string $bookingDraftBaseline = null;
+
+    #[Locked]
+    public ?string $pendingBookingProvider = null;
+
     /** @var array<string, mixed> */
     #[Locked]
     public array $identity = [];
@@ -123,6 +131,7 @@ class BusinessWorkspace extends Component
     public string $claimantPhone = '';
 
     /** @var list<array<string, mixed>> */
+    #[Locked]
     public array $offerings = [];
 
     /** @var list<array<string, mixed>> */
@@ -153,7 +162,11 @@ class BusinessWorkspace extends Component
 
     public ?int $offeringDurationMinutes = null;
 
+    #[Locked]
     public string $editingOfferingId = '';
+
+    #[Locked]
+    public string $editingOfferingScope = '';
 
     public string $editingOfferingName = '';
 
@@ -366,6 +379,11 @@ class BusinessWorkspace extends Component
 
             return;
         }
+        if ($this->state === 'choose_organization' && $this->section === 'bookings') {
+            $this->redirectRoute('dashboard', ['section' => 'bookings', 'status' => $this->bookingFilter(), 'booking_page' => $this->bookingPage > 1 ? $this->bookingPage : null], navigate: true);
+
+            return;
+        }
         $section = $this->state === 'choose_organization' && $this->section === 'programs' ? 'programs' : 'overview';
         $this->redirectRoute('dashboard', ['section' => $section], navigate: true);
     }
@@ -459,11 +477,18 @@ class BusinessWorkspace extends Component
         $meta = $this->pagination[$resource] ?? null;
         abort_unless(is_array($meta), 404);
 
-        $this->pagination[$resource]['current_page'] = min(
+        $page = min(
             max(1, $page),
             max(1, $meta['last_page']),
         );
 
+        if (in_array($resource, ['commissions', 'agreements'], true)) {
+            $this->authorizeSection('revenue');
+            $this->withApi(fn (PlatformApiClient $api, string $token) => $this->loadRevenuePage($api, $token, $this->requiredOrganizationId(), $resource, $page));
+
+            return;
+        }
+        $this->pagination[$resource]['current_page'] = $page;
         if ($resource === 'bookings') {
             $this->bookingPage = (int) $this->pagination[$resource]['current_page'];
         }
@@ -578,13 +603,16 @@ class BusinessWorkspace extends Component
         ], static fn (mixed $value): bool => $value !== null);
 
         $this->withMutationApi('offerings.create', 'offerings', $payload, function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($payload): void {
-            $api->createOffering($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
+            $created = $api->createOffering($accessToken, $this->requiredOrganizationId(), $payload, $idempotencyKey);
             $markMutationSucceeded();
             $this->assignPage('offerings', $api->offerings(
                 $accessToken,
                 $this->requiredOrganizationId(),
                 $this->currentPage('offerings'),
             ));
+            if (is_string($created['id'] ?? null) && is_string($created['name'] ?? null) && ($created['status'] ?? null) === 'draft') {
+                $this->openOfferingEditor($created);
+            }
             $this->offeringName = '';
             $this->offeringDurationMinutes = null;
             $this->notice = 'Service saved as a draft. Review it before making it available to customers.';
@@ -745,7 +773,14 @@ class BusinessWorkspace extends Component
         $offering = collect($this->offerings)->firstWhere('id', $offeringId);
         abort_unless(is_array($offering), 404);
 
-        $this->editingOfferingId = $offeringId;
+        $this->openOfferingEditor($offering);
+    }
+
+    /** @param array<string, mixed> $offering */
+    private function openOfferingEditor(array $offering): void
+    {
+        $this->editingOfferingId = (string) $offering['id'];
+        $this->editingOfferingScope = PartnerOfferingScope::label($offering);
         $this->editingOfferingName = (string) ($offering['name'] ?? '');
         $this->editingOfferingDescription = (string) ($offering['description'] ?? '');
         $this->editingOfferingDurationMinutes = isset($offering['default_duration_minutes'])
@@ -804,7 +839,7 @@ class BusinessWorkspace extends Component
     public function deleteOffering(string $offeringId): void
     {
         $this->authorizeCapability('providers.manage');
-        abort_unless(collect($this->offerings)->contains('id', $offeringId), 404);
+        abort_unless($offeringId !== '' && ($this->editingOfferingId === $offeringId || collect($this->offerings)->contains('id', $offeringId)), 404);
 
         $this->withMutationApi('offerings.delete', "offerings/{$offeringId}", [], function (PlatformApiClient $api, string $accessToken, string $idempotencyKey, callable $markMutationSucceeded) use ($offeringId): void {
             $api->deleteOffering($accessToken, $this->requiredOrganizationId(), $offeringId, $idempotencyKey);
@@ -824,6 +859,32 @@ class BusinessWorkspace extends Component
     public function selectBookingProvider(string $providerLinkId): void
     {
         $this->authorizeBookingConfiguration();
+        if ($providerLinkId !== $this->bookingProviderLinkId && $this->bookingDraftBaseline !== null
+            && ! hash_equals($this->bookingDraftBaseline, $this->bookingDraftSignature())) {
+            $this->pendingBookingProvider = $providerLinkId;
+
+            return;
+        }
+        $this->loadBookingLocation($providerLinkId);
+    }
+
+    public function keepBookingDraft(): void
+    {
+        $this->pendingBookingProvider = null;
+    }
+
+    public function discardBookingDraftAndSwitch(): void
+    {
+        $this->authorizeBookingConfiguration();
+        if ($this->pendingBookingProvider !== null) {
+            $this->loadBookingLocation($this->pendingBookingProvider);
+        }
+    }
+
+    private function loadBookingLocation(string $providerLinkId): void
+    {
+        $this->pendingBookingProvider = null;
+        $this->bookingDraftBaseline = null;
         $this->loadedBookingProviderLinkId = null;
         $this->bookingConfigurationState = 'unavailable';
         $this->bookingConfigurationRevision = null;
@@ -1256,7 +1317,7 @@ class BusinessWorkspace extends Component
 
     public function bookingFilter(): ?string
     {
-        return in_array($this->bookingListStatus, ['requested', 'accepted'], true) ? $this->bookingListStatus : null;
+        return PartnerBookingStatus::filter($this->bookingListStatus);
     }
 
     /** @param array<string, mixed> $payload */
@@ -1435,16 +1496,21 @@ class BusinessWorkspace extends Component
     private function loadRevenue(PlatformApiClient $api, string $accessToken, string $organizationId): void
     {
         $this->financials = $api->financials($accessToken, $organizationId);
-        $this->assignPage('commissions', $api->commissions(
-            $accessToken,
-            $organizationId,
-            $this->currentPage('commissions'),
-        ));
-        $this->assignPage('agreements', $api->agreements(
-            $accessToken,
-            $organizationId,
-            $this->currentPage('agreements'),
-        ));
+        foreach (['commissions', 'agreements'] as $resource) {
+            $this->loadRevenuePage($api, $accessToken, $organizationId, $resource, $this->currentPage($resource));
+        }
+    }
+
+    private function loadRevenuePage(PlatformApiClient $api, string $token, string $organizationId, string $resource, int $page): void
+    {
+        $fetch = fn (int $number): array => $resource === 'commissions'
+            ? $api->commissions($token, $organizationId, $number)
+            : $api->agreements($token, $organizationId, $number);
+        $result = $fetch($page);
+        if ($page > $result['meta']['last_page']) {
+            $result = $fetch($result['meta']['last_page']);
+        }
+        $this->assignPage($resource, $result);
     }
 
     /** @param array{data: list<array<string, mixed>>, meta: array{current_page: int, last_page: int, per_page: int, total: int}, links: array<string, ?string>} $page */
@@ -1512,6 +1578,19 @@ class BusinessWorkspace extends Component
         $this->bookingAvailabilityRules = is_array($profile) ? array_values((array) ($profile['availability_rules'] ?? [])) : [];
         $this->bookingAvailabilityExceptions = is_array($profile) ? array_values((array) ($profile['availability_exceptions'] ?? [])) : [];
         $this->resetErrorBag();
+        $this->pendingBookingProvider = null;
+        $this->bookingDraftBaseline = $this->bookingDraftSignature();
+    }
+
+    private function bookingDraftSignature(): string
+    {
+        $fields = $this->only([
+            'bookingStatus', 'bookingTimezone', 'bookingNotificationEmail', 'bookingNotificationPhone',
+            'bookingMinimumNoticeHours', 'bookingMaximumAdvanceDays', 'bookingResponseWindowHours',
+            'bookingCustomerInstructions', 'bookingAvailabilityRules', 'bookingAvailabilityExceptions',
+        ]);
+
+        return hash_hmac('sha256', serialize($fields), (string) config('app.key'));
     }
 
     private function resetProviderEditor(): void
@@ -1540,6 +1619,7 @@ class BusinessWorkspace extends Component
     {
         $this->reset([
             'editingOfferingId',
+            'editingOfferingScope',
             'editingOfferingName',
             'editingOfferingDescription',
             'editingOfferingDurationMinutes',

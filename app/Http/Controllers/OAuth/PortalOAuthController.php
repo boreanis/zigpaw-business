@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\OAuth;
 
+use App\Support\PartnerBookingStatus;
 use App\Support\PlatformConfiguration;
 use App\Support\PortalAccessTokenStore;
 use App\Support\RequestCorrelation;
@@ -136,7 +137,7 @@ class PortalOAuthController
                 ->header('Referrer-Policy', 'no-referrer');
         }
         if ($bookingReturn !== null) {
-            return redirect()->route('bookings.show', $bookingReturn)
+            return redirect()->route(isset($bookingReturn['booking']) ? 'bookings.show' : 'dashboard', $bookingReturn)
                 ->header('Referrer-Policy', 'no-referrer');
         }
 
@@ -151,27 +152,28 @@ class PortalOAuthController
     {
         $request->session()->forget(self::BOOKING_RETURN);
         $booking = $request->query('booking');
-        if (! is_string($booking) || ! Str::isUuid($booking)) {
+        $queue = $booking === null && $request->query('booking_queue') === '1';
+        if (! $queue && (! is_string($booking) || ! Str::isUuid($booking))) {
             return;
         }
 
         $status = $request->query('booking_status');
         $request->session()->put(self::BOOKING_RETURN, [
-            'booking' => strtolower($booking),
-            'status' => in_array($status, ['requested', 'accepted'], true) ? $status : null,
+            'booking' => $queue ? null : strtolower($booking),
+            'queue' => $queue,
+            'status' => PartnerBookingStatus::filter($status),
             'booking_page' => max(1, min(100_000, $request->integer('booking_page', 1))),
             'state_hash' => hash('sha256', $state),
             'expires_at' => now()->addMinutes(10)->timestamp,
         ]);
     }
 
-    /** @return array{booking: string, status: ?string, booking_page: ?int}|null */
+    /** @return array{booking?: string, section?: string, status: ?string, booking_page: ?int}|null */
     private function consumeBookingReturn(Request $request, string $state): ?array
     {
         $return = $request->session()->pull(self::BOOKING_RETURN);
         if (! is_array($return)
-            || ! is_string($return['booking'] ?? null)
-            || ! Str::isUuid($return['booking'])
+            || (($return['queue'] ?? false) !== true && (! is_string($return['booking'] ?? null) || ! Str::isUuid($return['booking'])))
             || ! is_string($return['state_hash'] ?? null)
             || ! hash_equals($return['state_hash'], hash('sha256', $state))
             || ! is_int($return['expires_at'] ?? null)
@@ -180,9 +182,9 @@ class PortalOAuthController
         }
 
         return [
-            'booking' => $return['booking'],
+            ...(($return['queue'] ?? false) === true ? ['section' => 'bookings'] : ['booking' => $return['booking']]),
             'booking_page' => ($return['booking_page'] ?? 1) > 1 ? (int) $return['booking_page'] : null,
-            'status' => in_array($return['status'] ?? null, ['requested', 'accepted'], true) ? $return['status'] : null,
+            'status' => PartnerBookingStatus::filter($return['status'] ?? null),
         ];
     }
 
